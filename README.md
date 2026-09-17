@@ -74,6 +74,8 @@ See the running app’s **/docs/api/management** for fields, examples, errors an
 
 Remote endpoint: `https://your-cms.example/api/mcp`, transport **Streamable HTTP**, header `Authorization: Bearer <key>`.
 
+To expose MCP on its own subdomain, deployed independently of the CMS (e.g. for browser-based connectors), see [`mcp-server/`](mcp-server/README.md): a standalone gateway that relays requests to this same endpoint.
+
 For a local stdio client, install this checkout’s dependencies, then configure:
 
 ```json

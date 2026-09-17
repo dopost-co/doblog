@@ -1,0 +1,24 @@
+# Reference only: Dokploy is configured through its own UI, not by reading
+# this file. Use these values when creating the app there (Docker Compose
+# is not used; this is a single Dockerfile app pointed at the mcp-server/
+# subfolder of the main zenex-cms repo).
+name: zenex-mcp-gateway
+type: dockerfile
+
+build:
+  context: .
+  dockerfile: mcp-server/Dockerfile
+
+deploy:
+  paths:
+    - mcp-server/**
+  branch: main
+
+# Configurar en Dokploy (Environment):
+# ZENEX_CMS_URL=https://your-cms.example
+# MCP_ALLOWED_HOSTS=mcp.your-cms.example
+# MCP_ALLOWED_ORIGINS=https://claude.ai,https://chatgpt.com,https://chat.openai.com
+# MCP_REQUEST_TIMEOUT_MS=30000
+#
+# Puerto interno del contenedor: 3200 (ver Dockerfile). Configura el dominio
+# en Dokploy apuntando a ese puerto, p. ej. mcp.your-cms.example.
