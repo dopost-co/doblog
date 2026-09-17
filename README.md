@@ -76,6 +76,19 @@ Remote endpoint: `https://your-cms.example/api/mcp`, transport **Streamable HTTP
 
 To expose MCP on its own subdomain, deployed independently of the CMS (e.g. for browser-based connectors), see [`mcp-server/`](mcp-server/README.md): a standalone gateway that relays requests to this same endpoint.
 
+### OAuth (for ChatGPT, Claude and other connector-style clients)
+
+Clients that connect through an OAuth flow rather than a pasted API key (ChatGPT's and Claude's "connector"/"remote MCP" UIs) can authorize directly: point them at the remote endpoint above (or the `mcp-server/` gateway's URL) and they discover everything else automatically —
+
+- `GET /.well-known/oauth-protected-resource` (and `/mcp` variant) — RFC 9728, names this app as the authorization server.
+- `GET /.well-known/oauth-authorization-server` — RFC 8414, lists the authorize/token/registration/revocation endpoints.
+- `POST /api/oauth/register` — RFC 7591 dynamic client registration (public clients only, PKCE required, no client secret).
+- `GET /oauth/authorize` — sign in, pick which blog to grant access to, and approve or deny the requested scopes.
+- `POST /api/oauth/token` — authorization_code and refresh_token grants (refresh tokens rotate on every use; reusing an already-rotated one revokes the whole grant).
+- `POST /api/oauth/revoke`.
+
+Each authorization is scoped to exactly one blog, chosen on the consent screen, and to the scopes the client requested (defaulting to all of `content:read`, `content:write`, `content:publish`, `content:delete`, `blog:write`, `media:write` when it asks for none in particular). Losing access to that blog (removed as owner/member) invalidates the token on its next use. Disconnecting the client from its own settings calls the revoke endpoint above.
+
 For a local stdio client, install this checkout’s dependencies, then configure:
 
 ```json
@@ -95,7 +108,7 @@ For a local stdio client, install this checkout’s dependencies, then configure
 
 This is a generic mcpServers JSON example; use your client’s equivalent command/args/env fields if its format differs. Use its secret store when supported. The local bridge needs no database connection or CMS .env file. It only forwards tool discovery and calls to the authenticated remote server. Run the script directly with node so package-manager banners do not corrupt stdout.
 
-Compatibility: stdio and stateless Streamable HTTP JSON. **No OAuth or legacy SSE**. Remote clients must support custom authorization headers; OAuth-only remote clients need the stdio bridge if local servers are supported. HTTPS is mandatory for the bridge except localhost. Redirects are rejected to prevent credential forwarding.
+Compatibility: stdio and stateless Streamable HTTP JSON, both stateless (**no legacy SSE**). API keys and OAuth access tokens are both accepted as the Bearer credential on the same endpoint. HTTPS is mandatory for the stdio bridge except localhost. Redirects are rejected to prevent credential forwarding.
 
 ## Security and operations
 

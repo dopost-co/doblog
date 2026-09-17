@@ -1,16 +1,16 @@
 import { ApiError, apiError } from "./errors";
 
 export const MAX_JSON_BYTES = 1024 * 1024;
-export function privateJson(value: unknown, status = 200) {
+export function privateJson(value: unknown, status = 200, wwwAuthenticateExtra?: string) {
   return Response.json(value, { status, headers: {
     "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
-    ...(status === 401 ? { "WWW-Authenticate": 'Bearer realm="zenex"' } : {}),
+    ...(status === 401 ? { "WWW-Authenticate": `Bearer realm="zenex"${wwwAuthenticateExtra ? `, ${wwwAuthenticateExtra}` : ""}` } : {}),
     ...(status === 429 ? { "Retry-After": "60" } : {}),
   } });
 }
-export function errorResponse(error: unknown) {
+export function errorResponse(error: unknown, wwwAuthenticateExtra?: string) {
   const result = apiError(error);
-  return privateJson({ error: result.error }, result.status);
+  return privateJson({ error: result.error }, result.status, wwwAuthenticateExtra);
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");

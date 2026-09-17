@@ -6,7 +6,7 @@ import { SignUpForm } from "@/components/Auth/SignUpForm";
 import { ThemeToggle } from "@/components/ThemeToggle/ThemeToggle";
 import { config } from "@/data/config";
 
-export function AuthPage() {
+export function AuthPage({ callbackUrl }: { callbackUrl: string }) {
   const [isSignIn, setIsSignIn] = useState(true);
 
   return (
@@ -43,7 +43,7 @@ export function AuthPage() {
             )}
           </p>
         </div>
-        {isSignIn ? <SignInForm /> : <SignUpForm />}
+        {isSignIn ? <SignInForm callbackUrl={callbackUrl} /> : <SignUpForm callbackUrl={callbackUrl} />}
       </div>
     </div>
   );

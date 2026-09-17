@@ -48,6 +48,29 @@ Requests without an `Origin` header (native/server clients) are always
 allowed; any `Origin` present is rejected unless it is in
 `MCP_ALLOWED_ORIGINS`.
 
+## OAuth (ChatGPT, Claude connectors)
+
+This gateway never issues or validates OAuth tokens itself — the CMS is the
+authorization server (login, consent, token issuance all happen there, see
+the main [README](../README.md#oauth-for-chatgpt-claude-and-other-connector-style-clients)).
+The gateway's only job is to tell clients where to find it:
+
+- `GET /.well-known/oauth-protected-resource` and `/mcp` — declare this
+  gateway's own public URL as the resource and `ZENEX_CMS_URL` as the
+  `authorization_servers` entry.
+- On a 401 (missing or invalid bearer), `WWW-Authenticate` points back at
+  this gateway's own metadata URL, never the CMS's internal one, even when
+  the 401 originated upstream.
+
+For an issued OAuth access token to work through this gateway, the CMS must
+accept this gateway's public URL as a valid token `resource`. Set on the CMS:
+
+```
+MCP_OAUTH_EXTRA_RESOURCES=https://mcp.your-cms.example/mcp
+```
+
+(matching whatever public domain you attach to this gateway below).
+
 ## Deploying to Dokploy
 
 This package lives in `mcp-server/` inside the main `zenex-cms` repo but

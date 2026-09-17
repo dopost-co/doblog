@@ -6,6 +6,10 @@ import { createMcpServer } from "@/lib/integrations/mcp";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function resourceMetadataChallenge(request: Request): string {
+  return `resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource"`;
+}
+
 export async function POST(request: Request) {
   try {
     checkOrigin(request);
@@ -20,7 +24,7 @@ export async function POST(request: Request) {
       response.headers.set("X-Content-Type-Options", "nosniff");
       return response;
     } finally { await server.close(); }
-  } catch (error) { return errorResponse(error); }
+  } catch (error) { return errorResponse(error, resourceMetadataChallenge(request)); }
 }
 
 // Stateless JSON transport: no unsolicited SSE stream or persistent sessions.
@@ -31,6 +35,6 @@ async function unsupported(request: Request) {
     const response = privateJson({ error: "No persistent sessions or SSE stream; use POST" }, 405);
     response.headers.set("Allow", "POST");
     return response;
-  } catch (error) { return errorResponse(error); }
+  } catch (error) { return errorResponse(error, resourceMetadataChallenge(request)); }
 }
 export { unsupported as GET, unsupported as DELETE };

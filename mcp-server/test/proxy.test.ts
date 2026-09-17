@@ -30,6 +30,26 @@ test("health is public while the MCP endpoint requires Bearer auth", async (t) =
   });
   assert.equal(unauthorized.status, 401);
   assert.match(unauthorized.headers.get("www-authenticate") ?? "", /^Bearer/);
+  assert.match(
+    unauthorized.headers.get("www-authenticate") ?? "",
+    /resource_metadata="[^"]+\/\.well-known\/oauth-protected-resource\/mcp"/,
+  );
+});
+
+test("advertises the CMS as the authorization server for its own protected-resource metadata", async (t) => {
+  const { server, baseUrl } = await listenApp(baseConfig("https://cms.invalid"));
+  t.after(() => closeServer(server));
+
+  for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"]) {
+    const response = await fetch(`${baseUrl}${path}`);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      resource: string;
+      authorization_servers: string[];
+    };
+    assert.equal(body.resource, `${baseUrl}/mcp`);
+    assert.deepEqual(body.authorization_servers, ["https://cms.invalid"]);
+  }
 });
 
 test("rejects browser origins that were not explicitly allowlisted", async (t) => {
@@ -91,6 +111,34 @@ test("relays the request body and Bearer token to the upstream /api/mcp route", 
     forwardedBody,
     JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
   );
+});
+
+test("rewrites an upstream 401 to point at this gateway's own resource metadata, not the CMS's", async (t) => {
+  const upstream = createServer((_req, res) => {
+    res.statusCode = 401;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader(
+      "WWW-Authenticate",
+      'Bearer realm="zenex", resource_metadata="https://cms.invalid/.well-known/oauth-protected-resource"',
+    );
+    res.end(JSON.stringify({ error: "invalid_token" }));
+  });
+  const upstreamUrl = await listen(upstream);
+  t.after(() => closeServer(upstream));
+
+  const { server, baseUrl } = await listenApp(baseConfig(upstreamUrl));
+  t.after(() => closeServer(server));
+
+  const response = await fetch(`${baseUrl}/mcp`, {
+    method: "POST",
+    headers: { Authorization: "Bearer znx_at_expired", "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+  });
+
+  assert.equal(response.status, 401);
+  const challenge = response.headers.get("www-authenticate") ?? "";
+  assert.match(challenge, new RegExp(`resource_metadata="${baseUrl}/\\.well-known/oauth-protected-resource/mcp"`));
+  assert.ok(!challenge.includes("cms.invalid"));
 });
 
 test("returns 502 when the upstream is unreachable", async (t) => {

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export function SignInForm() {
+export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +31,7 @@ export function SignInForm() {
         setError("Invalid email or password");
         setIsLoading(false);
       } else {
-        router.push("/dashboard");
+        router.push(callbackUrl);
         router.refresh();
       }
     } catch (error) {
@@ -51,7 +51,7 @@ export function SignInForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("github", { callbackUrl: "/dashboard" })}
+            onClick={() => signIn("github", { callbackUrl })}
           >
             <svg
               className="h-4 w-4"

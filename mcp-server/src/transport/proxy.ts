@@ -10,6 +10,9 @@ const UPSTREAM_PATH = "/api/mcp";
 // express.json()'s 100kb default would truncate those before they reach the
 // upstream check, so this gateway stays on a raw body relay instead.
 const MAX_BODY_BYTES = "2mb";
+// Kept in sync by hand with API_SCOPES in the main app's lib/integrations/scopes.ts —
+// this gateway is a separate deployable package with no shared code.
+const SCOPES = ["content:read", "content:write", "content:publish", "content:delete", "blog:write", "media:write"];
 
 export function createProxyApp(
   config: McpGatewayConfig,
@@ -60,6 +63,21 @@ export function createProxyApp(
     });
   });
 
+  // RFC 9728: the CMS itself is the OAuth authorization server (it owns login,
+  // consent and token issuance); this gateway is only ever the resource.
+  const sendProtectedResourceMetadata = (req: express.Request, res: express.Response) => {
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.status(200).json({
+      resource: `${req.protocol}://${req.get("host")}/mcp`,
+      resource_name: "zenex-cms MCP",
+      authorization_servers: [config.cmsUrl],
+      bearer_methods_supported: ["header"],
+      scopes_supported: SCOPES,
+    });
+  };
+  app.get("/.well-known/oauth-protected-resource", sendProtectedResourceMetadata);
+  app.get("/.well-known/oauth-protected-resource/mcp", sendProtectedResourceMetadata);
+
   app.all(
     MCP_ENDPOINTS,
     express.raw({ type: "application/json", limit: MAX_BODY_BYTES }),
@@ -93,7 +111,8 @@ export function createProxyApp(
 
       const authorization = req.header("authorization");
       if (!authorization || !/^Bearer\s+\S+$/i.test(authorization)) {
-        res.setHeader("WWW-Authenticate", 'Bearer realm="zenex-mcp"');
+        const resourceMetadataUrl = `${req.protocol}://${req.get("host")}/.well-known/oauth-protected-resource/mcp`;
+        res.setHeader("WWW-Authenticate", `Bearer realm="zenex-mcp", resource_metadata="${resourceMetadataUrl}"`);
         res
           .status(401)
           .json(jsonRpcError("Bearer authentication is required"));
@@ -130,8 +149,12 @@ export function createProxyApp(
         );
         res.setHeader("Cache-Control", "private, no-store");
         res.setHeader("X-Content-Type-Options", "nosniff");
-        const wwwAuthenticate = upstream.headers.get("www-authenticate");
-        if (wwwAuthenticate) res.setHeader("WWW-Authenticate", wwwAuthenticate);
+        // Don't forward the upstream's own WWW-Authenticate verbatim: it
+        // points at the CMS's resource metadata, not this gateway's.
+        if (upstream.status === 401) {
+          const resourceMetadataUrl = `${req.protocol}://${req.get("host")}/.well-known/oauth-protected-resource/mcp`;
+          res.setHeader("WWW-Authenticate", `Bearer realm="zenex-mcp", error="invalid_token", resource_metadata="${resourceMetadataUrl}"`);
+        }
         res.send(responseBody);
       } catch (error) {
         log.error("upstream_request_failed", {

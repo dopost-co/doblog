@@ -19,6 +19,9 @@ model User {
   updatedAt DateTime @updatedAt
 
   blogs Blog[]
+
+  oauthAuthorizationCodes McpOAuthAuthorizationCode[]
+  oauthGrants             McpOAuthGrant[]
 }
 
 model Blog {
@@ -38,6 +41,9 @@ model Blog {
   authors    Author[]
   members    BlogMember[]
   apiKeys    ApiKey[]
+
+  oauthAuthorizationCodes McpOAuthAuthorizationCode[]
+  oauthGrants             McpOAuthGrant[]
 
   @@index([userId])
   @@index([blogId])
@@ -192,4 +198,99 @@ model BlogMember {
   @@unique([blogId, userEmail])
   @@index([blogId])
   @@index([userEmail])
+}
+
+// OAuth 2.1 clients dynamically registered by MCP clients (RFC 7591). Public
+// clients only: no secret, PKCE (S256) is required at the authorize/token step.
+model McpOAuthClient {
+  id             String   @id @default(cuid())
+  clientId       String   @unique
+  clientName     String?
+  clientUri      String?
+  logoUri        String?
+  redirectUris   String[]
+  grantTypes     String[]
+  responseTypes  String[]
+  createdAt      DateTime @default(now())
+
+  authorizationCodes McpOAuthAuthorizationCode[]
+  grants             McpOAuthGrant[]
+}
+
+// Single-use, short-lived authorization_code grants (RFC 6749 4.1). Scoped to
+// exactly one blog: the user picks it on the consent screen.
+model McpOAuthAuthorizationCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  clientId      String
+  userId        String
+  blogId        String
+  redirectUri   String
+  codeChallenge String
+  scopes        String[]
+  resource      String
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  usedAt        DateTime?
+
+  client McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blog   Blog           @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+// A standing (client, user, blog) authorization. Reauthorizing revokes and
+// replaces the prior grant's tokens.
+model McpOAuthGrant {
+  id        String    @id @default(cuid())
+  clientId  String
+  userId    String
+  blogId    String
+  scopes    String[]
+  resource  String
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  client        McpOAuthClient         @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blog          Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  accessTokens  McpOAuthAccessToken[]
+  refreshTokens McpOAuthRefreshToken[]
+
+  @@unique([clientId, userId, blogId])
+}
+
+model McpOAuthAccessToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  grantId    String
+  scopes     String[]
+  resource   String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+
+  grant McpOAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([grantId])
+}
+
+// Rotated on every use; familyId lets reuse of an already-rotated token
+// revoke the whole grant (RFC 6819 refresh token theft mitigation).
+model McpOAuthRefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  grantId   String
+  familyId  String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  rotatedAt DateTime?
+
+  grant McpOAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([grantId])
+  @@index([familyId])
 }
