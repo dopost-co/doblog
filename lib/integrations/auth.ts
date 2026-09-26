@@ -4,13 +4,14 @@ import { ApiError } from "./errors";
 import type { ApiScope } from "./scopes";
 import { resolveOAuthAccessToken } from "./oauth";
 
-export type AuthorizedBlog = { blogId: string; publicBlogId: string; name?: string; slug?: string };
+export type AuthorizedBlog = { blogId: string; publicBlogId: string; name?: string; slug?: string; canUsePaidSeo?: boolean };
 export type ApiPrincipal = {
   blogId: string;
   publicBlogId: string;
   keyId: string;
   scopes: string[];
   authorizedBlogs?: AuthorizedBlog[];
+  canUsePaidSeo?: boolean;
 };
 export function hashApiKey(token: string) { return createHash("sha256").update(token).digest("hex"); }
 export function generateApiKey() {
@@ -51,5 +52,5 @@ export async function authenticateApiKey(request: Request, publicBlogId?: string
     RETURNING "id"
   `;
   if (!rows.length) throw new ApiError(429, "Rate limit exceeded or key no longer active; retry in 60 seconds");
-  return { blogId: key.blogId, publicBlogId: key.blog.blogId, keyId: key.id, scopes: key.scopes };
+  return { blogId: key.blogId, publicBlogId: key.blog.blogId, keyId: key.id, scopes: key.scopes, canUsePaidSeo: true };
 }

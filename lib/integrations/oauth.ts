@@ -190,7 +190,7 @@ export async function assertBlogsAccessible(userId: string, userEmail: string, b
       id: { in: uniqueIds },
       OR: [{ userId }, { members: { some: { userEmail: userEmail.toLowerCase().trim() } } }],
     },
-    select: { id: true, blogId: true, name: true, slug: true },
+    select: { id: true, blogId: true, name: true, slug: true, userId: true },
   });
   if (blogs.length !== uniqueIds.length) {
     throw new OAuthError("access_denied", "You do not have access to every selected blog", 403);
@@ -412,6 +412,8 @@ export async function resolveOAuthAccessToken(rawToken: string): Promise<ApiPrin
       publicBlogId: blog.blogId,
       name: blog.name,
       slug: blog.slug,
+      canUsePaidSeo: blog.userId === token.grant.user.id,
     })),
+    canUsePaidSeo: primary.userId === token.grant.user.id,
   };
 }

@@ -204,7 +204,7 @@ describe.runIf(!!connection)("isolated PostgreSQL management integration", () =>
     const transport = new StdioClientTransport({ command: process.execPath, args: [resolve("scripts/mcp-stdio.mjs")], env: { ZENEX_CMS_URL: `http://127.0.0.1:${address.port}`, ZENEX_API_KEY: token }, stderr: "pipe" });
     try {
       await client.connect(transport);
-      expect((await client.listTools()).tools).toHaveLength(24);
+      expect((await client.listTools()).tools).toHaveLength(30);
       const guide = await client.callTool({ name: "get_editor_guide", arguments: {} });
       expect(guide.isError).not.toBe(true);
       expect(guide.structuredContent).toHaveProperty("blocks");

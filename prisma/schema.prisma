@@ -22,6 +22,7 @@ model User {
 
   oauthAuthorizationCodes McpOAuthAuthorizationCode[]
   oauthGrants             McpOAuthGrant[]
+  seoCredentials          SeoProviderCredential[]
 }
 
 model Blog {
@@ -44,9 +45,95 @@ model Blog {
 
   oauthAuthorizationCodes McpOAuthAuthorizationCode[]
   oauthGrants             McpOAuthGrant[]
+  seoSettings             BlogSeoSettings?
+  seoCacheEntries         SeoCacheEntry[]
+  seoUsageEntries         SeoUsageEntry[]
 
   @@index([userId])
   @@index([blogId])
+}
+
+// Third-party provider secrets are encrypted with INTEGRATION_ENCRYPTION_KEY.
+// A credential belongs to an owner account and may be reused by their blogs.
+model SeoProviderCredential {
+  id                String    @id @default(cuid())
+  ownerUserId       String
+  provider          String    @default("dataforseo")
+  label             String
+  encryptedLogin    String
+  encryptedPassword String
+  loginHint         String
+  verifiedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  owner        User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  blogSettings BlogSeoSettings[]
+  usageEntries SeoUsageEntry[]
+
+  @@index([ownerUserId, provider])
+}
+
+model BlogSeoSettings {
+  id                     String   @id @default(cuid())
+  blogId                 String   @unique
+  credentialId           String?
+  enabled                Boolean  @default(false)
+  targetDomain           String?
+  locationCode           Int      @default(2840)
+  languageCode           String   @default("en")
+  timezone               String   @default("UTC")
+  competitorDomains      String[] @default([])
+  audience               String?
+  brandVoice             String?
+  publishingMode         String   @default("draft")
+  imageStyle             String?
+  imagesPerPost          Int      @default(1)
+  perRunBudgetUsdMicros  Int      @default(250000)
+  dailyBudgetUsdMicros   Int      @default(1000000)
+  monthlyBudgetUsdMicros Int      @default(20000000)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  blog       Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  credential SeoProviderCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+
+  @@index([credentialId])
+}
+
+model SeoCacheEntry {
+  id          String   @id @default(cuid())
+  blogId      String
+  endpoint    String
+  payloadHash String
+  response    Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, endpoint, payloadHash])
+  @@index([blogId, expiresAt])
+}
+
+model SeoUsageEntry {
+  id             String    @id @default(cuid())
+  blogId         String
+  credentialId   String
+  endpoint       String
+  providerTaskId String?
+  costUsdMicros  Int       @default(0)
+  cacheHit       Boolean   @default(false)
+  status         String    @default("reserved")
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  blog       Blog                  @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  credential SeoProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([blogId, createdAt])
+  @@index([credentialId, createdAt])
 }
 
 // Secrets are shown once; only SHA-256 digests of 256-bit random tokens are stored.

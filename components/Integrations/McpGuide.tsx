@@ -27,7 +27,7 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
       </CardContent></Card>
     <Card><CardHeader><CardTitle>3. Test the editorial workflow</CardTitle></CardHeader><CardContent className="space-y-4 text-sm text-muted-foreground">
       <ol className="list-decimal space-y-2 pl-5"><li>Ask the agent to call get_blog and list_categories.</li><li>Create a category, then use its ID in create_posts with status draft.</li><li>Review the draft in the dashboard. Publish only after approval and with content:publish + content:write.</li></ol>
-      <p>Tools cover posts, categories, tags, authors, image upload and blog metadata. Translations use separate posts linked by translationGroupId. New blogs, ownership, members, API keys and paid automatic translation remain dashboard-only.</p>
+      <p>Tools cover posts, categories, tags, authors, image upload and blog metadata. When the owner enables Growth / SEO, the same connection can research keyword opportunities, intent and SERP briefs within the blog&apos;s spend limits. Translations use separate posts linked by translationGroupId. New blogs, ownership, members, API keys, provider credentials and paid automatic translation remain dashboard-only.</p>
       <Link href="/docs/api/management" className="inline-block text-foreground underline underline-offset-4">REST endpoints, fields and permissions →</Link>
     </CardContent></Card>
     <Card><CardHeader><CardTitle>Rich content: every editor block</CardTitle><CardDescription>Agents use the same Editor.js JSON as the dashboard through create_posts and update_posts, over either transport.</CardDescription></CardHeader><CardContent className="space-y-4 text-sm text-muted-foreground">

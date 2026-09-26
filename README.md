@@ -10,6 +10,7 @@ A multilingual headless CMS built with Next.js 16, React 19, Prisma 6, PostgreSQ
 - Public published-content API and a separate private management API.
 - MCP via Streamable HTTP and a local stdio bridge, sharing the private API’s operations and permissions.
 - Owner-managed, expiring and revocable API keys; secrets displayed once and stored only as hashes.
+- Per-blog DataForSEO research with reusable encrypted account credentials, response caching and hard spend limits.
 
 ## Local setup
 
@@ -24,7 +25,7 @@ npx prisma migrate dev
 npm run dev
 ```
 
-Open [localhost:4444](http://localhost:4444). Register or sign in, create a blog, then use its navigation: Posts, Authors, Categories, Settings, MCP and API keys.
+Open [localhost:4444](http://localhost:4444). Register or sign in, create a blog, then use its navigation: Posts, Authors, Categories, Growth / SEO, Settings, MCP and API keys.
 
 Generate an authentication secret with `openssl rand -base64 32`. Do not commit .env files. GitHub OAuth is optional; configure its client credentials and callback URL at `https://your-cms.example/api/auth/callback/github`. Set the canonical authentication URL and trusted proxy/host settings correctly for your deployment. See [.env.example](.env.example) for the exact environment names used by the code.
 
@@ -32,6 +33,7 @@ Optional integrations:
 
 - AI translation: `OPENAI_API_KEY`.
 - Image storage: `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`. Use a bucket-scoped storage token and a public media origin separate from the CMS. The configured public media URL serves uploaded images without authentication, including images used in drafts.
+- SEO provider credentials: `INTEGRATION_ENCRYPTION_KEY` must be one stable base64-encoded 32-byte key (`openssl rand -base64 32`). Losing or rotating it without re-encrypting rows makes saved provider connections unreadable. `MCP_FILE_DOWNLOAD_HOSTS` restricts MCP file ingestion to trusted delivery hosts.
 
 ## APIs: public delivery versus private editing
 
@@ -89,6 +91,8 @@ Clients that connect through an OAuth flow rather than a pasted API key (ChatGPT
 
 Each authorization is scoped to the one or more blogs selected on the consent screen and to the scopes the client requested (defaulting to all of `content:read`, `content:write`, `content:publish`, `content:delete`, `blog:write`, `media:write` when it asks for none in particular). Multi-blog MCP connections expose `list_blogs`; every content tool then requires the public `blogId` returned by that tool. Losing access to any selected blog invalidates the token on its next use. Disconnecting the client from its own settings calls the revoke endpoint above.
 
+When an owner enables **Growth / SEO** for a blog, clients with content read access also receive focused tools for settings/usage, keyword opportunities, search intent and a depth-10 SERP brief. Paid calls are cached, deduplicated by normalized payload and gated by per-run, daily and monthly budgets. Provider credentials remain server-side. Clients with `media:write` also receive `upload_image_file`, which accepts ChatGPT MCP file parameters and stores validated generated images in R2.
+
 For a local stdio client, install this checkout’s dependencies, then configure:
 
 ```json
@@ -120,7 +124,7 @@ Compatibility: stdio and stateless Streamable HTTP JSON, both stateless (**no le
 - Private API/MCP responses are no-store; browser cross-origin requests are rejected. Use server-side clients, never browser bundles, URLs, prompts, logs or public environment variables for secrets.
 - REST and MCP validate schemas and blog ownership of linked records. Post relation replacements and publication checks use transactions/row locks.
 - Status published makes content public immediately; publishedAt is metadata, not a scheduler. Agents should default to drafts and obtain approval before publishing or deleting.
-- Uploaded media is public, validated by file signature, stored under server-generated names, and never fetched from arbitrary URLs. Signatures are not a full malware scan. Deleting a post does not delete image objects.
+- Uploaded media is public, validated by file signature and stored under server-generated names. MCP file downloads require HTTPS, an allowlisted OpenAI/ChatGPT delivery host, public DNS addresses, no redirects and a 10 MiB streaming limit. Signatures are not a full malware scan. Deleting a post does not delete image objects.
 - After ambiguous write failures, check for saved content before retrying; POST does not provide idempotency keys.
 - Public renderers sanitize HTML. Still treat editorial content as untrusted, including instructions embedded in text received by an agent.
 
@@ -157,6 +161,7 @@ npm run build
 - `src/server/services/content/`: shared editorial business logic, dashboard adapter and cache invalidation.
 - `src/server/services/api-keys/`: owner-only session-authenticated key management.
 - `src/server/services/media/`: shared image validation/storage.
+- `src/server/services/seo/`: DataForSEO client, normalization, caching, budget reservations and dashboard actions.
 - `app/api/v1/`, `app/api/mcp/`: thin REST and MCP HTTP transports.
 - `scripts/mcp-stdio.mjs`: standalone local-to-remote MCP bridge.
 - `components/Integrations/`: dashboard settings and reusable MCP documentation.

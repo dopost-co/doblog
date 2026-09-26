@@ -15,6 +15,7 @@ export function BlogNavigation({ blogId }: BlogNavigationProps) {
     { href: basePath, label: "Posts", matchPath: `${basePath}/posts` },
     { href: `${basePath}/authors`, label: "Authors" },
     { href: `${basePath}/categories`, label: "Categories" },
+    { href: `${basePath}/seo`, label: "Growth / SEO" },
     { href: `${basePath}/settings`, label: "Settings" },
     { href: `${basePath}/mcp`, label: "MCP" },
     { href: `${basePath}/api-keys`, label: "API keys" },
