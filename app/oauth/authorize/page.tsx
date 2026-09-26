@@ -100,7 +100,8 @@ export default async function OAuthAuthorizePage({ searchParams }: { searchParam
               </div>
               <p className="text-xs text-muted-foreground">
                 {clientName} will only be able to access this blog with the permissions above. You can revoke this
-                connection from {clientName}&apos;s own settings.
+                connection from {clientName}&apos;s own settings. To connect another blog, add another connection and
+                choose it here.
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <Button type="submit" name="decision" value="deny" variant="outline">Cancel</Button>

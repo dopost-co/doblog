@@ -12,6 +12,7 @@ import { managementOpenApi } from "@/lib/integrations/openapi";
 import { imageExtension } from "@/src/server/services/media/upload";
 import { draftExample } from "@/lib/integrations/examples";
 import { connectionConfig } from "@/scripts/mcp-stdio.mjs";
+import { isTrustedAuthorizationOrigin } from "@/lib/integrations/oauth";
 
 describe("integration schemas and secrets", () => {
   it("uses unique 256-bit tokens and stores only a digest", () => {
@@ -63,6 +64,24 @@ describe("HTTP input protections", () => {
     for (const origin of ["https://evil.example", "null"]) expect(() => checkOrigin(json("{}", { Origin: origin }))).toThrow("Origin not allowed");
     expect(() => checkOrigin(json("{}", { Origin: "https://cms.example" }))).not.toThrow();
     expect(() => checkOrigin(json("{}"))).not.toThrow();
+  });
+  it("accepts the canonical OAuth issuer origin behind a reverse proxy", () => {
+    const previous = process.env.MCP_OAUTH_ISSUER;
+    process.env.MCP_OAUTH_ISSUER = "https://cms.example";
+    try {
+      const proxied = new Request("http://internal:3000/api/oauth/authorize", {
+        method: "POST",
+        headers: { Origin: "https://cms.example" },
+      });
+      expect(isTrustedAuthorizationOrigin(proxied)).toBe(true);
+      expect(isTrustedAuthorizationOrigin(new Request(proxied.url, {
+        method: "POST",
+        headers: { Origin: "https://evil.example" },
+      }))).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.MCP_OAUTH_ISSUER;
+      else process.env.MCP_OAUTH_ISSUER = previous;
+    }
   });
   it("rejects malformed JSON and non-JSON content types", async () => {
     await expect(readJson(json("{"))).rejects.toMatchObject({ status: 400 });

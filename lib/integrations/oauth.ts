@@ -31,6 +31,20 @@ export function oauthResource(): string {
   return `${oauthIssuer()}/api/mcp`;
 }
 
+export function isTrustedAuthorizationOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const submittedOrigin = new URL(origin).origin;
+    return (
+      submittedOrigin === new URL(request.url).origin ||
+      submittedOrigin === new URL(oauthIssuer()).origin
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Lets a standalone gateway (a different public hostname in front of the
 // same /api/mcp) be accepted as the same protected resource.
 function acceptedResources(): Set<string> {

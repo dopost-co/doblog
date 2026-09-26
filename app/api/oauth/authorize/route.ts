@@ -3,6 +3,7 @@ import {
   OAuthError,
   assertBlogAccessible,
   createAuthorizationCode,
+  isTrustedAuthorizationOrigin,
   validateAuthorizationRequest,
 } from "@/lib/integrations/oauth";
 
@@ -19,8 +20,7 @@ export async function POST(request: Request) {
     if (Number(request.headers.get("content-length") || 0) > 32_768) {
       throw new OAuthError("invalid_request", "Request is too large", 413);
     }
-    const origin = request.headers.get("origin");
-    if (!origin || origin !== new URL(request.url).origin) {
+    if (!isTrustedAuthorizationOrigin(request)) {
       throw new OAuthError("access_denied", "Cross-site authorization is not allowed", 403);
     }
     const form = await request.formData();
