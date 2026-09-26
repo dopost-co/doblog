@@ -20,6 +20,21 @@ export function createProxyApp(
 ): Express {
   const app = express();
   app.disable("x-powered-by");
+  // The gateway is deployed one hop behind Dokploy's Traefik proxy. Trust
+  // that hop so req.protocol reflects X-Forwarded-Proto and OAuth metadata
+  // advertises the public HTTPS resource instead of the internal HTTP hop.
+  app.set("trust proxy", 1);
+
+  // Keep the container health probe independent from the public Host
+  // allowlist. Docker calls this endpoint through 127.0.0.1, while the
+  // allowlist intentionally contains only the public gateway hostname.
+  app.get("/health", (_req, res) => {
+    res.status(200).json({
+      status: "ok",
+      service: "zenex-mcp-gateway",
+      transport: "streamable-http",
+    });
+  });
 
   if (config.allowedHosts?.length) {
     const allowedHosts = new Set(config.allowedHosts);
@@ -53,14 +68,6 @@ export function createProxyApp(
       });
     });
     next();
-  });
-
-  app.get("/health", (_req, res) => {
-    res.status(200).json({
-      status: "ok",
-      service: "zenex-mcp-gateway",
-      transport: "streamable-http",
-    });
   });
 
   // RFC 9728: the CMS itself is the OAuth authorization server (it owns login,

@@ -36,6 +36,16 @@ test("health is public while the MCP endpoint requires Bearer auth", async (t) =
   );
 });
 
+test("health bypasses the public Host allowlist for container probes", async (t) => {
+  const config = baseConfig("https://cms.invalid");
+  config.allowedHosts = ["mcp.example.com"];
+  const { server, baseUrl } = await listenApp(config);
+  t.after(() => closeServer(server));
+
+  const health = await fetch(`${baseUrl}/health`);
+  assert.equal(health.status, 200);
+});
+
 test("advertises the CMS as the authorization server for its own protected-resource metadata", async (t) => {
   const { server, baseUrl } = await listenApp(baseConfig("https://cms.invalid"));
   t.after(() => closeServer(server));
@@ -50,6 +60,30 @@ test("advertises the CMS as the authorization server for its own protected-resou
     assert.equal(body.resource, `${baseUrl}/mcp`);
     assert.deepEqual(body.authorization_servers, ["https://cms.invalid"]);
   }
+});
+
+test("advertises HTTPS when deployed behind the trusted reverse proxy", async (t) => {
+  const { server, baseUrl } = await listenApp(baseConfig("https://cms.invalid"));
+  t.after(() => closeServer(server));
+
+  const metadata = await fetch(`${baseUrl}/.well-known/oauth-protected-resource/mcp`, {
+    headers: { "X-Forwarded-Proto": "https" },
+  });
+  assert.equal(metadata.status, 200);
+  assert.equal((await metadata.json() as { resource: string }).resource, `${baseUrl.replace("http:", "https:")}/mcp`);
+
+  const unauthorized = await fetch(`${baseUrl}/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Forwarded-Proto": "https",
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+  });
+  assert.match(
+    unauthorized.headers.get("www-authenticate") ?? "",
+    /^Bearer .*resource_metadata="https:\/\//,
+  );
 });
 
 test("rejects browser origins that were not explicitly allowlisted", async (t) => {
