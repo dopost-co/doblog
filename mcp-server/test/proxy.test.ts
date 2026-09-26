@@ -107,8 +107,12 @@ test("relays the request body and Bearer token to the upstream /api/mcp route", 
   let forwardedAuthorization: string | undefined;
   let forwardedPath: string | undefined;
   let forwardedBody: string | undefined;
+  let forwardedAccept: string | undefined;
+  let forwardedProtocolVersion: string | undefined;
   const upstream = createServer((req, res) => {
     forwardedAuthorization = req.headers.authorization;
+    forwardedAccept = req.headers.accept;
+    forwardedProtocolVersion = req.headers["mcp-protocol-version"] as string | undefined;
     forwardedPath = req.url;
     const chunks: Buffer[] = [];
     req.on("data", (chunk) => chunks.push(chunk));
@@ -129,6 +133,8 @@ test("relays the request body and Bearer token to the upstream /api/mcp route", 
     headers: {
       Authorization: "Bearer znx_workspace_key",
       "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      "Mcp-Protocol-Version": "2025-11-25",
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
   });
@@ -140,6 +146,8 @@ test("relays the request body and Bearer token to the upstream /api/mcp route", 
     result: { ok: true },
   });
   assert.equal(forwardedAuthorization, "Bearer znx_workspace_key");
+  assert.equal(forwardedAccept, "application/json, text/event-stream");
+  assert.equal(forwardedProtocolVersion, "2025-11-25");
   assert.equal(forwardedPath, "/api/mcp");
   assert.equal(
     forwardedBody,

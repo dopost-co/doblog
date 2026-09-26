@@ -136,14 +136,18 @@ export function createProxyApp(
       }
 
       try {
+        const upstreamHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+          Accept: req.header("accept") ?? "application/json, text/event-stream",
+          Authorization: authorization,
+          "x-request-id": requestId,
+        };
+        const protocolVersion = req.header("mcp-protocol-version");
+        if (protocolVersion) upstreamHeaders["Mcp-Protocol-Version"] = protocolVersion;
         const upstream = await fetch(new URL(UPSTREAM_PATH, config.cmsUrl), {
           method: "POST",
           redirect: "error",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: authorization,
-            "x-request-id": requestId,
-          },
+          headers: upstreamHeaders,
           body: new Uint8Array(body),
           signal: AbortSignal.timeout(config.requestTimeoutMs),
         });
