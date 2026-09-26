@@ -87,7 +87,7 @@ Clients that connect through an OAuth flow rather than a pasted API key (ChatGPT
 - `POST /api/oauth/token` — authorization_code and refresh_token grants (refresh tokens rotate on every use; reusing an already-rotated one revokes the whole grant).
 - `POST /api/oauth/revoke`.
 
-Each authorization is scoped to exactly one blog, chosen on the consent screen, and to the scopes the client requested (defaulting to all of `content:read`, `content:write`, `content:publish`, `content:delete`, `blog:write`, `media:write` when it asks for none in particular). Losing access to that blog (removed as owner/member) invalidates the token on its next use. Disconnecting the client from its own settings calls the revoke endpoint above.
+Each authorization is scoped to the one or more blogs selected on the consent screen and to the scopes the client requested (defaulting to all of `content:read`, `content:write`, `content:publish`, `content:delete`, `blog:write`, `media:write` when it asks for none in particular). Multi-blog MCP connections expose `list_blogs`; every content tool then requires the public `blogId` returned by that tool. Losing access to any selected blog invalidates the token on its next use. Disconnecting the client from its own settings calls the revoke endpoint above.
 
 For a local stdio client, install this checkout’s dependencies, then configure:
 

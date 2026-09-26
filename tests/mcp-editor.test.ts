@@ -46,4 +46,37 @@ describe("MCP rich content", () => {
       await server.close();
     }
   });
+
+  it("exposes all OAuth blogs and requires an authorized blogId for content tools", async () => {
+    const server = createMcpServer({
+      blogId: "internal-one",
+      publicBlogId: "public-one",
+      keyId: "oauth:test",
+      scopes: ["content:read"],
+      authorizedBlogs: [
+        { blogId: "internal-one", publicBlogId: "public-one", name: "One", slug: "one" },
+        { blogId: "internal-two", publicBlogId: "public-two", name: "Two", slug: "two" },
+      ],
+    });
+    const client = new Client({ name: "multi-blog-test", version: "1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const { tools } = await client.listTools();
+      expect(tools.find((tool) => tool.name === "get_blog")?.inputSchema.required).toContain("blogId");
+      const blogs = await client.callTool({ name: "list_blogs", arguments: {} });
+      expect(blogs.structuredContent).toEqual({
+        data: [
+          { blogId: "public-one", name: "One", slug: "one" },
+          { blogId: "public-two", name: "Two", slug: "two" },
+        ],
+      });
+      const denied = await client.callTool({ name: "get_blog", arguments: { blogId: "not-authorized" } });
+      expect(denied.isError).toBe(true);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
 });

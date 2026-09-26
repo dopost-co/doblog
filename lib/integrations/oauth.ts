@@ -177,17 +177,32 @@ export async function validateAuthorizationRequest(input: {
 }
 
 export async function assertBlogAccessible(userId: string, userEmail: string, blogId: string): Promise<void> {
-  const blog = await prisma.blog.findFirst({
-    where: { id: blogId, OR: [{ userId }, { members: { some: { userEmail: userEmail.toLowerCase().trim() } } }] },
-    select: { id: true },
+  await assertBlogsAccessible(userId, userEmail, [blogId]);
+}
+
+export async function assertBlogsAccessible(userId: string, userEmail: string, blogIds: string[]) {
+  const uniqueIds = [...new Set(blogIds.filter(Boolean))];
+  if (uniqueIds.length === 0 || uniqueIds.length > 50) {
+    throw new OAuthError("access_denied", "Select between 1 and 50 blogs", 403);
+  }
+  const blogs = await prisma.blog.findMany({
+    where: {
+      id: { in: uniqueIds },
+      OR: [{ userId }, { members: { some: { userEmail: userEmail.toLowerCase().trim() } } }],
+    },
+    select: { id: true, blogId: true, name: true, slug: true },
   });
-  if (!blog) throw new OAuthError("access_denied", "You do not have access to this blog", 403);
+  if (blogs.length !== uniqueIds.length) {
+    throw new OAuthError("access_denied", "You do not have access to every selected blog", 403);
+  }
+  const byId = new Map(blogs.map((blog) => [blog.id, blog]));
+  return uniqueIds.map((id) => byId.get(id)!);
 }
 
 export async function createAuthorizationCode(input: {
   clientId: string;
   userId: string;
-  blogId: string;
+  blogIds: string[];
   redirectUri: string;
   codeChallenge: string;
   scopes: ApiScope[];
@@ -199,7 +214,7 @@ export async function createAuthorizationCode(input: {
       codeHash: sha256Hex(code),
       clientId: input.clientId,
       userId: input.userId,
-      blogId: input.blogId,
+      blogIds: input.blogIds,
       redirectUri: input.redirectUri,
       codeChallenge: input.codeChallenge,
       scopes: input.scopes,
@@ -274,20 +289,20 @@ export async function exchangeAuthorizationCode(input: {
 
     const grant = await tx.mcpOAuthGrant.upsert({
       where: {
-        clientId_userId_blogId: {
+        clientId_userId_resource: {
           clientId: authorizationCode.clientId,
           userId: authorizationCode.userId,
-          blogId: authorizationCode.blogId,
+          resource,
         },
       },
       create: {
         clientId: authorizationCode.clientId,
         userId: authorizationCode.userId,
-        blogId: authorizationCode.blogId,
+        blogIds: authorizationCode.blogIds,
         scopes: authorizationCode.scopes,
         resource,
       },
-      update: { scopes: authorizationCode.scopes, resource, revokedAt: null },
+      update: { blogIds: authorizationCode.blogIds, scopes: authorizationCode.scopes, revokedAt: null },
     });
     const now = new Date();
     await tx.mcpOAuthAccessToken.updateMany({ where: { grantId: grant.id, revokedAt: null }, data: { revokedAt: now } });
@@ -363,7 +378,6 @@ export async function resolveOAuthAccessToken(rawToken: string): Promise<ApiPrin
     include: {
       grant: {
         include: {
-          blog: { select: { id: true, blogId: true } },
           user: { select: { id: true, email: true } },
         },
       },
@@ -374,8 +388,9 @@ export async function resolveOAuthAccessToken(rawToken: string): Promise<ApiPrin
 
   // Membership can change after the grant was created (RFC 6749 doesn't
   // require this, but a removed member should lose access promptly).
+  let blogs;
   try {
-    await assertBlogAccessible(token.grant.user.id, token.grant.user.email, token.grant.blog.id);
+    blogs = await assertBlogsAccessible(token.grant.user.id, token.grant.user.email, token.grant.blogIds);
   } catch {
     return null;
   }
@@ -386,10 +401,17 @@ export async function resolveOAuthAccessToken(rawToken: string): Promise<ApiPrin
       // Usage metadata must not affect authentication or leak token details.
     });
 
+  const primary = blogs[0];
   return {
-    blogId: token.grant.blog.id,
-    publicBlogId: token.grant.blog.blogId,
+    blogId: primary.id,
+    publicBlogId: primary.blogId,
     keyId: `oauth:${token.id}`,
     scopes: token.scopes,
+    authorizedBlogs: blogs.map((blog) => ({
+      blogId: blog.id,
+      publicBlogId: blog.blogId,
+      name: blog.name,
+      slug: blog.slug,
+    })),
   };
 }

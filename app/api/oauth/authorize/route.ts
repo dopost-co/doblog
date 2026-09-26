@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/get-session";
 import {
   OAuthError,
-  assertBlogAccessible,
+  assertBlogsAccessible,
   createAuthorizationCode,
   isTrustedAuthorizationOrigin,
   validateAuthorizationRequest,
@@ -45,13 +45,15 @@ export async function POST(request: Request) {
       return Response.redirect(addParams(authorization.redirectUri, { error: "access_denied", state }).toString(), 303);
     }
 
-    const blogId = String(form.get("blog_id") || "");
-    await assertBlogAccessible(session.user.id, session.user.email, blogId);
+    const blogIds = form.getAll("blog_ids").map(String);
+    // Keep compatibility with consent pages opened before multi-blog support.
+    if (blogIds.length === 0 && form.get("blog_id")) blogIds.push(String(form.get("blog_id")));
+    await assertBlogsAccessible(session.user.id, session.user.email, blogIds);
 
     const code = await createAuthorizationCode({
       clientId: authorization.client.clientId,
       userId: session.user.id,
-      blogId,
+      blogIds,
       redirectUri: authorization.redirectUri,
       codeChallenge: String(form.get("code_challenge")),
       scopes: authorization.scopes,

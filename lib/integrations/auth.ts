@@ -4,7 +4,14 @@ import { ApiError } from "./errors";
 import type { ApiScope } from "./scopes";
 import { resolveOAuthAccessToken } from "./oauth";
 
-export type ApiPrincipal = { blogId: string; publicBlogId: string; keyId: string; scopes: string[] };
+export type AuthorizedBlog = { blogId: string; publicBlogId: string; name?: string; slug?: string };
+export type ApiPrincipal = {
+  blogId: string;
+  publicBlogId: string;
+  keyId: string;
+  scopes: string[];
+  authorizedBlogs?: AuthorizedBlog[];
+};
 export function hashApiKey(token: string) { return createHash("sha256").update(token).digest("hex"); }
 export function generateApiKey() {
   const token = `znx_${randomBytes(32).toString("base64url")}`;
@@ -21,8 +28,10 @@ export async function authenticateApiKey(request: Request, publicBlogId?: string
   if (bearer?.[1]?.startsWith("znx_at_")) {
     const principal = await resolveOAuthAccessToken(bearer[1]);
     if (!principal) throw new ApiError(401, "Invalid or expired access token");
-    if (publicBlogId && principal.publicBlogId !== publicBlogId) throw new ApiError(403, "Access token does not grant access to this blog");
-    return principal;
+    if (!publicBlogId) return principal;
+    const selected = (principal.authorizedBlogs ?? [principal]).find((blog) => blog.publicBlogId === publicBlogId);
+    if (!selected) throw new ApiError(403, "Access token does not grant access to this blog");
+    return { ...principal, blogId: selected.blogId, publicBlogId: selected.publicBlogId };
   }
   const match = /^Bearer (znx_[A-Za-z0-9_-]{43})$/i.exec(header);
   if (!match) throw new ApiError(401, "A valid Bearer API key is required");

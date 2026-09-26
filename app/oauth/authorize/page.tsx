@@ -64,7 +64,7 @@ export default async function OAuthAuthorizePage({ searchParams }: { searchParam
         <div>
           <h1 className="text-2xl font-bold">Connect {clientName}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            It will be able to manage one of your blogs on your behalf with the permissions below.
+            Choose every blog you want it to manage on your behalf with the permissions below.
           </p>
         </div>
         <Card>
@@ -85,23 +85,29 @@ export default async function OAuthAuthorizePage({ searchParams }: { searchParam
                   </li>
                 ))}
               </ul>
-              <div className="space-y-2">
-                <label htmlFor="blog_id" className="text-sm font-medium">Blog</label>
-                <select
-                  id="blog_id"
-                  name="blog_id"
-                  required
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                >
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Blogs</legend>
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-input p-3">
                   {blogs.map((blog) => (
-                    <option key={blog.id} value={blog.id}>{blog.name}</option>
+                    <label key={blog.id} className="flex cursor-pointer items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        name="blog_ids"
+                        value={blog.id}
+                        defaultChecked
+                        className="mt-0.5 size-4 rounded border-input"
+                      />
+                      <span>
+                        <span className="block font-medium">{blog.name}</span>
+                        <span className="block text-xs text-muted-foreground">{blog.slug}</span>
+                      </span>
+                    </label>
                   ))}
-                </select>
-              </div>
+                </div>
+              </fieldset>
               <p className="text-xs text-muted-foreground">
-                {clientName} will only be able to access this blog with the permissions above. You can revoke this
-                connection from {clientName}&apos;s own settings. To connect another blog, add another connection and
-                choose it here.
+                {clientName} will only be able to access the blogs selected here. You can reconnect later to change
+                this selection or revoke the connection from {clientName}&apos;s own settings.
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <Button type="submit" name="decision" value="deny" variant="outline">Cancel</Button>

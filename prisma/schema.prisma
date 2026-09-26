@@ -51,20 +51,20 @@ model Blog {
 
 // Secrets are shown once; only SHA-256 digests of 256-bit random tokens are stored.
 model ApiKey {
-  id             String    @id @default(cuid())
-  blogId         String
-  name           String
-  prefix         String
-  tokenHash      String    @unique
-  scopes         String[]
-  createdAt      DateTime  @default(now())
-  expiresAt      DateTime?
-  neverExpires   Boolean   @default(false)
-  revokedAt      DateTime?
-  lastUsedAt     DateTime?
-  rateWindow     DateTime  @default(now())
-  rateCount      Int       @default(0)
-  blog           Blog      @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  blogId       String
+  name         String
+  prefix       String
+  tokenHash    String    @unique
+  scopes       String[]
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime?
+  neverExpires Boolean   @default(false)
+  revokedAt    DateTime?
+  lastUsedAt   DateTime?
+  rateWindow   DateTime  @default(now())
+  rateCount    Int       @default(0)
+  blog         Blog      @relation(fields: [blogId], references: [id], onDelete: Cascade)
 
   @@index([blogId, createdAt])
 }
@@ -203,28 +203,29 @@ model BlogMember {
 // OAuth 2.1 clients dynamically registered by MCP clients (RFC 7591). Public
 // clients only: no secret, PKCE (S256) is required at the authorize/token step.
 model McpOAuthClient {
-  id             String   @id @default(cuid())
-  clientId       String   @unique
-  clientName     String?
-  clientUri      String?
-  logoUri        String?
-  redirectUris   String[]
-  grantTypes     String[]
-  responseTypes  String[]
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  clientId      String   @unique
+  clientName    String?
+  clientUri     String?
+  logoUri       String?
+  redirectUris  String[]
+  grantTypes    String[]
+  responseTypes String[]
+  createdAt     DateTime @default(now())
 
   authorizationCodes McpOAuthAuthorizationCode[]
   grants             McpOAuthGrant[]
 }
 
-// Single-use, short-lived authorization_code grants (RFC 6749 4.1). Scoped to
-// exactly one blog: the user picks it on the consent screen.
+// Single-use, short-lived authorization_code grants (RFC 6749 4.1). The user
+// can authorize one or more accessible blogs on the consent screen.
 model McpOAuthAuthorizationCode {
   id            String    @id @default(cuid())
   codeHash      String    @unique
   clientId      String
   userId        String
-  blogId        String
+  blogIds       String[]
+  blogId        String? // Legacy single-blog field kept temporarily for zero-downtime deploys.
   redirectUri   String
   codeChallenge String
   scopes        String[]
@@ -235,18 +236,19 @@ model McpOAuthAuthorizationCode {
 
   client McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
   user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  blog   Blog           @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  blog   Blog?          @relation(fields: [blogId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
 }
 
-// A standing (client, user, blog) authorization. Reauthorizing revokes and
-// replaces the prior grant's tokens.
+// A standing authorization for a client, user and resource. Reauthorizing
+// replaces the selected blogs and revokes the prior grant's tokens.
 model McpOAuthGrant {
   id        String    @id @default(cuid())
   clientId  String
   userId    String
-  blogId    String
+  blogIds   String[]
+  blogId    String? // Legacy single-blog field kept temporarily for zero-downtime deploys.
   scopes    String[]
   resource  String
   createdAt DateTime  @default(now())
@@ -254,11 +256,12 @@ model McpOAuthGrant {
 
   client        McpOAuthClient         @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
   user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  blog          Blog                   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  blog          Blog?                  @relation(fields: [blogId], references: [id], onDelete: Cascade)
   accessTokens  McpOAuthAccessToken[]
   refreshTokens McpOAuthRefreshToken[]
 
   @@unique([clientId, userId, blogId])
+  @@unique([clientId, userId, resource])
 }
 
 model McpOAuthAccessToken {

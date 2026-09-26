@@ -64,14 +64,19 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
   });
 
   const resource = () => `http://localhost:4444/api/mcp`;
-  const authorize = (form: Record<string, string>) =>
-    authorizeDecision(
+  const authorize = (form: Record<string, string | string[]>) => {
+    const body = new URLSearchParams();
+    for (const [key, value] of Object.entries(form)) {
+      for (const item of Array.isArray(value) ? value : [value]) body.append(key, item);
+    }
+    return authorizeDecision(
       new Request("http://localhost/api/oauth/authorize", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN },
-        body: new URLSearchParams(form).toString(),
+        body: body.toString(),
       }),
     );
+  };
   const exchange = (form: Record<string, string>) =>
     tokenExchange(
       new Request("http://localhost/api/oauth/token", {
@@ -89,7 +94,7 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
       }),
     );
 
-  async function approveAndExchange(blogId: string) {
+  async function approveAndExchange(blogIds: string[]) {
     const { verifier, challenge } = pkcePair();
     const authorized = await authorize({
       client_id: clientId,
@@ -99,7 +104,7 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
       code_challenge_method: "S256",
       resource: resource(),
       state: "xyz",
-      blog_id: blogId,
+      blog_ids: blogIds,
       decision: "approve",
     });
     expect(authorized.status).toBe(303);
@@ -120,8 +125,8 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
     return tokenResponse.json() as Promise<{ access_token: string; refresh_token: string; expires_in: number; scope: string }>;
   }
 
-  it("completes the authorization_code + PKCE flow and the access token authenticates MCP calls scoped to the chosen blog", async () => {
-    const tokens = await approveAndExchange(blog.id);
+  it("completes the authorization_code + PKCE flow for all selected blogs", async () => {
+    const tokens = await approveAndExchange([blog.id, other.id]);
     expect(tokens.access_token).toMatch(/^znx_at_/);
     expect(tokens.refresh_token).toMatch(/^znx_rt_/);
 
@@ -129,14 +134,10 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
     expect(result.status).toBe(200);
 
     const grant = await state.db.mcpOAuthGrant.findUniqueOrThrow({
-      where: { clientId_userId_blogId: { clientId, userId: owner.id, blogId: blog.id } },
+      where: { clientId_userId_resource: { clientId, userId: owner.id, resource: resource() } },
     });
-    expect(grant.blogId).toBe(blog.id);
+    expect(grant.blogIds).toEqual([blog.id, other.id]);
     expect(result.status).toBe(200);
-
-    // The token must not work against a different blog than the one chosen at consent.
-    const otherKey = await approveAndExchange(other.id);
-    expect(otherKey.access_token).not.toBe(tokens.access_token);
   });
 
   it("rejects an authorize request for a blog the user cannot access", async () => {
@@ -225,7 +226,7 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
   });
 
   it("rotates refresh tokens and revokes the whole grant on reuse", async () => {
-    const tokens = await approveAndExchange(blog.id);
+    const tokens = await approveAndExchange([blog.id]);
     const refreshed = await exchange({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_id: clientId, resource: resource() });
     expect(refreshed.status).toBe(200);
     const rotated = await refreshed.json();
@@ -239,7 +240,7 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
   });
 
   it("revokes an access token via /api/oauth/revoke", async () => {
-    const tokens = await approveAndExchange(blog.id);
+    const tokens = await approveAndExchange([blog.id]);
     expect((await mcpCall(tokens.access_token)).status).toBe(200);
     const revoked = await revokeTokenRoute(
       new Request("http://localhost/api/oauth/revoke", {
@@ -253,7 +254,7 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
   });
 
   it("stops authenticating once the user loses access to the granted blog", async () => {
-    const tokens = await approveAndExchange(blog.id);
+    const tokens = await approveAndExchange([blog.id]);
     await state.db.blog.update({ where: { id: blog.id }, data: { userId: (await state.db.user.create({ data: { email: "newowner@zenex-oauth.test" } })).id } });
     expect((await mcpCall(tokens.access_token)).status).toBe(401);
   });
