@@ -54,8 +54,12 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
         setError(result.error);
         setIsAdding(false);
       } else {
+        const addedEmail = email.trim().toLowerCase();
+        if (result.member) {
+          setMembers((current) => [...current, result.member]);
+        }
         setEmail("");
-        setSuccessMessage(`Successfully added ${email} as a member`);
+        setSuccessMessage(`Successfully added ${addedEmail} as a member`);
         setIsAdding(false);
         router.refresh();
       }
@@ -210,4 +214,3 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
     </div>
   );
 }
-

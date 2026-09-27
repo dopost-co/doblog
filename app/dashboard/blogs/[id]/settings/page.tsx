@@ -9,6 +9,7 @@ import { BlogMembers } from "@/components/BlogMembers/BlogMembers";
 import { ImportPostsDialog } from "@/components/ImportPostsDialog/ImportPostsDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getBlogMembers } from "@/src/server/services/blogs/members/queries";
+import { BlogNameSettings } from "@/components/BlogNameSettings/BlogNameSettings";
 
 export default async function BlogSettingsPage({
   params,
@@ -51,6 +52,9 @@ export default async function BlogSettingsPage({
         </div>
         <div className="max-w-2xl space-y-8">
           <div>
+            <BlogNameSettings blogId={id} initialName={blog.name} canEdit={isOwner} />
+          </div>
+          <div>
             <BlogIdDisplay blogId={blog.blogId} />
           </div>
           <div>
@@ -80,4 +84,3 @@ export default async function BlogSettingsPage({
     </div>
   );
 }
-

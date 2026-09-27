@@ -71,6 +71,7 @@ export default async function EditPostPage({
             excerpt: post.excerpt,
             coverImage: post.coverImage,
             status: post.status,
+            featured: post.featured,
             publishedAt: post.publishedAt,
             authorId: post.authorId,
             metaTitle: post.metaTitle,
@@ -93,4 +94,3 @@ export default async function EditPostPage({
     </div>
   );
 }
-

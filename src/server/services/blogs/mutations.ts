@@ -110,6 +110,7 @@ export async function updateBlog(
 
     revalidatePath(`/dashboard/blogs/${id}`);
     revalidatePath(`/dashboard/blogs/${id}/settings`);
+    revalidatePath("/dashboard");
     return { success: true, blog: updatedBlog };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -149,4 +150,3 @@ export async function deleteBlog(id: string) {
     return { error: "Failed to delete blog" };
   }
 }
-

@@ -73,6 +73,7 @@ export async function getPostsByBlogId(
           },
         ],
         include: {
+          author: true,
           categories: {
             include: {
               category: true,
@@ -117,6 +118,7 @@ export async function getPostById(id: string) {
   return prisma.post.findUnique({
     where: { id },
     include: {
+      author: true,
       categories: {
         include: {
           category: true,

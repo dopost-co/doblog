@@ -16,6 +16,7 @@ export async function userHasAccessToBlog(
   blogId: string
 ): Promise<boolean> {
   try {
+    const normalizedEmail = userEmail.toLowerCase().trim();
     const blog = await prisma.blog.findUnique({
       where: { id: blogId },
     });
@@ -33,7 +34,7 @@ export async function userHasAccessToBlog(
     const member = await prisma.blogMember.findFirst({
       where: {
         blogId,
-        userEmail,
+        userEmail: normalizedEmail,
       },
     });
 
@@ -79,7 +80,7 @@ export async function addBlogMember(blogId: string, email: string) {
     }
 
     // Cannot add owner as member (owner already has access)
-    if (blog.user.email === validatedEmail) {
+    if (blog.user.email.toLowerCase().trim() === validatedEmail) {
       return { error: "The blog owner is already a member" };
     }
 
@@ -102,10 +103,14 @@ export async function addBlogMember(blogId: string, email: string) {
         userEmail: validatedEmail,
       },
     });
+    const user = await prisma.user.findUnique({
+      where: { email: validatedEmail },
+      select: { id: true, name: true, email: true },
+    });
 
     revalidatePath(`/dashboard/blogs/${blogId}/settings`);
     revalidatePath("/dashboard");
-    return { success: true, member };
+    return { success: true, member: { ...member, user } };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { error: error.issues[0].message };
@@ -164,7 +169,5 @@ export async function removeBlogMember(blogId: string, memberId: string) {
     return { error: "Failed to remove blog member" };
   }
 }
-
-
 
 

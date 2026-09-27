@@ -51,10 +51,11 @@ export async function getBlogMembers(blogId: string): Promise<{
 
     // Check if user has access (owner or member)
     const isOwner = blog.userId === session.user.id;
+    const normalizedEmail = session.user.email.toLowerCase().trim();
     const isMember = await prisma.blogMember.findFirst({
       where: {
         blogId,
-        userEmail: session.user.email,
+        userEmail: normalizedEmail,
       },
     });
 
@@ -70,26 +71,17 @@ export async function getBlogMembers(blogId: string): Promise<{
       },
     });
 
-    // Map members with user info if user exists
-    const membersWithUser: BlogMemberWithUser[] = await Promise.all(
-      members.map(async (member) => {
-        const user = await prisma.user.findUnique({
-          where: { email: member.userEmail },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        });
-
-        return {
-          id: member.id,
-          userEmail: member.userEmail,
-          createdAt: member.createdAt,
-          user: user || null,
-        };
-      })
-    );
+    const users = await prisma.user.findMany({
+      where: { email: { in: members.map((member) => member.userEmail) } },
+      select: { id: true, email: true, name: true },
+    });
+    const usersByEmail = new Map(users.map((user) => [user.email.toLowerCase(), user]));
+    const membersWithUser: BlogMemberWithUser[] = members.map((member) => ({
+      id: member.id,
+      userEmail: member.userEmail,
+      createdAt: member.createdAt,
+      user: usersByEmail.get(member.userEmail.toLowerCase()) || null,
+    }));
 
     return {
       members: membersWithUser,
@@ -101,4 +93,3 @@ export async function getBlogMembers(blogId: string): Promise<{
     return { error: "Failed to fetch blog members" };
   }
 }
-

@@ -2,12 +2,29 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { getLanguageName } from "@/lib/languages";
-import { updatePost } from "@/src/server/services/posts/mutations";
 import { useRouter } from "next/navigation";
+import { Check, Languages, MoreHorizontal, Star, Trash2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
+import { getLanguageName } from "@/lib/languages";
+import { deletePost, updatePost } from "@/src/server/services/posts/mutations";
 
 interface PostCardProps {
   id: string;
@@ -15,9 +32,12 @@ interface PostCardProps {
   title: string;
   publishedAt: Date | null;
   status: string;
+  featured: boolean;
   coverImage?: string | null;
   language?: string | null;
   availableLanguages?: string[];
+  categories: Array<{ id: string; name: string }>;
+  author?: { id: string; name: string } | null;
 }
 
 export function PostCard({
@@ -26,118 +46,156 @@ export function PostCard({
   title,
   publishedAt,
   status,
+  featured,
   coverImage,
   language,
-  availableLanguages,
+  availableLanguages = [],
+  categories,
+  author,
 }: PostCardProps) {
   const router = useRouter();
   const [currentStatus, setCurrentStatus] = useState(status);
+  const [isFeatured, setIsFeatured] = useState(featured);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const formattedDate = publishedAt
     ? new Date(publishedAt).toLocaleDateString("en-US", {
         year: "numeric",
-        month: "long",
+        month: "short",
         day: "numeric",
       })
     : null;
 
-  const languageName = language ? getLanguageName(language) : null;
+  async function patchPost(data: { status?: "draft" | "published"; featured?: boolean }) {
+    setIsUpdating(true);
+    const result = await updatePost(id, data);
+    setIsUpdating(false);
+    if (result.error) return false;
+    router.refresh();
+    return true;
+  }
+
+  async function toggleStatus() {
+    const next = currentStatus === "published" ? "draft" : "published";
+    if (await patchPost({ status: next })) setCurrentStatus(next);
+  }
+
+  async function toggleFeatured(next: boolean) {
+    if (await patchPost({ featured: next })) setIsFeatured(next);
+  }
+
+  async function handleDelete() {
+    setIsUpdating(true);
+    setDeleteError("");
+    const result = await deletePost(id);
+    if (result.error) {
+      setDeleteError(result.error);
+      setIsUpdating(false);
+      return;
+    }
+    setDeleteOpen(false);
+    router.refresh();
+  }
+
+  const chipClass = "inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground";
+  const displayedLanguages = availableLanguages.length > 0
+    ? Array.from(new Set(availableLanguages))
+    : language ? [language] : [];
 
   return (
-    <Link href={`/dashboard/blogs/${blogId}/posts/${id}/edit`}>
-      <Card className="cursor-pointer transition-colors hover:bg-muted/50">
-        <CardContent className="flex items-center gap-4 px-4">
-          <div className="h-16 w-16 shrink-0 overflow-hidden rounded bg-muted">
-            {coverImage ? (
-              <img src={coverImage} alt={title} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-muted-foreground"
-                >
-                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-                  <circle cx="12" cy="13" r="3" />
-                </svg>
-              </div>
-            )}
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold">{title}</h3>
-            <div className="flex flex-wrap items-center gap-2">
-              {formattedDate && <p className="text-sm text-muted-foreground">{formattedDate}</p>}
-              {languageName && (
-                <span className="text-xs text-muted-foreground">• {languageName}</span>
-              )}
-              {availableLanguages && availableLanguages.length > 1 && (
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="text-xs text-muted-foreground">•</span>
-                  <div className="flex flex-wrap gap-1">
-                    {availableLanguages.map((lang) => (
-                      <span
-                        key={lang}
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          lang === language
-                            ? "bg-primary/20 text-primary"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {getLanguageName(lang) || lang}
-                      </span>
-                    ))}
-                  </div>
+    <>
+      <Card className="transition-colors hover:bg-muted/30">
+        <CardContent className="flex items-center gap-4 px-4 py-3">
+          <Link href={`/dashboard/blogs/${blogId}/posts/${id}/edit`} className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
+              {coverImage ? (
+                <img src={coverImage} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
+                  <span className="text-lg font-medium">{title.slice(0, 1).toUpperCase()}</span>
                 </div>
               )}
             </div>
-          </div>
-          <div 
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            className="flex items-center gap-2"
-          >
-            <Label 
-              htmlFor={`switch-${id}`}
-              className={`text-xs font-medium cursor-pointer ${
-                currentStatus === "published" ? "text-green-700" : "text-muted-foreground"
-              }`}
-            >
-              {currentStatus === "published" ? "Published" : "Draft"}
-            </Label>
-            <Switch
-              id={`switch-${id}`}
-              checked={currentStatus === "published"}
-              onCheckedChange={async (checked) => {
-                setIsUpdating(true);
-                const newStatus = checked ? "published" : "draft";
-                
-                const result = await updatePost(id, {
-                  status: newStatus as "draft" | "published",
-                });
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate font-semibold">{title}</h3>
+                {isFeatured && <Star className="h-3.5 w-3.5 shrink-0 fill-current text-amber-500" aria-label="Featured" />}
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {formattedDate && <span className="text-xs text-muted-foreground">{formattedDate}</span>}
+                {displayedLanguages.map((lang) => (
+                  <span
+                    key={lang}
+                    className={lang === language
+                      ? "inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
+                      : chipClass}
+                  >
+                    {getLanguageName(lang) || lang}
+                  </span>
+                ))}
+                {categories.map((category) => <span key={category.id} className={chipClass}>{category.name}</span>)}
+                {author && <span className={chipClass}>{author.name}</span>}
+              </div>
+            </div>
+          </Link>
 
-                if (!result.error) {
-                  setCurrentStatus(newStatus);
-                  router.refresh();
-                }
-                setIsUpdating(false);
-              }}
-              disabled={isUpdating}
-            />
-          </div>
+          <span className={`hidden rounded-full px-2 py-1 text-xs sm:inline-flex ${currentStatus === "published" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+            {currentStatus === "published" ? "Published" : "Draft"}
+          </span>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${title}`} disabled={isUpdating}>
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onSelect={toggleStatus}>
+                <Check />
+                {currentStatus === "published" ? "Move to draft" : "Publish"}
+              </DropdownMenuItem>
+              <DropdownMenuCheckboxItem checked={isFeatured} onCheckedChange={toggleFeatured}>
+                Featured
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuItem onSelect={() => setTranslateOpen(true)}>
+                <Languages /> Translate to…
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                <Trash2 /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardContent>
       </Card>
-    </Link>
+
+      <TranslatePostDialog
+        open={translateOpen}
+        onOpenChange={setTranslateOpen}
+        postId={id}
+        currentLanguage={language || "en"}
+        existingLanguages={availableLanguages}
+        blogId={blogId}
+      />
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete post?</DialogTitle>
+            <DialogDescription>This permanently deletes “{title}”. This action cannot be undone.</DialogDescription>
+          </DialogHeader>
+          {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={isUpdating}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isUpdating}>
+              {isUpdating ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
-
-

@@ -137,12 +137,15 @@ export async function translatePost(postId: string, targetLanguage: string) {
     }
 
     // Check if translation already exists
-    const existingTranslation = await prisma.post.findFirst({
-      where: {
-        translationGroupId: originalPost.translationGroupId,
-        language: targetLanguage,
-      },
-    });
+    const existingTranslation = originalPost.translationGroupId
+      ? await prisma.post.findFirst({
+          where: {
+            blogId: originalPost.blogId,
+            translationGroupId: originalPost.translationGroupId,
+            language: targetLanguage,
+          },
+        })
+      : null;
 
     if (existingTranslation) {
       return { error: "Translation in this language already exists", post: existingTranslation };

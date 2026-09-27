@@ -26,7 +26,6 @@ import { createPost, updatePost, syncPostTranslations } from "@/src/server/servi
 import { ChevronDown, ChevronUp, Languages, RefreshCw } from "lucide-react";
 import { LanguageSelector } from "@/components/LanguageSelector/LanguageSelector";
 import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
-import { DeletePostDialog } from "@/components/DeletePostDialog/DeletePostDialog";
 import { getLanguageByCode } from "@/lib/languages";
 
 interface PostFormProps {
@@ -243,9 +242,6 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
           )}
         </div>
         <div className="flex items-center justify-between gap-2">
-          {isEditing && post && (
-            <DeletePostDialog postId={post.id} postTitle={post.title} blogId={blogId} />
-          )}
           <div className="flex items-center gap-2 ml-auto">
             <Button type="button" variant="outline" onClick={() => router.push(`/dashboard/blogs/${blogId}`)}>
               Cancel
@@ -513,6 +509,15 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                     <SelectItem value="published">Published</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Label htmlFor="featured" className="text-muted-foreground w-[120px] shrink-0">Featured</Label>
+                <Checkbox
+                  id="featured"
+                  checked={featured}
+                  onCheckedChange={(checked) => setFeatured(checked === true)}
+                />
               </div>
 
               <div className="flex items-center gap-4">

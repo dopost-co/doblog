@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/get-session";
 import { getBlogById } from "@/src/server/services/blogs/queries";
 import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
-import { getPostsByBlogId, getAvailableLanguagesBySlug } from "@/src/server/services/posts/queries";
+import { getPostsByBlogId, getAvailableLanguagesByTranslationGroupIds } from "@/src/server/services/posts/queries";
 import { DashboardHeader } from "@/components/DashboardHeader/DashboardHeader";
 import { BlogNavigation } from "@/components/BlogNavigation/BlogNavigation";
 import { PostCard } from "@/components/PostCard/PostCard";
@@ -42,6 +42,9 @@ export default async function BlogPostsPage({
     page: currentPage,
     limit: 20,
   });
+  const languagesByGroup = await getAvailableLanguagesByTranslationGroupIds(
+    posts.flatMap((post) => post.translationGroupId ? [post.translationGroupId] : [])
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -55,9 +58,10 @@ export default async function BlogPostsPage({
           </Link>
         </div>
         <div className="flex flex-col gap-3">
-          {await Promise.all(
-            posts.map(async (post) => {
-              const availableLanguages = await getAvailableLanguagesBySlug(id, post.slug);
+          {posts.map((post) => {
+              const availableLanguages = post.translationGroupId
+                ? languagesByGroup[post.translationGroupId] || [post.language]
+                : [post.language];
               return (
                 <PostCard
                   key={post.id}
@@ -69,10 +73,12 @@ export default async function BlogPostsPage({
                   coverImage={post.coverImage}
                   language={post.language}
                   availableLanguages={availableLanguages}
+                  categories={post.categories.map(({ category }) => ({ id: category.id, name: category.name }))}
+                  author={post.author ? { id: post.author.id, name: post.author.name } : null}
+                  featured={post.featured}
                 />
               );
-            })
-          )}
+            })}
         </div>
         {posts.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -133,4 +139,3 @@ export default async function BlogPostsPage({
     </div>
   );
 }
-
