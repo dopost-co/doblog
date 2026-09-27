@@ -12,7 +12,7 @@ import { managementOpenApi } from "@/lib/integrations/openapi";
 import { imageExtension } from "@/src/server/services/media/upload";
 import { draftExample } from "@/lib/integrations/examples";
 import { connectionConfig } from "@/scripts/mcp-stdio.mjs";
-import { isTrustedAuthorizationOrigin } from "@/lib/integrations/oauth";
+import { isTrustedAuthorizationOrigin, parseScopes } from "@/lib/integrations/oauth";
 
 describe("integration schemas and secrets", () => {
   it("uses unique 256-bit tokens and stores only a digest", () => {
@@ -41,6 +41,11 @@ describe("integration schemas and secrets", () => {
     expect(createKeySchema.safeParse({ name: "a", scopes: ["admin"] }).success).toBe(false);
     expect(createKeySchema.safeParse({ name: "a", scopes: ["content:read"], expiresInDays: 366 }).success).toBe(false);
     expect(createKeySchema.safeParse({ name: "a", scopes: [] }).success).toBe(false);
+  });
+  it("defaults OAuth to draft authoring, media and editorial settings without publish or delete", () => {
+    expect(parseScopes(null)).toEqual(["content:read", "content:write", "media:write", "seo:write"]);
+    expect(parseScopes(null)).not.toContain("content:publish");
+    expect(parseScopes(null)).not.toContain("content:delete");
   });
   it("has a schema and OpenAPI operation for every REST/MCP operation", () => {
     const spec = managementOpenApi();

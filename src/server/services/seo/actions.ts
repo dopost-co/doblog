@@ -20,8 +20,9 @@ const settingsSchema = z.object({
   locationCode: z.number().int().positive(), languageCode: z.string().trim().min(2).max(10),
   timezone: z.string().trim().min(1).max(64), competitorDomains: z.array(z.string().trim().toLowerCase().max(253)).max(20),
   audience: z.string().trim().max(2000).nullable(), brandVoice: z.string().trim().max(2000).nullable(),
-  publishingMode: z.enum(["draft", "review", "auto_publish"]), imageStyle: z.string().trim().max(1000).nullable(),
-  imagesPerPost: z.number().int().min(0).max(5), perRunBudgetUsd: z.number().min(0.001).max(100),
+  publishingMode: z.enum(["draft", "review", "auto_publish"]),
+  thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
+  maxInlineImages: z.number().int().min(0).max(8), perRunBudgetUsd: z.number().min(0.001).max(100),
   dailyBudgetUsd: z.number().min(0.001).max(1000), monthlyBudgetUsd: z.number().min(0.001).max(10000),
 }).strict().superRefine((value, ctx) => {
   if (value.enabled && (!value.credentialId || !value.targetDomain)) ctx.addIssue({ code: "custom", message: "A connection and target domain are required before enabling SEO" });
@@ -76,8 +77,9 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       credentialId: data.credentialId, enabled: data.enabled, targetDomain: data.targetDomain,
       locationCode: data.locationCode, languageCode: data.languageCode, timezone: data.timezone,
       competitorDomains: data.competitorDomains.filter(Boolean), audience: data.audience || null,
-      brandVoice: data.brandVoice || null, publishingMode: data.publishingMode, imageStyle: data.imageStyle || null,
-      imagesPerPost: data.imagesPerPost, perRunBudgetUsdMicros: micros(data.perRunBudgetUsd),
+      brandVoice: data.brandVoice || null, publishingMode: data.publishingMode,
+      thumbnailStyle: data.thumbnailStyle || null, inlineImageStyle: data.inlineImageStyle || null,
+      maxInlineImages: data.maxInlineImages, perRunBudgetUsdMicros: micros(data.perRunBudgetUsd),
       dailyBudgetUsdMicros: micros(data.dailyBudgetUsd), monthlyBudgetUsdMicros: micros(data.monthlyBudgetUsd),
     };
     await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...values }, update: values });

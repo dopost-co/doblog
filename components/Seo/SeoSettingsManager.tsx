@@ -15,7 +15,8 @@ type Credential = { id: string; label: string; loginHint: string; verifiedAt: st
 type Settings = {
   credentialId: string | null; enabled: boolean; targetDomain: string | null; locationCode: number; languageCode: string;
   timezone: string; competitorDomains: string[]; audience: string | null; brandVoice: string | null; publishingMode: string;
-  imageStyle: string | null; imagesPerPost: number; perRunBudgetUsdMicros: number; dailyBudgetUsdMicros: number; monthlyBudgetUsdMicros: number;
+  thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
+  perRunBudgetUsdMicros: number; dailyBudgetUsdMicros: number; monthlyBudgetUsdMicros: number;
 } | null;
 
 const usd = (micros: number | undefined, fallback: number) => String((micros ?? fallback * 1_000_000) / 1_000_000);
@@ -50,7 +51,8 @@ export function SeoSettingsManager({ blogId, initialCredentials, settings }: { b
         locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
         competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map(v => v.trim()).filter(Boolean),
         audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: String(form.get("publishingMode")),
-        imageStyle: nullable("imageStyle"), imagesPerPost: Number(form.get("imagesPerPost")),
+        thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
+        maxInlineImages: Number(form.get("maxInlineImages")),
         perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
       });
       if (result.error) { setError(result.error); return; }
@@ -81,10 +83,17 @@ export function SeoSettingsManager({ blogId, initialCredentials, settings }: { b
         <Field label="Language code" name="languageCode" defaultValue={settings?.languageCode ?? "en"} />
         <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />
         <div className="space-y-2"><Label htmlFor="publishingMode">Publishing mode</Label><select id="publishingMode" name="publishingMode" defaultValue={settings?.publishingMode ?? "draft"} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="draft">Draft only</option><option value="review">Review queue</option><option value="auto_publish">Auto publish (reserved)</option></select></div>
-        <Field label="Images per post" name="imagesPerPost" type="number" min="0" max="5" defaultValue={String(settings?.imagesPerPost ?? 1)} />
+        <div className="space-y-2">
+          <Field label="Maximum inline images" name="maxInlineImages" type="number" min="0" max="8" defaultValue={String(settings?.maxInlineImages ?? 3)} />
+          <p className="text-xs leading-relaxed text-muted-foreground">The MCP may use fewer when extra images do not improve the explanation. The thumbnail is separate and does not count toward this maximum.</p>
+        </div>
       </div>
       <div className="space-y-2"><Label htmlFor="competitors">Competitor domains</Label><Textarea id="competitors" name="competitors" defaultValue={settings?.competitorDomains.join("\n") || ""} placeholder={'competitor-one.com\ncompetitor-two.com'} /></div>
-      <div className="grid gap-4 md:grid-cols-3"><Area label="Audience" name="audience" defaultValue={settings?.audience || ""} /><Area label="Brand voice" name="brandVoice" defaultValue={settings?.brandVoice || ""} /><Area label="Image style" name="imageStyle" defaultValue={settings?.imageStyle || ""} /></div>
+      <div className="grid gap-4 md:grid-cols-2"><Area label="Audience" name="audience" defaultValue={settings?.audience || ""} /><Area label="Brand voice" name="brandVoice" defaultValue={settings?.brandVoice || ""} /></div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Area label="Thumbnail style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, strong focal point, no embedded text…" />
+        <Area label="Inline image style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple hand-drawn diagrams that explain the adjacent section…" />
+      </div>
       <fieldset className="grid gap-4 rounded-xl border p-4 md:grid-cols-3"><legend className="px-2 text-sm font-medium">Hard spend limits (USD)</legend>
         <Field label="Per MCP run" name="perRunBudgetUsd" type="number" min="0.001" step="0.001" defaultValue={usd(settings?.perRunBudgetUsdMicros, .25)} />
         <Field label="Per day (UTC)" name="dailyBudgetUsd" type="number" min="0.001" step="0.001" defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />

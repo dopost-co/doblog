@@ -188,6 +188,7 @@ export async function getPostBySlug(blogId: string, slug: string) {
           status: "published",
         },
         include: {
+          author: true,
           categories: {
             include: {
               category: true,
@@ -256,6 +257,7 @@ export async function getPostBySlugAndLanguage(
           status: "published",
         },
         include: {
+          author: true,
           categories: {
             include: {
               category: true,

@@ -87,8 +87,9 @@ model BlogSeoSettings {
   audience               String?
   brandVoice             String?
   publishingMode         String   @default("draft")
-  imageStyle             String?
-  imagesPerPost          Int      @default(1)
+  thumbnailStyle         String?
+  inlineImageStyle       String?
+  maxInlineImages        Int      @default(3)
   perRunBudgetUsdMicros  Int      @default(250000)
   dailyBudgetUsdMicros   Int      @default(1000000)
   monthlyBudgetUsdMicros Int      @default(20000000)

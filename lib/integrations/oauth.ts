@@ -67,7 +67,7 @@ function expiresIn(seconds: number): Date {
 }
 
 export function parseScopes(value: string | null | undefined): ApiScope[] {
-  if (!value?.trim()) return [...API_SCOPES];
+  if (!value?.trim()) return ["content:read", "content:write", "media:write", "seo:write"];
   const scopes = [...new Set(value.trim().split(/\s+/))];
   const invalid = scopes.filter((scope): scope is string => !API_SCOPES.includes(scope as ApiScope));
   if (invalid.length > 0) throw new OAuthError("invalid_scope", `Unknown scope: ${invalid.join(", ")}`);

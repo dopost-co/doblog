@@ -46,33 +46,32 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
             <div className="rounded-lg bg-primary/10 p-2 text-primary"><Link2 className="h-5 w-5" /></div>
             <div>
               <h2 className="font-semibold">Connect to Zenex</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Use the hosted MCP endpoint. No local checkout or server process is required.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Use the hosted MCP endpoint. Compatible clients open a secure OAuth consent screen and keep access through rotating refresh tokens.</p>
             </div>
           </div>
 
           <div className="space-y-2">
             <CopyRow label="MCP server URL" value={endpoint} />
-            <CopyRow label="Authorization header" value="Bearer znx_REPLACE_WITH_YOUR_KEY" />
           </div>
 
           <div className="grid gap-4 border-t pt-5 sm:grid-cols-3">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium"><KeyRound className="h-4 w-4" /> 1. Create a key</div>
-              <p className="text-xs leading-relaxed text-muted-foreground">Choose only the permissions your client needs.</p>
+              <div className="flex items-center gap-2 text-sm font-medium"><Link2 className="h-4 w-4" /> 1. Add the URL</div>
+              <p className="text-xs leading-relaxed text-muted-foreground">Paste the endpoint into a remote MCP client.</p>
             </div>
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium"><Link2 className="h-4 w-4" /> 2. Add the URL</div>
-              <p className="text-xs leading-relaxed text-muted-foreground">Select Streamable HTTP and paste the endpoint above.</p>
+              <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4" /> 2. Approve access</div>
+              <p className="text-xs leading-relaxed text-muted-foreground">Sign in, select the blog and review the requested permissions.</p>
             </div>
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4" /> 3. Authenticate</div>
-              <p className="text-xs leading-relaxed text-muted-foreground">Send your key as a Bearer authorization header.</p>
+              <div className="flex items-center gap-2 text-sm font-medium"><KeyRound className="h-4 w-4" /> 3. Stay connected</div>
+              <p className="text-xs leading-relaxed text-muted-foreground">The client refreshes access automatically. Edit or revoke it below at any time.</p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Button asChild>
-              <Link href={dashboardId ? `/dashboard/blogs/${dashboardId}/api-keys` : "/dashboard"}>Open API keys</Link>
+              <Link href="https://modelcontextprotocol.io/docs/tutorials/use-remote-mcp-server" target="_blank">How remote MCP works <ExternalLink /></Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/docs/mcp">MCP documentation <ExternalLink /></Link>
@@ -85,11 +84,11 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
         <section className="rounded-lg border p-5">
           <h3 className="text-sm font-semibold">Recommended permissions</h3>
           <div className="mt-3 flex flex-wrap gap-2">
-            {["content:read", "content:write"].map((scope) => (
+            {["content:read", "content:write", "media:write", "seo:write"].map((scope) => (
               <code key={scope} className="rounded-full bg-muted px-2.5 py-1 text-xs">{scope}</code>
             ))}
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Add publish or delete permissions only when the client really needs them.</p>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">This supports drafts, images and editorial settings. Add publish or delete only when the client really needs them.</p>
         </section>
         <section className="rounded-lg border p-5">
           <h3 className="text-sm font-semibold">Quick test</h3>
@@ -103,13 +102,14 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
           <span className="float-right text-muted-foreground transition-transform group-open:rotate-180">⌄</span>
         </summary>
         <div className="space-y-3 border-t px-5 py-4">
-          <p className="text-sm text-muted-foreground">Use the local bridge only when your client cannot connect to a remote Streamable HTTP server.</p>
+          <p className="text-sm text-muted-foreground">The stdio bridge uses an API key because local stdio clients cannot complete the hosted OAuth flow. Create one only for this fallback.</p>
+          <Button variant="outline" size="sm" asChild><Link href={dashboardId ? `/dashboard/blogs/${dashboardId}/api-keys` : "/dashboard"}>Open API keys</Link></Button>
           <DocsCodeBlock language="json" code={stdioConfig(origin)} filename="mcpServers configuration" />
         </div>
       </details>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Keep API keys out of prompts, repositories and browser bundles. Writes are draft-first unless the key also has publish permission.
+        OAuth is recommended. Keep fallback API keys out of prompts, repositories and browser bundles. Writes are draft-first unless the connection also has publish permission.
       </p>
     </div>
   );

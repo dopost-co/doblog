@@ -96,6 +96,21 @@ describe("MCP rich content", () => {
     } finally { await client.close(); await server.close(); }
   });
 
+  it("exposes editable brand and image guidance only with seo:write", async () => {
+    const server = createMcpServer({ blogId: "blog", publicBlogId: "public", keyId: "test", scopes: ["seo:write"] });
+    const client = new Client({ name: "seo-settings-test", version: "1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await server.connect(serverTransport); await client.connect(clientTransport);
+      const tool = (await client.listTools()).tools.find(item => item.name === "seo_update_settings");
+      expect(tool?.inputSchema.properties).toHaveProperty("maxInlineImages");
+      expect(tool?.inputSchema.properties).toHaveProperty("thumbnailStyle");
+      expect(tool?.inputSchema.properties).toHaveProperty("inlineImageStyle");
+      expect(tool?.inputSchema.properties).not.toHaveProperty("monthlyBudgetUsd");
+      expect(tool?.inputSchema.properties).not.toHaveProperty("credentialId");
+    } finally { await client.close(); await server.close(); }
+  });
+
   it("does not let an invited OAuth member trigger paid SEO calls", async () => {
     const server = createMcpServer({
       blogId: "blog", publicBlogId: "public", keyId: "oauth:test", scopes: ["content:read"], canUsePaidSeo: false,

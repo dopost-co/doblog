@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/crypto/secrets";
 import { ApiError } from "@/lib/integrations/errors";
@@ -20,13 +21,15 @@ const stable = (value: unknown): string => Array.isArray(value)
 const microsToUsd = (value: number) => Number((value / 1_000_000).toFixed(6));
 const firstResult = (data: Record<string, unknown>) => ((data.tasks as Array<Record<string, unknown>> | undefined)?.[0]?.result as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
 
-function normalize(operation: SeoOperation, raw: Record<string, unknown>) {
+export function normalizeSeoResponse(operation: SeoOperation, raw: Record<string, unknown>) {
   const result = firstResult(raw) || {};
   const items = Array.isArray(result.items) ? result.items as Array<Record<string, unknown>> : [];
   if (operation === "keyword_ideas") return {
     totalCount: Number(result.total_count || items.length),
     items: items.slice(0, 50).map(item => {
-      const keywordData = (item.keyword_data || {}) as Record<string, unknown>;
+      // keyword_ideas returns fields directly on each item. Keep the nested
+      // fallback for compatible DataForSEO Labs endpoints that use keyword_data.
+      const keywordData = (item.keyword_data || item) as Record<string, unknown>;
       const info = (keywordData.keyword_info || {}) as Record<string, unknown>;
       const props = (keywordData.keyword_properties || {}) as Record<string, unknown>;
       const intent = (keywordData.search_intent_info || {}) as Record<string, unknown>;
@@ -58,10 +61,41 @@ export async function getSeoSettingsSummary(blogId: string) {
     configured: !!settings.credentialId, enabled: settings.enabled, targetDomain: settings.targetDomain,
     locationCode: settings.locationCode, languageCode: settings.languageCode, timezone: settings.timezone,
     competitorDomains: settings.competitorDomains, audience: settings.audience, brandVoice: settings.brandVoice,
-    publishingMode: settings.publishingMode, imageStyle: settings.imageStyle, imagesPerPost: settings.imagesPerPost,
+    publishingMode: settings.publishingMode,
+    thumbnailStyle: settings.thumbnailStyle,
+    inlineImageStyle: settings.inlineImageStyle,
+    maxInlineImages: settings.maxInlineImages,
+    imagePolicy: "Create one distinct thumbnail when authoring a complete article. Add zero to maxInlineImages images inside the content only when each one explains something useful; the thumbnail does not count toward this maximum and must not be reused as an inline image.",
     budgetsUsd: { perRun: microsToUsd(settings.perRunBudgetUsdMicros), daily: microsToUsd(settings.dailyBudgetUsdMicros), monthly: microsToUsd(settings.monthlyBudgetUsdMicros) },
     credential: settings.credential ? { label: settings.credential.label, loginHint: settings.credential.loginHint, verified: !!settings.credential.verifiedAt } : null,
   };
+}
+
+export const seoEditorialSettingsFields = {
+  targetDomain: z.string().trim().toLowerCase().max(253).regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/).nullable().optional(),
+  locationCode: z.number().int().positive().optional(),
+  languageCode: z.string().trim().min(2).max(10).optional(),
+  timezone: z.string().trim().min(1).max(64).optional(),
+  competitorDomains: z.array(z.string().trim().toLowerCase().max(253)).max(20).optional(),
+  audience: z.string().trim().max(2000).nullable().optional(),
+  brandVoice: z.string().trim().max(2000).nullable().optional(),
+  publishingMode: z.enum(["draft", "review", "auto_publish"]).optional(),
+  thumbnailStyle: z.string().trim().max(1000).nullable().optional(),
+  inlineImageStyle: z.string().trim().max(1000).nullable().optional(),
+  maxInlineImages: z.number().int().min(0).max(8).optional(),
+} satisfies z.ZodRawShape;
+
+export const seoEditorialSettingsSchema = z.object(seoEditorialSettingsFields).strict().refine(value => Object.keys(value).length > 0, "Provide at least one setting").superRefine((value, ctx) => {
+  if (value.timezone) {
+    try { new Intl.DateTimeFormat("en", { timeZone: value.timezone }); }
+    catch { ctx.addIssue({ code: "custom", message: "Invalid timezone", path: ["timezone"] }); }
+  }
+});
+
+export async function updateSeoEditorialSettings(blogId: string, input: unknown) {
+  const data = seoEditorialSettingsSchema.parse(input);
+  await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...data }, update: data });
+  return getSeoSettingsSummary(blogId);
 }
 
 export async function getSeoUsage(blogId: string) {
@@ -101,7 +135,7 @@ export async function runSeoOperation(blogId: string, operation: SeoOperation, i
   try {
     const raw = await dataForSeoRequest({ login: decryptSecret(settings.credential.encryptedLogin), password: decryptSecret(settings.credential.encryptedPassword) }, policy.endpoint, payload);
     const actualCost = responseCostMicros(raw);
-    const normalized = JSON.parse(JSON.stringify(normalize(operation, raw as unknown as Record<string, unknown>)));
+    const normalized = JSON.parse(JSON.stringify(normalizeSeoResponse(operation, raw as unknown as Record<string, unknown>)));
     await prisma.$transaction([
       prisma.seoUsageEntry.update({ where: { id: reservation.id }, data: { costUsdMicros: actualCost, providerTaskId: raw.tasks?.[0]?.id, status: "completed", completedAt: new Date() } }),
       prisma.seoCacheEntry.upsert({ where: { blogId_endpoint_payloadHash: { blogId, endpoint: policy.endpoint, payloadHash } }, create: { blogId, endpoint: policy.endpoint, payloadHash, response: normalized, expiresAt: new Date(Date.now() + policy.ttlMs) }, update: { response: normalized, expiresAt: new Date(Date.now() + policy.ttlMs) } }),

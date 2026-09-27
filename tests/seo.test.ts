@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/secrets";
 import { dataForSeoRequest, responseCostMicros } from "@/src/server/services/seo/dataforseo";
+import { normalizeSeoResponse } from "@/src/server/services/seo/service";
 
 const TEST_KEY = Buffer.alloc(32, 7).toString("base64");
 
@@ -31,5 +32,18 @@ describe("SEO provider security", () => {
   it("does not accept provider-level error responses", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ status_code: 40101, status_message: "Authentication failed" }), { status: 200 })));
     await expect(dataForSeoRequest({ login: "bad", password: "bad-password" }, "/v3/test")).rejects.toThrow("Authentication failed");
+  });
+
+  it("normalizes keyword ideas from their documented top-level fields", () => {
+    const normalized = normalizeSeoResponse("keyword_ideas", { tasks: [{ result: [{ total_count: 1, items: [{
+      keyword: "automatización de redes sociales",
+      keyword_info: { search_volume: 720, cpc: 1.2, competition_level: "MEDIUM" },
+      keyword_properties: { keyword_difficulty: 34 },
+      search_intent_info: { main_intent: "informational" },
+    }] }] }] });
+    expect(normalized).toEqual({ totalCount: 1, items: [{
+      keyword: "automatización de redes sociales", searchVolume: 720, cpc: 1.2,
+      competition: "MEDIUM", difficulty: 34, intent: "informational",
+    }] });
   });
 });

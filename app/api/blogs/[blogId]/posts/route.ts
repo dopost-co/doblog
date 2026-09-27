@@ -61,6 +61,11 @@ export async function GET(
           publishedAt: post.publishedAt,
           createdAt: post.createdAt,
           updatedAt: post.updatedAt,
+          author: post.author ? {
+            name: post.author.name,
+            slug: post.author.slug,
+            avatar: post.author.avatar,
+          } : null,
           categories: post.categories.map((pc) => ({
             id: pc.category.id,
             name: pc.category.name,
@@ -95,4 +100,3 @@ export async function GET(
     );
   }
 }
-
