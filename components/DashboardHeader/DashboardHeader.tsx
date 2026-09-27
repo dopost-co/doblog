@@ -14,7 +14,7 @@ export async function DashboardHeader({ currentBlog }: DashboardHeaderProps = {}
   const session = await getSession();
 
   return (
-    <header className={currentBlog ? "bg-white dark:bg-zinc-900" : "border-b bg-white dark:bg-zinc-900"}>
+    <header className={currentBlog ? "bg-card" : "border-b bg-card"}>
       <div className="mx-auto flex h-16 w-full max-w-[1000px] items-center justify-between px-6">
         <Link href={session ? "/dashboard" : "/"} className="flex items-center gap-2">
           <span className="font-semibold">{config.appName}</span>
@@ -35,4 +35,3 @@ export async function DashboardHeader({ currentBlog }: DashboardHeaderProps = {}
     </header>
   );
 }
-

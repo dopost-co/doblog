@@ -13,6 +13,7 @@ export async function getPostsByBlogId(
     limit?: number;
     orderBy?: "publishedAt" | "createdAt" | "title";
     order?: "asc" | "desc";
+    groupTranslations?: boolean;
   }
 ) {
   const page = options?.page || 1;
@@ -55,9 +56,53 @@ export async function getPostsByBlogId(
 
   // Cache published posts for API consumption (60 seconds)
   // Don't cache drafts or admin queries
-  const shouldCache = options?.status === "published";
+  const shouldCache = options?.status === "published" && !options?.groupTranslations;
 
   const fetchPosts = async () => {
+    if (options?.groupTranslations) {
+      const allPosts = await prisma.post.findMany({
+        where,
+        omit: { content: options?.includeContent === false },
+        orderBy: [
+          {
+            [orderByField]: orderDirection,
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
+        include: {
+          author: true,
+          categories: {
+            include: {
+              category: true,
+            },
+          },
+          tags: {
+            include: {
+              tag: true,
+            },
+          },
+        },
+      });
+      const groupedPosts = Array.from(
+        new Map(
+          allPosts.map((post) => [post.translationGroupId || post.id, post])
+        ).values()
+      );
+      const total = groupedPosts.length;
+
+      return {
+        posts: groupedPosts.slice(skip, skip + limit),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    }
+
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
         where,

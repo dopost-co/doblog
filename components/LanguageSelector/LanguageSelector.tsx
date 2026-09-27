@@ -90,7 +90,7 @@ export function LanguageSelector({
           onFocus={handleInputFocus}
           placeholder="Search language..."
           required={required}
-          className="h-9 w-auto max-w-md border-0 bg-transparent px-2 pr-8 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+          className="h-9 w-full border-0 bg-muted/40 px-2 pr-8 shadow-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-0 dark:bg-muted/40 dark:hover:bg-muted/60 dark:focus-visible:bg-muted/60"
           onClick={handleTriggerClick}
         />
         <button
@@ -143,4 +143,3 @@ export function LanguageSelector({
     </div>
   );
 }
-

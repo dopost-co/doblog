@@ -22,7 +22,7 @@ export function BlogNavigation({ blogId }: BlogNavigationProps) {
   ];
 
   return (
-    <nav className="border-b bg-white dark:bg-zinc-900">
+    <nav className="border-b bg-card">
       <div className="mx-auto flex w-full max-w-[1000px] gap-6 overflow-x-auto px-6">
         {navItems.map((item) => {
           const checkPath = item.matchPath || item.href;

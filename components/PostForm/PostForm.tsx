@@ -132,6 +132,8 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
   const computedOgTitle = ogTitle || computedMetaTitle;
   const computedOgDescription = ogDescription || computedMetaDescription;
   const computedOgImage = ogImage || coverImage;
+  const fieldClass = "h-9 min-w-0 flex-1 border-0 bg-muted/40 px-3 shadow-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-0 dark:bg-muted/40 dark:hover:bg-muted/60 dark:focus-visible:bg-muted/60";
+  const textAreaClass = "min-w-0 flex-1 resize-none border-0 bg-muted/40 px-3 py-2 shadow-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-0 dark:bg-muted/40 dark:hover:bg-muted/60 dark:focus-visible:bg-muted/60";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -335,28 +337,29 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
           </div>
         )}
 
-        {/* Título más pequeño y con wrap */}
-        <textarea
-          placeholder="Post title..."
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-          rows={1}
-          onInput={(e) => {
-            e.currentTarget.style.height = 'auto';
-            e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-          }}
-          ref={(el) => {
-            if (el) {
-              el.style.height = 'auto';
-              el.style.height = el.scrollHeight + 'px';
-            }
-          }}
-          className="w-full resize-none border-0 bg-transparent px-0 text-3xl font-bold outline-none placeholder:text-muted-foreground/20 overflow-hidden"
-        />
+        <div className="editor-content-rail space-y-6">
+          {/* Título más pequeño y con wrap */}
+          <textarea
+            placeholder="Post title..."
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            rows={1}
+            onInput={(e) => {
+              e.currentTarget.style.height = 'auto';
+              e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
+            }}
+            ref={(el) => {
+              if (el) {
+                el.style.height = 'auto';
+                el.style.height = el.scrollHeight + 'px';
+              }
+            }}
+            className="w-full resize-none overflow-hidden border-0 bg-transparent px-0 text-3xl font-bold outline-none placeholder:text-muted-foreground/30"
+          />
 
-        {/* Campos principales en grid compacto */}
-        <div className="space-y-3 text-sm">
+          {/* Campos principales en grid compacto */}
+          <div className="space-y-3 text-sm">
           <div className="flex items-center gap-4">
             <Label className="text-muted-foreground w-[120px] shrink-0">Slug</Label>
             <Input
@@ -366,14 +369,14 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                 setAutoSlug(false);
               }}
               placeholder="a-great-title"
-              className="h-9 flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+              className={fieldClass}
             />
           </div>
 
           <div className="flex items-center gap-4">
             <Label className="text-muted-foreground w-[120px] shrink-0">Author</Label>
             <Select value={authorId || "none"} onValueChange={(value) => setAuthorId(value === "none" ? "" : value)}>
-              <SelectTrigger className="h-9 w-auto border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted/20 dark:focus-visible:bg-muted/20">
+              <SelectTrigger className={fieldClass}>
                 <SelectValue placeholder="Select an author" />
               </SelectTrigger>
               <SelectContent>
@@ -393,7 +396,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
               value={language}
               onValueChange={setLanguage}
               required
-              className="w-auto max-w-md"
+              className="min-w-0 flex-1"
             />
           </div>
 
@@ -409,7 +412,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                       key={translation.id}
                       type="button"
                       onClick={() => router.push(`/dashboard/blogs/${blogId}/posts/${translation.id}/edit`)}
-                      className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+                      className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                     >
                       {lang?.name || translation.language}
                     </button>
@@ -425,7 +428,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
               type="date"
               value={publishedAt}
               onChange={(e) => setPublishedAt(e.target.value)}
-              className="h-9 w-auto border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+              className={fieldClass}
             />
           </div>
 
@@ -436,7 +439,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
               onChange={(e) => setExcerpt(e.target.value)}
               placeholder="A short description of your post. Recommended to be 155 characters or less."
               rows={2}
-              className="resize-none w-auto max-w-md border-0 bg-transparent px-2 py-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+              className={textAreaClass}
             />
           </div>
 
@@ -446,7 +449,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
               value={selectedCategories[0] || ""}
               onValueChange={(value) => setSelectedCategories([value])}
             >
-              <SelectTrigger className="h-9 w-auto border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted/20 dark:focus-visible:bg-muted/20">
+              <SelectTrigger className={fieldClass}>
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
@@ -469,7 +472,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                 }
               }}
             >
-              <SelectTrigger className="h-9 w-auto border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted/20 dark:focus-visible:bg-muted/20">
+              <SelectTrigger className={fieldClass}>
                 <SelectValue placeholder="Select some tags" />
               </SelectTrigger>
               <SelectContent>
@@ -501,7 +504,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                   value={status}
                   onValueChange={(value) => setStatus(value as "draft" | "published")}
                 >
-                  <SelectTrigger className="h-9 w-auto border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted/20 dark:focus-visible:bg-muted/20">
+                  <SelectTrigger className={fieldClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -522,7 +525,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
 
               <div className="flex items-center gap-4">
                 <Label className="text-muted-foreground w-[120px] shrink-0">Meta Title</Label>
-                <Input value={metaTitle} onChange={(e) => setMetaTitle(e.target.value)} placeholder={computedMetaTitle} className="h-9 w-auto max-w-md border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20" />
+                <Input value={metaTitle} onChange={(e) => setMetaTitle(e.target.value)} placeholder={computedMetaTitle} className={fieldClass} />
               </div>
 
               <div className="flex items-start gap-4">
@@ -532,7 +535,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                   onChange={(e) => setMetaDescription(e.target.value)}
                   placeholder={computedMetaDescription}
                   rows={2}
-                  className="resize-none w-auto max-w-md border-0 bg-transparent px-2 py-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+                  className={textAreaClass}
                 />
               </div>
 
@@ -543,13 +546,13 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                   value={ogImage}
                   onChange={(e) => setOgImage(e.target.value)}
                   placeholder="Open Graph image URL"
-                  className="h-9 w-auto max-w-md border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+                  className={fieldClass}
                 />
               </div>
 
               <div className="flex items-center gap-4">
                 <Label className="text-muted-foreground w-[120px] shrink-0">OG Title</Label>
-                <Input value={ogTitle} onChange={(e) => setOgTitle(e.target.value)} placeholder={computedOgTitle} className="h-9 w-auto max-w-md border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20" />
+                <Input value={ogTitle} onChange={(e) => setOgTitle(e.target.value)} placeholder={computedOgTitle} className={fieldClass} />
               </div>
 
               <div className="flex items-start gap-4">
@@ -559,7 +562,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                   onChange={(e) => setOgDescription(e.target.value)}
                   placeholder={computedOgDescription}
                   rows={2}
-                  className="resize-none w-auto max-w-md border-0 bg-transparent px-2 py-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+                  className={textAreaClass}
                 />
               </div>
 
@@ -569,7 +572,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                   type="url"
                   value={canonicalUrl}
                   onChange={(e) => setCanonicalUrl(e.target.value)}
-                  className="h-9 w-auto max-w-md border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+                  className={fieldClass}
                 />
               </div>
 
@@ -579,11 +582,12 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                   value={keywords}
                   onChange={(e) => setKeywords(e.target.value)}
                   placeholder="Comma-separated keywords"
-                  className="h-9 w-auto max-w-md border-0 bg-transparent px-2 shadow-none focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-muted/20"
+                  className={fieldClass}
                 />
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Editor de contenido */}

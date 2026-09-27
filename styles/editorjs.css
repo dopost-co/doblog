@@ -208,6 +208,11 @@
   padding-right: 2rem !important;
 }
 
+.editor-content-rail {
+  padding-left: 4rem;
+  padding-right: 2rem;
+}
+
 /* Toolbar positioning */
 .codex-editor .ce-toolbar__actions {
   left: -3.5rem !important; /* Position inside the left padding */
@@ -254,4 +259,49 @@
 
 .dark .codex-editor .link-tool:hover {
   background-color: rgb(var(--muted) / 0.3) !important;
+}
+
+.dark .codex-editor .ce-popover,
+.dark .codex-editor .ce-inline-toolbar,
+.dark .codex-editor .ce-conversion-toolbar,
+.dark .codex-editor .ce-settings {
+  background-color: rgb(var(--popover)) !important;
+  border-color: rgb(var(--border)) !important;
+  color: rgb(var(--popover-foreground)) !important;
+  box-shadow: 0 14px 32px rgb(0 0 0 / 0.35) !important;
+}
+
+.dark .codex-editor .ce-popover-item,
+.dark .codex-editor .ce-inline-tool,
+.dark .codex-editor .ce-inline-toolbar__dropdown,
+.dark .codex-editor .ce-conversion-tool {
+  color: rgb(var(--foreground)) !important;
+}
+
+.dark .codex-editor .ce-popover-item:hover,
+.dark .codex-editor .ce-popover-item--focused,
+.dark .codex-editor .ce-inline-tool:hover,
+.dark .codex-editor .ce-conversion-tool:hover,
+.dark .codex-editor .ce-toolbar__plus:hover,
+.dark .codex-editor .ce-toolbar__settings-btn:hover {
+  background-color: rgb(var(--accent)) !important;
+}
+
+.dark .codex-editor .ce-rawtool__textarea,
+.dark .codex-editor .cdx-input {
+  background-color: rgb(var(--muted) / 0.55) !important;
+  border-color: rgb(var(--border)) !important;
+  color: rgb(var(--foreground)) !important;
+}
+
+@media (max-width: 640px) {
+  .codex-editor .codex-editor__redactor,
+  .editor-content-rail {
+    padding-left: 3rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .codex-editor .ce-toolbar__actions {
+    left: -2.75rem !important;
+  }
 }

@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/DashboardHeader/DashboardHeader";
 import { BlogNavigation } from "@/components/BlogNavigation/BlogNavigation";
 import { PostCard } from "@/components/PostCard/PostCard";
 import { Button } from "@/components/ui/button";
+import { GroupTranslationsToggle } from "@/components/GroupTranslationsToggle/GroupTranslationsToggle";
 import Link from "next/link";
 
 export default async function BlogPostsPage({
@@ -14,11 +15,11 @@ export default async function BlogPostsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; groupTranslations?: string }>;
 }) {
   const session = await getSession();
   const { id } = await params;
-  const { status, page: pageParam } = await searchParams;
+  const { status, page: pageParam, groupTranslations: groupTranslationsParam } = await searchParams;
   const blog = await getBlogById(id);
 
   if (!blog) {
@@ -36,15 +37,24 @@ export default async function BlogPostsPage({
   }
 
   const currentPage = pageParam ? parseInt(pageParam, 10) : 1;
+  const groupTranslations = groupTranslationsParam === "true";
 
   const { posts, pagination } = await getPostsByBlogId(id, {
     status: status || undefined,
     page: currentPage,
     limit: 20,
+    includeContent: false,
+    groupTranslations,
   });
   const languagesByGroup = await getAvailableLanguagesByTranslationGroupIds(
     posts.flatMap((post) => post.translationGroupId ? [post.translationGroupId] : [])
   );
+  const pageHref = (pageNumber: number) => {
+    const query = new URLSearchParams({ page: String(pageNumber) });
+    if (status) query.set("status", status);
+    if (groupTranslations) query.set("groupTranslations", "true");
+    return `/dashboard/blogs/${id}?${query.toString()}`;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,9 +63,12 @@ export default async function BlogPostsPage({
       <main className="mx-auto w-full max-w-[800px] px-6 py-12">
         <div className="mb-10 flex items-center justify-between">
           <h1 className="text-3xl font-bold">Posts</h1>
-          <Link href={`/dashboard/blogs/${id}/posts/new`}>
-            <Button>+ New post</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <GroupTranslationsToggle enabled={groupTranslations} />
+            <Link href={`/dashboard/blogs/${id}/posts/new`}>
+              <Button>+ New post</Button>
+            </Link>
+          </div>
         </div>
         <div className="flex flex-col gap-3">
           {posts.map((post) => {
@@ -93,7 +106,7 @@ export default async function BlogPostsPage({
             {pagination.totalPages > 1 && (
               <div className="flex items-center gap-1">
                 <Link
-                  href={`/dashboard/blogs/${id}?page=${pagination.page - 1}${status ? `&status=${status}` : ""}`}
+                  href={pageHref(pagination.page - 1)}
                   className={pagination.page === 1 ? "pointer-events-none" : ""}
                 >
                   <Button variant="ghost" size="sm" disabled={pagination.page === 1} className="h-8 w-8 p-0">
@@ -112,7 +125,7 @@ export default async function BlogPostsPage({
                     pageNum = pagination.page - 2 + i;
                   }
                   return (
-                    <Link key={pageNum} href={`/dashboard/blogs/${id}?page=${pageNum}${status ? `&status=${status}` : ""}`}>
+                    <Link key={pageNum} href={pageHref(pageNum)}>
                       <Button
                         variant={pagination.page === pageNum ? "default" : "ghost"}
                         size="sm"
@@ -124,7 +137,7 @@ export default async function BlogPostsPage({
                   );
                 })}
                 <Link
-                  href={`/dashboard/blogs/${id}?page=${pagination.page + 1}${status ? `&status=${status}` : ""}`}
+                  href={pageHref(pagination.page + 1)}
                   className={pagination.page === pagination.totalPages ? "pointer-events-none" : ""}
                 >
                   <Button variant="ghost" size="sm" disabled={pagination.page === pagination.totalPages} className="h-8 w-8 p-0">
