@@ -37,7 +37,7 @@ export default async function BlogPostsPage({
   }
 
   const currentPage = pageParam ? parseInt(pageParam, 10) : 1;
-  const groupTranslations = groupTranslationsParam === "true";
+  const groupTranslations = groupTranslationsParam !== "false";
 
   const { posts, pagination } = await getPostsByBlogId(id, {
     status: status || undefined,
@@ -52,7 +52,7 @@ export default async function BlogPostsPage({
   const pageHref = (pageNumber: number) => {
     const query = new URLSearchParams({ page: String(pageNumber) });
     if (status) query.set("status", status);
-    if (groupTranslations) query.set("groupTranslations", "true");
+    if (!groupTranslations) query.set("groupTranslations", "false");
     return `/dashboard/blogs/${id}?${query.toString()}`;
   };
 

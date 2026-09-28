@@ -15,9 +15,9 @@ export function GroupTranslationsToggle({ enabled }: { enabled: boolean }) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("page");
     if (checked) {
-      params.set("groupTranslations", "true");
-    } else {
       params.delete("groupTranslations");
+    } else {
+      params.set("groupTranslations", "false");
     }
 
     const query = params.toString();
