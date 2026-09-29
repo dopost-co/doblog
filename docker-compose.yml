@@ -40,8 +40,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # Correr migraciones antes de iniciar
-    command: sh -c "npx prisma migrate deploy && node server.js"
 
 volumes:
   postgres_data:

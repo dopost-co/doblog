@@ -123,7 +123,7 @@ Compatibility: stdio and stateless Streamable HTTP JSON, both stateless (**no le
 - Add IP-based rate limiting, request timeouts and request-size limits at your reverse proxy for unauthenticated traffic. The application key limiter is not a substitute for DDoS protection.
 - Private API/MCP responses are no-store; browser cross-origin requests are rejected. Use server-side clients, never browser bundles, URLs, prompts, logs or public environment variables for secrets.
 - REST and MCP validate schemas and blog ownership of linked records. Post relation replacements and publication checks use transactions/row locks.
-- Status published makes content public immediately; publishedAt is metadata, not a scheduler. Agents should default to drafts and obtain approval before publishing or deleting.
+- Status published makes content public immediately. Status scheduled with a future publishedAt publishes the post automatically at that instant (QStash callback plus a periodic sweep; see `.env.example`). Agents should default to drafts and obtain approval before publishing, scheduling or deleting.
 - Uploaded media is public, validated by file signature and stored under server-generated names. MCP file downloads require HTTPS, an allowlisted OpenAI/ChatGPT delivery host, public DNS addresses, no redirects and a 10 MiB streaming limit. Signatures are not a full malware scan. Deleting a post does not delete image objects.
 - After ambiguous write failures, check for saved content before retrying; POST does not provide idempotency keys.
 - Public renderers sanitize HTML. Still treat editorial content as untrusted, including instructions embedded in text received by an agent.
@@ -140,7 +140,7 @@ npm run build
 npm start
 ```
 
-The initial API key migration is `prisma/migrations/20260831010000_add_api_keys/migration.sql`. It adds ApiKey and does not modify existing content. For Docker/Dokploy, run migrations in a controlled release step with Prisma CLI and production DATABASE_URL available; the minimal runtime image does not include the Prisma CLI. Do not use migrate dev or db push in production. Do not run migrations automatically in every replica at startup.
+The initial API key migration is `prisma/migrations/20260831010000_add_api_keys/migration.sql`. It adds ApiKey and does not modify existing content. For Docker/Dokploy, the container applies pending migrations on startup (`scripts/docker-entrypoint.mjs` runs `prisma migrate deploy` before `server.js`). It holds a PostgreSQL advisory lock, so replicas starting together are safe, and a failed migration stops the new release from starting. Migrations use MIGRATION_DATABASE_URL or DIRECT_URL when set; otherwise a Neon `-pooler` host or a Supabase transaction pooler (port 6543) is switched to its direct/session connection automatically. Set SKIP_MIGRATIONS=true to disable this. Do not use migrate dev or db push in production.
 
 The `20260831130000_add_api_key_never_expires` migration adds `neverExpires` and makes `expiresAt` optional. Existing keys issued for 365 days (within one minute of clock/transaction skew) become non-expiring without changing their tokens, permissions or revocation state. Their original expiry timestamp is retained for compatibility while the old release is still running; the new release ignores it when `neverExpires` is true. Apply this migration before deploying the new application. Newly created non-expiring keys store a null expiry.
 
