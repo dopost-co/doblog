@@ -20,11 +20,16 @@ export const metadata: Metadata = {
   description: "Headless CMS for managing blogs and content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Loaded only in local development, so the dev tools never ship to production.
+  const DevTools = process.env.NODE_ENV === "development"
+    ? (await import("@/components/DevTools/DevTools")).DevTools
+    : null;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -40,6 +45,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider>{children}</SessionProvider>
+          {DevTools && <DevTools />}
         </ThemeProvider>
       </body>
     </html>
