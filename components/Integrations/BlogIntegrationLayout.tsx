@@ -14,11 +14,11 @@ export async function integrationBlog(id: string) {
   return { blog, isOwner: blog.userId === session.user.id };
 }
 
-export function BlogIntegrationLayout({ title, description, children }: {
-  blog: { id: string; name: string }; title: string; description?: string; children: React.ReactNode;
+export function BlogIntegrationLayout({ title, description, actions, children }: {
+  blog: { id: string; name: string }; title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode;
 }) {
-  return <div className="mx-auto w-full max-w-5xl space-y-8">
-    <PageHeader title={title} description={description} />
+  return <div className="mx-auto w-full max-w-5xl space-y-6">
+    <PageHeader title={title} description={description} actions={actions} />
     <div className="space-y-8">{children}</div>
   </div>;
 }
