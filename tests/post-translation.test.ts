@@ -61,3 +61,13 @@ describe("rewriteLinks", () => {
     expect(out.blocks[1].data.link).toBe("/en/contact");
   });
 });
+
+describe("translatePostSchema", () => {
+  it("accepts paths as an object or as a JSON string", async () => {
+    const { translatePostSchema } = await import("@/lib/integrations/schemas");
+    const paths = { en: { "/es/": "/en/" } };
+    expect(translatePostSchema.parse({ id: "p", languages: ["en"], paths }).paths).toEqual(paths);
+    expect(translatePostSchema.parse({ id: "p", languages: ["en"], paths: JSON.stringify(paths) }).paths).toEqual(paths);
+    expect(() => translatePostSchema.parse({ id: "p", languages: ["en"], paths: "not json" })).toThrow();
+  });
+});

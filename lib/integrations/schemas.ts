@@ -69,10 +69,14 @@ export const translatePostSchema = z.object({
   languages: z.array(z.string().refine(isValidLanguageCode, "Invalid language code")).min(1).max(10)
     .refine(v => new Set(v).size === v.length, "Duplicate languages")
     .describe("ISO 639-1 codes to translate into, e.g. [\"en\", \"it\"]"),
-  paths: z.record(
+  // Some MCP clients send nested objects as JSON strings; accept both.
+  paths: z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    try { return JSON.parse(value); } catch { return value; }
+  }, z.record(
     z.string().refine(isValidLanguageCode, "Invalid language code"),
     z.record(z.string().regex(/^\//, "Must be a path starting with /").max(300), z.string().max(2048)).refine(v => Object.keys(v).length <= 50, "At most 50 rewrites per language"),
-  ).optional()
+  )).optional()
     .describe("Optional per-language link prefix rewrites for the translated content, so links point to localized pages. Example: {\"en\": {\"/es/productos\": \"/en/products\", \"/es/blog/\": \"/en/blog/\"}}. The longest matching prefix wins; other links stay unchanged."),
 }).strict();
 export const createKeySchema = z.object({
