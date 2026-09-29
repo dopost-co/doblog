@@ -69,6 +69,15 @@ export async function getSeoSettingsSummary(blogId: string) {
     thumbnailStyle: settings.thumbnailStyle,
     inlineImageStyle: settings.inlineImageStyle,
     maxInlineImages: settings.maxInlineImages,
+    articleUrlPrefix: settings.articleUrlPrefix,
+    sitemapUrl: settings.sitemapUrl,
+    discoveryEnabled: settings.discoveryEnabled,
+    discoveryFrequency: settings.discoveryFrequency,
+    discoveryTopicsPerRun: settings.discoveryTopicsPerRun,
+    draftAutomationEnabled: settings.draftAutomationEnabled,
+    draftsPerWeek: settings.draftsPerWeek,
+    nextDiscoveryAt: settings.nextDiscoveryAt?.toISOString() || null,
+    lastDiscoveryAt: settings.lastDiscoveryAt?.toISOString() || null,
     imagePolicy: "Create one distinct thumbnail when authoring a complete article. Add zero to maxInlineImages images inside the content only when each one explains something useful; the thumbnail does not count toward this maximum and must not be reused as an inline image.",
     budgetsUsd: { perRun: microsToUsd(settings.perRunBudgetUsdMicros), daily: microsToUsd(settings.dailyBudgetUsdMicros), monthly: microsToUsd(settings.monthlyBudgetUsdMicros) },
     credential: settings.credential ? { label: settings.credential.label, loginHint: settings.credential.loginHint, verified: !!settings.credential.verifiedAt } : null,
@@ -87,6 +96,7 @@ export const seoEditorialSettingsFields = {
   thumbnailStyle: z.string().trim().max(1000).nullable().optional(),
   inlineImageStyle: z.string().trim().max(1000).nullable().optional(),
   maxInlineImages: z.number().int().min(0).max(8).optional(),
+  articleUrlPrefix: z.string().trim().startsWith("/").max(200).optional(),
 } satisfies z.ZodRawShape;
 
 export const seoEditorialSettingsSchema = z.object(seoEditorialSettingsFields).strict().refine(value => Object.keys(value).length > 0, "Provide at least one setting").superRefine((value, ctx) => {

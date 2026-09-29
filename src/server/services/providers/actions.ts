@@ -19,6 +19,15 @@ const dataForSeoSchema = z.object({
 
 const hint = (value: string) => value.length <= 8 ? "••••" : `${value.slice(0, 3)}…${value.slice(-4)}`;
 
+function encryptProviderSecret(value: string) {
+  try {
+    return encryptSecret(value);
+  } catch (error) {
+    console.error("[Providers] secure-storage-unavailable", { error: error instanceof Error ? error.message : String(error) });
+    throw new ApiError(503, "Secure credential storage is not configured. Ask the administrator to configure INTEGRATION_ENCRYPTION_KEY.");
+  }
+}
+
 async function requireUser() {
   const session = await getSession();
   if (!session?.user?.id) throw new ApiError(401, "Sign in to manage providers");
@@ -58,7 +67,7 @@ export async function saveOpenAiKey(input: unknown) {
     }
     await prisma.user.update({
       where: { id: user.id },
-      data: { openaiApiKeyEncrypted: encryptSecret(key), openaiKeyHint: hint(key) },
+      data: { openaiApiKeyEncrypted: encryptProviderSecret(key), openaiKeyHint: hint(key) },
     });
     revalidatePath("/dashboard", "layout");
     return { success: true };
@@ -81,7 +90,7 @@ export async function addDataForSeoConnection(input: unknown) {
     await verifyDataForSeoCredentials({ login: data.login, password: data.password });
     await prisma.seoProviderCredential.create({ data: {
       ownerUserId: user.id, provider: "dataforseo", label: data.label,
-      encryptedLogin: encryptSecret(data.login), encryptedPassword: encryptSecret(data.password),
+      encryptedLogin: encryptProviderSecret(data.login), encryptedPassword: encryptProviderSecret(data.password),
       loginHint: data.login.length <= 5 ? "••••" : `${data.login.slice(0, 2)}•••${data.login.slice(-3)}`,
       verifiedAt: new Date(),
     } });

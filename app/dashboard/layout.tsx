@@ -14,7 +14,12 @@ export default async function DashboardLayout({
   }
 
   const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { onboardingCompleted: true } });
-  if (user && !user.onboardingCompleted) {
+  // The session points to a user this database does not have (e.g. deleted, or
+  // signed in against another database): sign out instead of rendering a broken dashboard.
+  if (!user) {
+    redirect("/api/auth/signout");
+  }
+  if (!user.onboardingCompleted) {
     redirect("/onboarding");
   }
 

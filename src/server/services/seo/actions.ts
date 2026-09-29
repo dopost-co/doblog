@@ -15,6 +15,7 @@ const settingsSchema = z.object({
   audience: z.string().trim().max(2000).nullable(), brandVoice: z.string().trim().max(2000).nullable(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]),
   thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
+  articleUrlPrefix: z.string().trim().startsWith("/", "Start the article path with /").max(200),
   maxInlineImages: z.number().int().min(0).max(8), perRunBudgetUsd: z.number().min(0.001).max(100),
   dailyBudgetUsd: z.number().min(0.001).max(1000), monthlyBudgetUsd: z.number().min(0.001).max(10000),
 }).strict().superRefine((value, ctx) => {
@@ -72,11 +73,12 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       competitorDomains: data.competitorDomains.filter(Boolean), audience: data.audience || null,
       brandVoice: data.brandVoice || null, publishingMode: data.publishingMode,
       thumbnailStyle: data.thumbnailStyle || null, inlineImageStyle: data.inlineImageStyle || null,
+      articleUrlPrefix: `/${data.articleUrlPrefix.split("/").filter(Boolean).join("/")}`,
       maxInlineImages: data.maxInlineImages, perRunBudgetUsdMicros: micros(data.perRunBudgetUsd),
       dailyBudgetUsdMicros: micros(data.dailyBudgetUsd), monthlyBudgetUsdMicros: micros(data.monthlyBudgetUsd),
     };
     await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...values }, update: values });
-    revalidatePath(`/dashboard/blogs/${blogId}/seo`);
+    revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
     return { success: true };
   } catch (error) { return { error: apiError(error).error }; }
 }

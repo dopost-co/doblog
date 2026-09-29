@@ -93,7 +93,7 @@ export function DevTools() {
       {open && (
         <div
           className={cn(
-            "absolute w-72 rounded-xl border bg-popover p-3 text-popover-foreground shadow-xl",
+            "absolute w-80 max-w-[calc(100vw-2rem)] rounded-xl border bg-popover p-3 text-popover-foreground shadow-xl",
             top ? "top-12" : "bottom-12",
             left ? "left-0" : "right-0",
           )}
@@ -110,16 +110,16 @@ export function DevTools() {
             </div>
           </div>
 
-          <div className="divide-y rounded-lg border bg-card">
+          <div className="divide-y">
             {DEV_TOOLS.map(({ id, title, component: Tool }) => (
-              <section key={id} className="grid gap-2 p-3">
+              <section key={id} className="grid min-w-0 gap-2 py-3 first:pt-0">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
                 <Tool />
               </section>
             ))}
           </div>
 
-          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
             <span>Position</span>
             <div className="grid grid-cols-2 gap-1">
               {(["top-left", "top-right", "bottom-left", "bottom-right"] as Corner[]).map((item) => (

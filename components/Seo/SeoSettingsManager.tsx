@@ -17,16 +17,11 @@ type Settings = {
   credentialId: string | null; enabled: boolean; targetDomain: string | null; locationCode: number; languageCode: string;
   timezone: string; competitorDomains: string[]; audience: string | null; brandVoice: string | null; publishingMode: string;
   thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
+  articleUrlPrefix: string;
   perRunBudgetUsdMicros: number; dailyBudgetUsdMicros: number; monthlyBudgetUsdMicros: number;
 } | null;
 
 const usd = (micros: number | undefined, fallback: number) => String((micros ?? fallback * 1_000_000) / 1_000_000);
-const PUBLISHING_MODES = [
-  { value: "draft", label: "Save as drafts" },
-  { value: "review", label: "Send to review" },
-  { value: "auto_publish", label: "Publish automatically" },
-];
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="grid gap-4 py-6 md:grid-cols-[12rem_1fr] md:gap-8">
@@ -65,7 +60,6 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
   const [pending, startTransition] = useTransition();
   const [enabled, setEnabled] = useState(settings?.enabled ?? false);
   const [credentialId, setCredentialId] = useState(settings?.credentialId || credentials[0]?.id || "");
-  const [publishingMode, setPublishingMode] = useState(settings?.publishingMode ?? "draft");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   const managed = plan === "subscription";
@@ -82,8 +76,9 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         credentialId: managed ? null : credentialId || null, enabled, targetDomain: nullable("targetDomain"),
         locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
         competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
-        audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode,
+        audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
         thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
+        articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
         maxInlineImages: Number(form.get("maxInlineImages")),
         perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
       });
@@ -126,13 +121,6 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         <Section title="Brand">
           <Area label="Audience" name="audience" defaultValue={settings?.audience || ""} placeholder="Who you write for" />
           <Area label="Voice" name="brandVoice" defaultValue={settings?.brandVoice || ""} placeholder="Tone, words to use or avoid" />
-          <div className="grid gap-1.5 sm:max-w-xs">
-            <Label htmlFor="publishingMode">New articles</Label>
-            <Select value={publishingMode} onValueChange={setPublishingMode} disabled={pending}>
-              <SelectTrigger id="publishingMode" className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>{PUBLISHING_MODES.map((mode) => <SelectItem key={mode.value} value={mode.value}>{mode.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
         </Section>
 
         <Section title="Images">
@@ -150,6 +138,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
           </summary>
           <div className="grid gap-4 pb-6 md:pl-[13rem]">
             <Area label="Competitors" name="competitors" defaultValue={settings?.competitorDomains.join("\n") || ""} placeholder={"competitor-one.com\ncompetitor-two.com"} />
+            <Field label="Article URL path" name="articleUrlPrefix" defaultValue={settings?.articleUrlPrefix ?? "/blog"} placeholder="/blog" hint="Used for internal links, for example /blog/article-slug." />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Location code" name="locationCode" type="number" defaultValue={String(settings?.locationCode ?? 2840)} hint="DataForSEO location, e.g. 2724 for Spain." />
               <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />

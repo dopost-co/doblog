@@ -39,6 +39,10 @@ model Blog {
   slug        String
   description String?
   blogId      String   @unique @default(uuid()) // UUID for API access
+  // ISO 639-1 codes the blog is written in; the first one is the main language.
+  languages   String[] @default(["en"])
+  // Keeps every translation group in step with the post that was last written.
+  autoSyncTranslations Boolean @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -55,6 +59,11 @@ model Blog {
   seoSettings             BlogSeoSettings?
   seoCacheEntries         SeoCacheEntry[]
   seoUsageEntries         SeoUsageEntry[]
+  contentPlanItems        ContentPlanItem[]
+  generationRuns          GenerationRun[]
+  discoveryRuns           ContentDiscoveryRun[]
+  mediaAssets             MediaAsset[]
+  postSeoTargets          PostSeoTarget[]
 
   @@index([userId])
   @@index([blogId])
@@ -97,6 +106,16 @@ model BlogSeoSettings {
   thumbnailStyle         String?
   inlineImageStyle       String?
   maxInlineImages        Int      @default(3)
+  articleUrlPrefix       String   @default("/blog")
+  sitemapUrl             String?
+  discoveryEnabled       Boolean  @default(false)
+  discoveryFrequency     String   @default("weekly") // weekly | monthly
+  discoveryTopicsPerRun  Int      @default(8)
+  draftAutomationEnabled Boolean  @default(false)
+  draftsPerWeek          Int      @default(2)
+  discoveryRunningAt     DateTime?
+  nextDiscoveryAt        DateTime?
+  lastDiscoveryAt        DateTime?
   perRunBudgetUsdMicros  Int      @default(250000)
   dailyBudgetUsdMicros   Int      @default(1000000)
   monthlyBudgetUsdMicros Int      @default(20000000)
@@ -107,6 +126,7 @@ model BlogSeoSettings {
   credential SeoProviderCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
 
   @@index([credentialId])
+  @@index([discoveryEnabled, nextDiscoveryAt])
 }
 
 model SeoCacheEntry {
@@ -179,6 +199,8 @@ model Post {
   authorId           String?
   language           String    @default("en") // ISO 639-1 language code
   translationGroupId String? // UUID to group translations of the same post
+  // The text changed and the rest of the group has not been re-translated yet.
+  translationSyncPending Boolean @default(false)
 
   // SEO fields
   metaTitle       String?
@@ -196,6 +218,10 @@ model Post {
   author     Author?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
   categories PostCategory[]
   tags       PostTag[]
+  contentPlanItem ContentPlanItem?
+  generationRuns  GenerationRun[]
+  mediaAssets     MediaAsset[]
+  seoTarget       PostSeoTarget?
 
   @@unique([blogId, slug, language])
   @@index([blogId])
@@ -205,6 +231,152 @@ model Post {
   @@index([blogId, language])
   @@index([authorId])
   @@index([translationGroupId])
+}
+
+// A visible, editable editorial queue. Adding an item means the topic is
+// approved for drafting; generation itself is tracked separately below.
+model ContentPlanItem {
+  id                String    @id @default(cuid())
+  blogId            String
+  postId            String?   @unique
+  primaryKeyword    String
+  normalizedKeyword String
+  secondaryKeywords String[]  @default([])
+  title             String?
+  intent            String?
+  cluster           String?
+  language          String    @default("en")
+  notes             String?
+  source            String    @default("manual") // manual | discovery
+  rationale         String?
+  opportunitySnapshot Json?
+  status            String    @default("planned") // planned | generating | ready | failed
+  scheduledFor      DateTime?
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  blog Blog  @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  post Post? @relation(fields: [postId], references: [id], onDelete: SetNull)
+  runs GenerationRun[]
+
+  @@unique([blogId, normalizedKeyword, language])
+  @@index([blogId, status, scheduledFor])
+  @@index([status, scheduledFor])
+  @@index([postId])
+}
+
+// One auditable pass over the site's existing content and search opportunities.
+// Discovery runs only add ideas to the queue. A separate scheduler may later
+// turn dated ideas into drafts, while publication always remains separate.
+model ContentDiscoveryRun {
+  id               String    @id @default(cuid())
+  blogId           String
+  trigger          String    @default("dashboard") // dashboard | mcp | scheduler
+  status           String    @default("running") // running | completed | failed
+  stage            String    @default("sitemap")
+  domain           String
+  sitemapUrl       String?
+  sitemapUrls      String[]  @default([])
+  discoveredPages  Int       @default(0)
+  suggestionsAdded Int       @default(0)
+  warnings         String[]  @default([])
+  inputSnapshot    Json?
+  outputSnapshot   Json?
+  error            String?
+  createdAt        DateTime  @default(now())
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@index([blogId, createdAt])
+  @@index([status, createdAt])
+}
+
+// One durable record per attempt makes long AI work observable and retryable.
+model GenerationRun {
+  id                String    @id @default(cuid())
+  blogId            String
+  planItemId        String?
+  postId            String?
+  trigger           String    @default("dashboard") // dashboard | api | mcp | scheduler
+  status            String    @default("queued") // queued | running | completed | failed
+  stage             String    @default("queued")
+  provider          String    @default("openai")
+  model             String?
+  promptVersion     String    @default("article-v1")
+  inputSnapshot     Json?
+  outputSnapshot    Json?
+  inputTokens       Int?
+  outputTokens      Int?
+  error             String?
+  createdAt         DateTime  @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+
+  blog     Blog             @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  planItem ContentPlanItem? @relation(fields: [planItemId], references: [id], onDelete: SetNull)
+  post     Post?            @relation(fields: [postId], references: [id], onDelete: SetNull)
+  media    MediaAsset[]
+
+  @@index([blogId, createdAt])
+  @@index([planItemId, createdAt])
+  @@index([postId])
+}
+
+// Generated and uploaded images become first-class records instead of orphaned
+// URLs, so their purpose, prompt, ownership and usage remain understandable.
+model MediaAsset {
+  id             String   @id @default(cuid())
+  blogId         String
+  postId         String?
+  generationRunId String?
+  kind           String   @default("inline") // cover | inline
+  origin         String   @default("generated") // generated | upload | mcp
+  url            String   @unique
+  storageKey     String?
+  prompt         String?
+  revisedPrompt  String?
+  altText        String?
+  caption        String?
+  mimeType       String
+  byteSize       Int
+  sha256         String
+  provider       String?
+  model          String?
+  createdAt      DateTime @default(now())
+
+  blog          Blog           @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  post          Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
+  generationRun GenerationRun? @relation(fields: [generationRunId], references: [id], onDelete: SetNull)
+
+  @@index([blogId, createdAt])
+  @@index([postId])
+  @@index([sha256])
+}
+
+// The strategic SEO target is structured and separate from the legacy free-form
+// Post.keywords field, which remains for delivery compatibility.
+model PostSeoTarget {
+  id                String   @id @default(cuid())
+  blogId            String
+  postId            String   @unique
+  primaryKeyword    String
+  normalizedKeyword String
+  secondaryKeywords String[] @default([])
+  intent            String?
+  cluster           String?
+  language          String   @default("en")
+  brief             Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, normalizedKeyword, language])
+  @@index([blogId, cluster])
 }
 
 model Category {

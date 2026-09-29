@@ -44,16 +44,16 @@ export function OnboardingTool() {
           value={step}
           onChange={(event) => setStep(event.target.value)}
           disabled={pending}
-          className="h-8 rounded-md border bg-background px-2 text-sm"
+          className="h-8 w-full min-w-0 rounded-md border bg-background px-2 text-sm"
         >
           {ONBOARDING_STEPS.map((item, index) => (
             <option key={item.id} value={item.id}>{index + 1}. {item.id}</option>
           ))}
         </select>
       </label>
-      <div className="flex gap-2">
-        <Button size="sm" className="flex-1" disabled={pending} onClick={() => apply(false)}>Force onboarding</Button>
-        <Button size="sm" variant="outline" className="flex-1" disabled={pending} onClick={() => apply(true)}>Mark completed</Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button size="sm" className="min-w-0" disabled={pending} onClick={() => apply(false)}>Force</Button>
+        <Button size="sm" variant="outline" className="min-w-0" disabled={pending} onClick={() => apply(true)}>Complete</Button>
       </div>
     </div>
   );

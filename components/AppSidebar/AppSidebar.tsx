@@ -16,6 +16,7 @@ import {
   LogOut,
   Moon,
   Plug,
+  Plus,
   Settings,
   Sun,
   TrendingUp,
@@ -75,7 +76,7 @@ function SidebarContent({ blog, blogs, user, onNavigate }: AppSidebarProps & { o
       items: [
         { href: basePath, label: "Posts", icon: FileText, active: isActive(basePath, true) },
         { href: `${basePath}/calendar`, label: "Calendar", icon: CalendarDays, active: isActive(`${basePath}/calendar`) },
-        { href: `${basePath}/seo`, label: "Growth", icon: TrendingUp, active: isActive(`${basePath}/seo`) },
+        { href: `${basePath}/autopilot`, label: "Autopilot", icon: TrendingUp, active: isActive(`${basePath}/autopilot`) },
       ],
     },
     {
@@ -172,6 +173,12 @@ function BlogSwitcher({ blog, blogs, onNavigate }: Pick<AppSidebarProps, "blog" 
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/onboarding/new-blog" onClick={onNavigate} className="gap-2">
+            <Plus className="size-4" />
+            Add blog
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/dashboard" onClick={onNavigate} className="gap-2">
             <LayoutGrid className="size-4" />
