@@ -5,17 +5,19 @@ import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutatio
 import { getCategoriesByBlogId } from "@/src/server/services/categories/queries";
 import { getTagsByBlogId } from "@/src/server/services/tags/queries";
 import { getAuthorsByBlogId } from "@/src/server/services/authors/queries";
-import { DashboardHeader } from "@/components/DashboardHeader/DashboardHeader";
-import { BlogNavigation } from "@/components/BlogNavigation/BlogNavigation";
 import { PostForm } from "@/components/PostForm/PostForm";
 
 export default async function NewPostPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ scheduleAt?: string }>;
 }) {
   const session = await getSession();
   const { id } = await params;
+  const { scheduleAt } = await searchParams;
+  const initialScheduleAt = scheduleAt && !Number.isNaN(Date.parse(scheduleAt)) ? scheduleAt : undefined;
   const blog = await getBlogById(id);
 
   if (!blog) {
@@ -41,7 +43,7 @@ export default async function NewPostPage({
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto w-full max-w-[800px] px-6 py-12">
-        <PostForm blogId={id} categories={categories} tags={tags} authors={authors} />
+        <PostForm blogId={id} categories={categories} tags={tags} authors={authors} initialScheduleAt={initialScheduleAt} />
       </main>
     </div>
   );

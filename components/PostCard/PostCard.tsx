@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Languages, MoreHorizontal, Star, Trash2 } from "lucide-react";
+import { Check, Languages, MoreHorizontal, Star, Trash2, Undo2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,12 +62,17 @@ export function PostCard({
   const [deleteError, setDeleteError] = useState("");
 
   const formattedDate = publishedAt
-    ? new Date(publishedAt).toLocaleDateString("en-US", {
+    ? new Date(publishedAt).toLocaleString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
+        ...(currentStatus === "scheduled" ? { hour: "2-digit", minute: "2-digit" } : {}),
       })
     : null;
+  const statusBadge = {
+    published: { label: "Published", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
+    scheduled: { label: "Scheduled", className: "bg-sky-500/10 text-sky-700 dark:text-sky-400" },
+  }[currentStatus] ?? { label: "Draft", className: "bg-muted text-muted-foreground" };
 
   async function patchPost(data: { status?: "draft" | "published"; featured?: boolean }) {
     setIsUpdating(true);
@@ -78,8 +83,7 @@ export function PostCard({
     return true;
   }
 
-  async function toggleStatus() {
-    const next = currentStatus === "published" ? "draft" : "published";
+  async function setStatus(next: "draft" | "published") {
     if (await patchPost({ status: next })) setCurrentStatus(next);
   }
 
@@ -142,8 +146,8 @@ export function PostCard({
             </div>
           </Link>
 
-          <span className={`hidden rounded-full px-2 py-1 text-xs sm:inline-flex ${currentStatus === "published" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
-            {currentStatus === "published" ? "Published" : "Draft"}
+          <span className={`hidden rounded-full px-2 py-1 text-xs sm:inline-flex ${statusBadge.className}`}>
+            {statusBadge.label}
           </span>
 
           <DropdownMenu>
@@ -153,10 +157,18 @@ export function PostCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onSelect={toggleStatus}>
-                <Check />
-                {currentStatus === "published" ? "Move to draft" : "Publish"}
-              </DropdownMenuItem>
+              {currentStatus !== "published" && (
+                <DropdownMenuItem onSelect={() => setStatus("published")}>
+                  <Check />
+                  {currentStatus === "scheduled" ? "Publish now" : "Publish"}
+                </DropdownMenuItem>
+              )}
+              {currentStatus !== "draft" && (
+                <DropdownMenuItem onSelect={() => setStatus("draft")}>
+                  <Undo2 />
+                  {currentStatus === "scheduled" ? "Unschedule" : "Move to draft"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuCheckboxItem checked={isFeatured} onCheckedChange={toggleFeatured}>
                 Featured
               </DropdownMenuCheckboxItem>

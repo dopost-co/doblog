@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EditAuthorDialog } from "@/components/EditAuthorDialog/EditAuthorDialog";
+import { MoreHorizontal } from "lucide-react";
 import { deleteAuthor } from "@/src/server/services/authors/mutations";
 
 interface Author {
@@ -56,61 +56,50 @@ export function AuthorsList({ authors, blogId }: AuthorsListProps) {
     }
   }
 
+  if (authors.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
+        No authors yet. Add your first author to get started.
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="space-y-2">
+      <div className="divide-y rounded-lg border">
         {authors.map((author) => (
-          <Card key={author.id}>
-            <CardContent className="flex items-center justify-between py-0 px-4">
-              <div className="flex-1">
-                <h3 className="font-semibold">{author.name}</h3>
-                <p className="text-sm text-muted-foreground">{author.email}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <EditAuthorDialog
-                  author={author}
-                  blogId={blogId}
-                  open={editingId === author.id}
-                  onOpenChange={(open) => setEditingId(open ? author.id : null)}
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" disabled={deletingId === author.id || editingId === author.id}>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <circle cx="12" cy="12" r="1" />
-                        <circle cx="12" cy="5" r="1" />
-                        <circle cx="12" cy="19" r="1" />
-                      </svg>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem
-                      onClick={() => setEditingId(author.id)}
-                    >
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleDelete(author.id, author.name)}
-                      disabled={deletingId === author.id}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      {deletingId === author.id ? "Deleting..." : "Delete"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardContent>
-          </Card>
+          <div key={author.id} className="flex items-center gap-3 px-4 py-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+              {author.name.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{author.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{author.email}</p>
+            </div>
+            <EditAuthorDialog
+              author={author}
+              blogId={blogId}
+              open={editingId === author.id}
+              onOpenChange={(open) => setEditingId(open ? author.id : null)}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${author.name}`} disabled={deletingId === author.id || editingId === author.id}>
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditingId(author.id)}>Edit</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDelete(author.id, author.name)}
+                  disabled={deletingId === author.id}
+                  className="text-destructive focus:text-destructive"
+                >
+                  {deletingId === author.id ? "Deleting..." : "Delete"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ))}
       </div>
       {error && (
@@ -121,5 +110,3 @@ export function AuthorsList({ authors, blogId }: AuthorsListProps) {
     </>
   );
 }
-
-

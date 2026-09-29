@@ -11,6 +11,7 @@ import { TranslationService } from "@/src/server/services/translations/Translati
 import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
 import { dashboardOperation, recordBlogId } from "@/src/server/services/content/dashboard";
 import { apiError } from "@/lib/integrations/errors";
+import type { PostStatus } from "@/lib/integrations/schemas";
 
 export async function createPost(data: {
   blogId: string;
@@ -19,7 +20,7 @@ export async function createPost(data: {
   content: OutputData;
   excerpt?: string;
   coverImage?: string;
-  status?: "draft" | "published";
+  status?: PostStatus;
   featured?: boolean;
   publishedAt?: Date;
   authorId?: string;
@@ -53,7 +54,7 @@ export async function updatePost(
     content?: OutputData;
     excerpt?: string;
     coverImage?: string;
-    status?: "draft" | "published";
+    status?: PostStatus;
     featured?: boolean;
     publishedAt?: Date;
     authorId?: string;

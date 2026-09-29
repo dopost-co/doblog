@@ -121,3 +121,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Past calendar days: thin, subtle diagonal hatching. */
+.calendar-past-day {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    color-mix(in srgb, rgb(var(--foreground)) 7%, transparent) 7px 8px
+  );
+}

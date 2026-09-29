@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,97 +109,63 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold mb-2">Members</h2>
-        <p className="text-sm text-muted-foreground">
-          Members can access and edit this blog. The owner is automatically a member.
-        </p>
-      </div>
+      {isOwner && (
+        <form onSubmit={handleAddMember} className="space-y-2">
+          <Label htmlFor="email">Invite by email</Label>
+          <div className="flex gap-2">
+            <Input
+              id="email"
+              type="email"
+              placeholder="user@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isAdding}
+              className="flex-1"
+            />
+            <Button type="submit" disabled={isAdding || !email.trim()}>
+              {isAdding ? <Loader2 className="animate-spin" /> : <UserPlus />}
+              {isAdding ? "Adding..." : "Add"}
+            </Button>
+          </div>
+        </form>
+      )}
 
-      {/* List of members */}
-      <div className="space-y-2">
+      <div className="divide-y rounded-lg border">
         {allMembers.map((member) => (
-          <Card key={member.id}>
-            <CardContent className="flex items-center justify-between px-4 py-2">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{member.userEmail}</span>
-                  {member.isOwner && (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      Owner
-                    </span>
-                  )}
-                  {member.user?.name && (
-                    <span className="text-sm text-muted-foreground">
-                      ({member.user.name})
-                    </span>
-                  )}
-                </div>
-                {member.user ? (
-                  <p className="text-xs text-muted-foreground">Registered user</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Pending - user not registered yet</p>
-                )}
-              </div>
-              {isOwner && !member.isOwner && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveMember(member.id, member.userEmail)}
-                  disabled={removingId === member.id}
-                >
-                  {removingId === member.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          <div key={member.id} className="flex items-center gap-3 px-4 py-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+              {member.userEmail.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">
+                {member.user?.name || member.userEmail}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {member.user?.name ? member.userEmail : member.user ? "Registered user" : "Pending, not registered yet"}
+              </p>
+            </div>
+            {member.isOwner ? (
+              <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">Owner</span>
+            ) : !member.user ? (
+              <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground">Pending</span>
+            ) : null}
+            {isOwner && !member.isOwner && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove ${member.userEmail}`}
+                onClick={() => handleRemoveMember(member.id, member.userEmail)}
+                disabled={removingId === member.id}
+              >
+                {removingId === member.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              </Button>
+            )}
+          </div>
         ))}
       </div>
 
-      {/* Add member form (only for owner) */}
-      {isOwner && (
-        <Card>
-          <CardContent className="px-4 py-3">
-            <form onSubmit={handleAddMember} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="email">Add Member by Email</Label>
-                <div className="flex gap-2">
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="user@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isAdding}
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={isAdding || !email.trim()}>
-                  {isAdding ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Add
-                    </>
-                  )}
-                </Button>
-                </div>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Messages */}
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
           <p className="text-sm text-destructive">{error}</p>

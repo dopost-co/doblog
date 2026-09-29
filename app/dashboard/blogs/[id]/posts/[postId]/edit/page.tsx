@@ -7,8 +7,6 @@ import { getPostById, getPostsByTranslationGroup } from "@/src/server/services/p
 import { getCategoriesByBlogId } from "@/src/server/services/categories/queries";
 import { getTagsByBlogId } from "@/src/server/services/tags/queries";
 import { getAuthorsByBlogId } from "@/src/server/services/authors/queries";
-import { DashboardHeader } from "@/components/DashboardHeader/DashboardHeader";
-import { BlogNavigation } from "@/components/BlogNavigation/BlogNavigation";
 import { PostForm } from "@/components/PostForm/PostForm";
 
 export default async function EditPostPage({

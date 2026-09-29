@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "mcp:stdio": "node scripts/mcp-stdio.mjs"
+    "mcp:stdio": "node scripts/mcp-stdio.mjs",
+    "qstash:configure-scheduled-publishing": "node --env-file=.env scripts/configure-scheduled-publishing.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
@@ -34,9 +35,11 @@
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
+    "@upstash/qstash": "^2.12.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "ipaddr.js": "^2.5.0",
     "lucide-react": "^0.554.0",
     "next": "^16.3.3",

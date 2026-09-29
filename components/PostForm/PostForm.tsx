@@ -27,6 +27,7 @@ import { ChevronDown, ChevronUp, Languages, RefreshCw } from "lucide-react";
 import { LanguageSelector } from "@/components/LanguageSelector/LanguageSelector";
 import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
 import { getLanguageByCode } from "@/lib/languages";
+import { format } from "date-fns";
 
 interface PostFormProps {
   blogId: string;
@@ -56,9 +57,17 @@ interface PostFormProps {
   tags: Array<{ id: string; name: string }>;
   authors: Array<{ id: string; name: string }>;
   existingTranslations?: Array<{ id: string; language: string }>;
+  initialScheduleAt?: string;
 }
 
-export function PostForm({ blogId, post, categories, tags, authors, existingTranslations = [] }: PostFormProps) {
+type PostStatus = "draft" | "scheduled" | "published";
+
+/** Formats a date for a datetime-local input, in the browser's timezone. */
+function toLocalInput(date: Date) {
+  return format(date, "yyyy-MM-dd'T'HH:mm");
+}
+
+export function PostForm({ blogId, post, categories, tags, authors, existingTranslations = [], initialScheduleAt }: PostFormProps) {
   const router = useRouter();
   const isEditing = !!post;
 
@@ -67,12 +76,12 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
   const [content, setContent] = useState<OutputData>(post?.content || { blocks: [] });
   const [excerpt, setExcerpt] = useState(post?.excerpt || "");
   const [coverImage, setCoverImage] = useState(post?.coverImage || "");
-  const [status, setStatus] = useState<"draft" | "published">(
-    (post?.status as "draft" | "published") || "draft"
+  const [status, setStatus] = useState<PostStatus>(
+    (post?.status as PostStatus) || (initialScheduleAt ? "scheduled" : "draft")
   );
   const [featured, setFeatured] = useState(post?.featured ?? false);
-  const [publishedAt, setPublishedAt] = useState(
-    post?.publishedAt ? new Date(post.publishedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
+  const [publishedAt, setPublishedAt] = useState(() =>
+    toLocalInput(post?.publishedAt ? new Date(post.publishedAt) : initialScheduleAt ? new Date(initialScheduleAt) : new Date())
   );
   const [metaTitle, setMetaTitle] = useState(post?.metaTitle || "");
   const [metaDescription, setMetaDescription] = useState(post?.metaDescription || "");
@@ -138,6 +147,10 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (status === "scheduled" && (!publishedAt || new Date(publishedAt) <= new Date())) {
+      setError("Pick a future date and time to schedule this post.");
+      return;
+    }
     setIsLoading(true);
 
     const postData = {
@@ -249,7 +262,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading || isSyncing}>
-              {isEditing ? "Update" : "Save"}
+              {status === "scheduled" ? "Schedule" : isEditing ? "Update" : "Save"}
             </Button>
           </div>
         </div>
@@ -423,10 +436,30 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
           )}
 
           <div className="flex items-center gap-4">
-            <Label className="text-muted-foreground w-[120px] shrink-0">Published at</Label>
+            <Label className="text-muted-foreground w-[120px] shrink-0">Status</Label>
+            <Select
+              value={status}
+              onValueChange={(value) => setStatus(value as PostStatus)}
+            >
+              <SelectTrigger className={fieldClass}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="published">Published</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Label className="text-muted-foreground w-[120px] shrink-0">
+              {status === "scheduled" ? "Publish on" : "Published at"}
+            </Label>
             <Input
-              type="date"
+              type="datetime-local"
               value={publishedAt}
+              min={status === "scheduled" ? toLocalInput(new Date()) : undefined}
               onChange={(e) => setPublishedAt(e.target.value)}
               className={fieldClass}
             />
@@ -498,22 +531,6 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
           {/* Propiedades avanzadas colapsables */}
           {showAdvanced && (
             <div className="space-y-3 border-t pt-3">
-              <div className="flex items-center gap-4">
-                <Label className="text-muted-foreground w-[120px] shrink-0">Status</Label>
-                <Select
-                  value={status}
-                  onValueChange={(value) => setStatus(value as "draft" | "published")}
-                >
-                  <SelectTrigger className={fieldClass}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="flex items-center gap-4">
                 <Label htmlFor="featured" className="text-muted-foreground w-[120px] shrink-0">Featured</Label>
                 <Checkbox

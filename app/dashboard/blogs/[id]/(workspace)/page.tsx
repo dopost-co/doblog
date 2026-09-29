@@ -3,12 +3,12 @@ import { getSession } from "@/lib/get-session";
 import { getBlogById } from "@/src/server/services/blogs/queries";
 import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
 import { getPostsByBlogId, getAvailableLanguagesByTranslationGroupIds } from "@/src/server/services/posts/queries";
-import { DashboardHeader } from "@/components/DashboardHeader/DashboardHeader";
-import { BlogNavigation } from "@/components/BlogNavigation/BlogNavigation";
+import { PageHeader } from "@/components/PageHeader/PageHeader";
 import { PostCard } from "@/components/PostCard/PostCard";
 import { Button } from "@/components/ui/button";
 import { GroupTranslationsToggle } from "@/components/GroupTranslationsToggle/GroupTranslationsToggle";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 
 export default async function BlogPostsPage({
   params,
@@ -57,19 +57,22 @@ export default async function BlogPostsPage({
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader currentBlog={{ name: blog.name }} />
-      <BlogNavigation blogId={id} />
-      <main className="mx-auto w-full max-w-[800px] px-6 py-12">
-        <div className="mb-10 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Posts</h1>
-          <div className="flex items-center gap-2">
-            <GroupTranslationsToggle enabled={groupTranslations} />
-            <Link href={`/dashboard/blogs/${id}/posts/new`}>
-              <Button>+ New post</Button>
-            </Link>
-          </div>
-        </div>
+    <div className="mx-auto w-full max-w-5xl space-y-6">
+        <PageHeader
+          title="Posts"
+          description="Write, translate and publish the content of this blog."
+          actions={
+            <>
+              <GroupTranslationsToggle enabled={groupTranslations} />
+              <Button asChild>
+                <Link href={`/dashboard/blogs/${id}/posts/new`}>
+                  <Plus />
+                  New post
+                </Link>
+              </Button>
+            </>
+          }
+        />
         <div className="flex flex-col gap-3">
           {posts.map((post) => {
               const availableLanguages = post.translationGroupId
@@ -99,7 +102,7 @@ export default async function BlogPostsPage({
           </div>
         )}
         {pagination.totalPages > 0 && (
-          <div className="mt-8 flex items-center justify-between border-t pt-6">
+          <div className="flex items-center justify-between border-t pt-6">
             <div className="text-sm text-muted-foreground">
               {((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
             </div>
@@ -148,7 +151,6 @@ export default async function BlogPostsPage({
             )}
           </div>
         )}
-      </main>
     </div>
   );
 }

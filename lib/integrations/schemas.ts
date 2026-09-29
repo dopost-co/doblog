@@ -3,6 +3,9 @@ import { isValidLanguageCode } from "../languages";
 import { API_SCOPES } from "./scopes";
 import { EDITOR_CONTENT_DESCRIPTION } from "./editor-guide";
 
+export const POST_STATUSES = ["draft", "scheduled", "published"] as const;
+export type PostStatus = typeof POST_STATUSES[number];
+
 export const idSchema = z.string().min(1).max(128);
 const name = z.string().trim().min(1).max(300);
 const slug = z.string().min(1).max(200).regex(/^[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)*$/u, "Use a URL slug without spaces or slashes");
@@ -24,10 +27,12 @@ export const editorContentSchema = z.object({
 export const postCreateSchema = z.object({
   title: name, slug, content: editorContentSchema,
   language: z.string().refine(isValidLanguageCode, "Invalid language code").default("en"),
-  status: z.enum(["draft", "published"]).default("draft"),
+  status: z.enum(POST_STATUSES).default("draft")
+    .describe("draft, published, or scheduled. A scheduled post needs a future publishedAt and goes live automatically at that time."),
   featured: z.boolean().optional(),
   excerpt: text, coverImage: url, authorId: idSchema.nullable().optional(),
-  publishedAt: z.iso.datetime({ offset: true }).nullable().optional(),
+  publishedAt: z.iso.datetime({ offset: true }).nullable().optional()
+    .describe("ISO 8601 date-time. For status scheduled, the future instant the post is published."),
   translationGroupId: z.uuid().optional(),
   metaTitle: text, metaDescription: text, ogImage: url, ogTitle: text,
   ogDescription: text, canonicalUrl: url, keywords: text,
@@ -37,7 +42,7 @@ const nonempty = <T extends z.ZodRawShape>(schema: z.ZodObject<T>) => schema.ref
 // Override create defaults: a PATCH must never reset language or publication state.
 export const postUpdateSchema = nonempty(postCreateSchema.partial().extend({
   language: z.string().refine(isValidLanguageCode, "Invalid language code").optional(),
-  status: z.enum(["draft", "published"]).optional(),
+  status: z.enum(POST_STATUSES).optional(),
 }));
 export const categorySchema = z.object({ name, slug, description: text }).strict();
 export const tagSchema = z.object({ name, slug }).strict();
@@ -52,7 +57,9 @@ export const listSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 }).strict();
 export const postListSchema = listSchema.extend({
-  status: z.enum(["draft", "published", "all"]).default("all"),
+  status: z.enum([...POST_STATUSES, "all"]).default("all"),
+  publishedFrom: z.iso.datetime({ offset: true }).optional().describe("Only posts whose publishedAt is on or after this instant"),
+  publishedTo: z.iso.datetime({ offset: true }).optional().describe("Only posts whose publishedAt is before this instant"),
   language: z.string().refine(isValidLanguageCode).optional(),
   categoryId: idSchema.optional(), tagId: idSchema.optional(),
   search: z.string().trim().min(1).max(200).optional(),

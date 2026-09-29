@@ -13,43 +13,54 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createCategory } from "@/src/server/services/categories/mutations";
+import { createCategory, updateCategory } from "@/src/server/services/categories/mutations";
 import { slugify } from "@/lib/slug";
+import { Plus } from "lucide-react";
 
 interface CreateCategoryDialogProps {
   blogId: string;
+  category?: { id: string; name: string; slug: string; description: string | null };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function CreateCategoryDialog({ blogId }: CreateCategoryDialogProps) {
+export function CreateCategoryDialog({ blogId, category, open: controlledOpen, onOpenChange }: CreateCategoryDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [description, setDescription] = useState("");
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
+  const [name, setName] = useState(category?.name ?? "");
+  const [slug, setSlug] = useState(category?.slug ?? "");
+  const [description, setDescription] = useState(category?.description ?? "");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [manualSlug, setManualSlug] = useState(false);
+  const [manualSlug, setManualSlug] = useState(Boolean(category));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setIsLoading(true);
 
-    const result = await createCategory({
-      blogId,
+    const fields = {
       name,
       slug: slug || slugify(name),
       description: description || undefined,
-    });
+    };
+    const result = category
+      ? await updateCategory(category.id, fields)
+      : await createCategory({ blogId, ...fields });
 
     if (result.error) {
       setError(result.error);
       setIsLoading(false);
     } else {
       setOpen(false);
-      setName("");
-      setSlug("");
-      setDescription("");
+      if (!category) {
+        setName("");
+        setSlug("");
+        setDescription("");
+        setManualSlug(false);
+      }
       setIsLoading(false);
       router.refresh();
     }
@@ -57,18 +68,23 @@ export function CreateCategoryDialog({ blogId }: CreateCategoryDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>+ New category</Button>
-      </DialogTrigger>
+      {!category && (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus />
+            New category
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create new category</DialogTitle>
+          <DialogTitle>{category ? "Edit category" : "Create new category"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="category-name">Name</Label>
             <Input
-              id="name"
+              id="category-name"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -81,9 +97,9 @@ export function CreateCategoryDialog({ blogId }: CreateCategoryDialogProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="slug">Slug</Label>
+            <Label htmlFor="category-slug">Slug</Label>
             <Input
-              id="slug"
+              id="category-slug"
               value={slug}
               onChange={(e) => {
                 setSlug(e.target.value);
@@ -94,9 +110,9 @@ export function CreateCategoryDialog({ blogId }: CreateCategoryDialogProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">Description (optional)</Label>
+            <Label htmlFor="category-description">Description (optional)</Label>
             <Textarea
-              id="description"
+              id="category-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Category description"
@@ -109,7 +125,7 @@ export function CreateCategoryDialog({ blogId }: CreateCategoryDialogProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Creating..." : "Create"}
+              {isLoading ? "Saving..." : category ? "Save" : "Create"}
             </Button>
           </div>
         </form>

@@ -80,22 +80,6 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <section className="rounded-lg border p-5">
-          <h3 className="text-sm font-semibold">Recommended permissions</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {["content:read", "content:write", "media:write", "seo:write"].map((scope) => (
-              <code key={scope} className="rounded-full bg-muted px-2.5 py-1 text-xs">{scope}</code>
-            ))}
-          </div>
-          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">This supports drafts, images and editorial settings. Add publish or delete only when the client really needs them.</p>
-        </section>
-        <section className="rounded-lg border p-5">
-          <h3 className="text-sm font-semibold">Quick test</h3>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Ask your client to call <code className="text-foreground">get_blog</code>, then <code className="text-foreground">list_posts</code>.</p>
-        </section>
-      </div>
-
       <details className="group rounded-lg border">
         <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium">
           Using a client that only supports local stdio?

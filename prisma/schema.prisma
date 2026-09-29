@@ -165,9 +165,10 @@ model Post {
   content            Json // Editor.js JSON format
   excerpt            String?
   coverImage         String?
-  status             String    @default("draft") // draft | published
+  status             String    @default("draft") // draft | scheduled | published
   featured           Boolean   @default(false)
-  publishedAt        DateTime?
+  publishedAt        DateTime? // Publication date; for scheduled posts, when they go live
+  scheduleMessageId  String? // QStash message that publishes a scheduled post
   authorId           String?
   language           String    @default("en") // ISO 639-1 language code
   translationGroupId String? // UUID to group translations of the same post
@@ -192,6 +193,7 @@ model Post {
   @@unique([blogId, slug, language])
   @@index([blogId])
   @@index([blogId, status])
+  @@index([status, publishedAt])
   @@index([blogId, slug])
   @@index([blogId, language])
   @@index([authorId])

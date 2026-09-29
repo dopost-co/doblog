@@ -108,7 +108,7 @@ export async function addBlogMember(blogId: string, email: string) {
       select: { id: true, name: true, email: true },
     });
 
-    revalidatePath(`/dashboard/blogs/${blogId}/settings`);
+    revalidatePath(`/dashboard/blogs/${blogId}/settings/members`);
     revalidatePath("/dashboard");
     return { success: true, member: { ...member, user } };
   } catch (error) {
@@ -161,7 +161,7 @@ export async function removeBlogMember(blogId: string, memberId: string) {
       where: { id: memberId },
     });
 
-    revalidatePath(`/dashboard/blogs/${blogId}/settings`);
+    revalidatePath(`/dashboard/blogs/${blogId}/settings/members`);
     revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {

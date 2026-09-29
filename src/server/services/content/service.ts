@@ -7,6 +7,7 @@ import { requireScope, type ApiPrincipal } from "@/lib/integrations/auth";
 import { OPERATIONS, type OperationName, type ContentResource } from "@/lib/integrations/catalog";
 import * as schemas from "@/lib/integrations/schemas";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
+import { cancelPostSchedule, syncPostSchedule } from "@/src/server/services/scheduling/service";
 
 const itemInput = z.object({ id: schemas.idSchema }).strict();
 export const operationSchemas: Record<OperationName, z.ZodType> = {
@@ -50,32 +51,52 @@ async function validatePostRelations(tx: Prisma.TransactionClient, blogId: strin
   }
 }
 
+const isLive = (status?: string) => status === "published" || status === "scheduled";
+
 async function writePost(principal: ApiPrincipal, input: unknown, id?: string) {
   const data = id ? schemas.postUpdateSchema.parse(input) : schemas.postCreateSchema.parse(input);
   const { categoryIds, tagIds, content, publishedAt, ...fields } = data;
-  return prisma.$transaction(async tx => {
+  const { post, previous } = await prisma.$transaction(async tx => {
     // Serialize publication checks against concurrent writes to this post.
     if (id) await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${id} AND "blogId" = ${principal.blogId} FOR UPDATE`;
     const current = id ? await tx.post.findFirst({ where: { id, blogId: principal.blogId } }) : null;
     if (id && !current) throw new ApiError(404, "Post not found");
-    if (current?.status === "published" || data.status === "published" || data.publishedAt !== undefined) requireScope(principal, "content:publish");
+    // Scheduling is a deferred publish, so it needs the same permission.
+    if (isLive(current?.status) || isLive(data.status) || data.publishedAt !== undefined) requireScope(principal, "content:publish");
     await validatePostRelations(tx, principal.blogId, data);
     const date = publishedAt === null ? null : publishedAt ? new Date(publishedAt) : undefined;
+    const status = data.status ?? current?.status;
+    let nextPublishedAt = date;
+    if (status === "published") {
+      // Publishing a scheduled post early goes live now, not at its future date.
+      const keep = current?.status === "scheduled" ? undefined : current?.publishedAt;
+      nextPublishedAt = date ?? keep ?? new Date();
+    } else if (status === "scheduled") {
+      nextPublishedAt = date === undefined ? current?.publishedAt : date;
+      if (!nextPublishedAt || nextPublishedAt.getTime() <= Date.now()) {
+        throw new ApiError(400, "A scheduled post needs a publishedAt in the future");
+      }
+    }
     const values = {
       ...fields,
       ...(content !== undefined ? { content: content as Prisma.InputJsonValue } : {}),
-      publishedAt: (data.status ?? current?.status) === "published" ? date ?? current?.publishedAt ?? new Date() : date,
+      publishedAt: nextPublishedAt,
       categories: categoryIds !== undefined ? { ...(id ? { deleteMany: {} } : {}), create: categoryIds.map(categoryId => ({ categoryId })) } : undefined,
       tags: tagIds !== undefined ? { ...(id ? { deleteMany: {} } : {}), create: tagIds.map(tagId => ({ tagId })) } : undefined,
     };
-    if (id) return tx.post.update({ where: { id, blogId: principal.blogId }, data: values, include: postInclude });
+    if (id) return { previous: current, post: await tx.post.update({ where: { id, blogId: principal.blogId }, data: values, include: postInclude }) };
     const required = schemas.postCreateSchema.parse(input);
-    return tx.post.create({ data: {
+    return { previous: null, post: await tx.post.create({ data: {
       ...values, title: required.title, slug: required.slug,
       content: required.content as Prisma.InputJsonValue, language: required.language, status: required.status,
       blogId: principal.blogId, translationGroupId: required.translationGroupId ?? randomUUID(),
-    }, include: postInclude });
+    }, include: postInclude }) };
   });
+  const scheduleChanged = previous?.status !== post.status || previous?.publishedAt?.getTime() !== post.publishedAt?.getTime();
+  if (scheduleChanged && (previous?.status === "scheduled" || post.status === "scheduled")) {
+    await syncPostSchedule(post.id, previous?.scheduleMessageId ?? null);
+  }
+  return post;
 }
 
 async function listRecords(resource: ContentResource, blogId: string, input: unknown) {
@@ -88,6 +109,10 @@ async function listRecords(resource: ContentResource, blogId: string, input: unk
       const q = schemas.postListSchema.parse(input);
       const where: Prisma.PostWhereInput = {
         blogId, status: q.status === "all" ? undefined : q.status, language: q.language,
+        ...(q.publishedFrom || q.publishedTo ? { publishedAt: {
+          ...(q.publishedFrom ? { gte: new Date(q.publishedFrom) } : {}),
+          ...(q.publishedTo ? { lt: new Date(q.publishedTo) } : {}),
+        } } : {}),
         ...(q.search ? { title: { contains: q.search, mode: "insensitive" } } : {}),
         ...(q.categoryId ? { categories: { some: { categoryId: q.categoryId } } } : {}),
         ...(q.tagId ? { tags: { some: { tagId: q.tagId } } } : {}),
@@ -148,12 +173,17 @@ export async function executeOperation(principal: ApiPrincipal, name: OperationN
     }
   }
   switch (resource) {
-    case "posts": await prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${id} AND "blogId" = ${blogId} FOR UPDATE`;
-      const post = await tx.post.findFirstOrThrow({ where: { id, blogId } });
-      if (post.status === "published") requireScope(principal, "content:publish");
-      await tx.post.delete({ where: { id, blogId } });
-    }); break;
+    case "posts": {
+      const deleted = await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${id} AND "blogId" = ${blogId} FOR UPDATE`;
+        const post = await tx.post.findFirstOrThrow({ where: { id, blogId } });
+        if (isLive(post.status)) requireScope(principal, "content:publish");
+        await tx.post.delete({ where: { id, blogId } });
+        return post;
+      });
+      await cancelPostSchedule(deleted.scheduleMessageId);
+      break;
+    }
     case "categories": await prisma.category.delete({ where: { id, blogId } }); break;
     case "tags": await prisma.tag.delete({ where: { id, blogId } }); break;
     case "authors": await prisma.author.delete({ where: { id, blogId } }); break;
