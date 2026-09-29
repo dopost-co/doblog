@@ -11,6 +11,8 @@ import Image from "@editorjs/image";
 import Table from "@editorjs/table";
 import RawTool from "@editorjs/raw";
 import Delimiter from "@editorjs/delimiter";
+import InlineCode from "@editorjs/inline-code";
+import { attachMarkdownSupport } from "./markdown-support";
 
 interface EditorProps {
   data?: OutputData;
@@ -37,6 +39,7 @@ export function Editor({ data, onChange, placeholder, blogId }: EditorProps) {
           header: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             class: Header as any,
+            inlineToolbar: true,
             config: {
               placeholder: "Enter a header",
               levels: [1, 2, 3, 4],
@@ -131,6 +134,11 @@ export function Editor({ data, onChange, placeholder, blogId }: EditorProps) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             class: Delimiter as any,
           },
+          inlineCode: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            class: InlineCode as any,
+            shortcut: "CMD+SHIFT+M",
+          },
         },
         onChange: async () => {
           if (editorRef.current && onChange) {
@@ -141,7 +149,17 @@ export function Editor({ data, onChange, placeholder, blogId }: EditorProps) {
       });
     }
 
+    const editor = editorRef.current;
+    const holder = holderRef.current;
+    let detachMarkdown: (() => void) | undefined;
+    let cancelled = false;
+    editor.isReady.then(() => {
+      if (!cancelled) detachMarkdown = attachMarkdownSupport(editor, holder);
+    }).catch(() => undefined);
+
     return () => {
+      cancelled = true;
+      detachMarkdown?.();
       if (editorRef.current && editorRef.current.destroy) {
         editorRef.current.destroy();
         editorRef.current = null;

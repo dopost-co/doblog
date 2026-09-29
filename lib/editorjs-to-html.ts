@@ -2,7 +2,16 @@ import sanitizeHtml from "sanitize-html";
 
 type Data = Record<string, unknown>;
 const record = (value: unknown): Data => value && typeof value === "object" ? value as Data : {};
-const text = (value: unknown): string => typeof value === "string" ? value : "";
+// Strip zero-width caret anchors the editor may leave behind.
+const text = (value: unknown): string => typeof value === "string" ? value.replace(/\u200B/g, "") : "";
+/**
+ * Older content may contain literal Markdown typed or pasted before the editor
+ * converted it. Render the unambiguous inline forms; sanitizing happens later.
+ */
+const inline = (value: unknown): string => text(value)
+  .replace(/`([^`<>\n]+)`/g, "<code>$1</code>")
+  .replace(/\[([^\]<>]+)\]\(((?:https?:\/\/|\/|mailto:)[^)\s"<>]+)\)/g, '<a href="$2">$1</a>')
+  .replace(/\*\*(?=\S)([^*<>]+?)(?<=\S)\*\*/g, "<strong>$1</strong>");
 const escape = (value: unknown): string => text(value).replace(/[&<>"']/g, character => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character]!);
@@ -11,7 +20,7 @@ function listItems(items: unknown, tag: "ol" | "ul"): string {
   if (!Array.isArray(items)) return "";
   return items.map(item => {
     const data = record(item);
-    const content = typeof item === "string" ? item : text(data.content) || text(data.text);
+    const content = inline(typeof item === "string" ? item : text(data.content) || text(data.text));
     const children = listItems(data.items, tag);
     return `<li class="zenex-cms__list-item">${content}${children ? `<${tag}>${children}</${tag}>` : ""}</li>`;
   }).join("");
@@ -28,16 +37,16 @@ export function convertBlocksToHtml(content: unknown): string {
     switch (block.type) {
       case "header": {
         const level = [2, 3, 4, 5, 6].includes(Number(data.level)) ? Number(data.level) : 2;
-        return `<h${level} class="zenex-cms__header zenex-cms__h${level}">${text(data.text)}</h${level}>`;
+        return `<h${level} class="zenex-cms__header zenex-cms__h${level}">${inline(data.text)}</h${level}>`;
       }
       case "paragraph":
-        return `<p class="zenex-cms__paragraph">${text(data.text)}</p>`;
+        return `<p class="zenex-cms__paragraph">${inline(data.text)}</p>`;
       case "list": {
         const tag = data.style === "ordered" ? "ol" : "ul";
         return `<${tag} class="zenex-cms__list">${listItems(data.items, tag)}</${tag}>`;
       }
       case "quote":
-        return `<blockquote class="zenex-cms__quote"><p>${text(data.text)}</p>${data.caption ? `<cite>— ${text(data.caption)}</cite>` : ""}</blockquote>`;
+        return `<blockquote class="zenex-cms__quote"><p>${inline(data.text)}</p>${data.caption ? `<cite>— ${text(data.caption)}</cite>` : ""}</blockquote>`;
       case "code":
         return `<pre class="zenex-cms__code-block"><code class="zenex-cms__code">${escape(data.code)}</code></pre>`;
       case "image":
@@ -55,7 +64,7 @@ export function convertBlocksToHtml(content: unknown): string {
         if (!rows.length) return "";
         const renderRow = (row: unknown[], heading = false) => {
           const tag = heading ? "th" : "td";
-          return `<tr>${row.map(cell => `<${tag}${heading ? ' scope="col"' : ""}>${text(cell)}</${tag}>`).join("")}</tr>`;
+          return `<tr>${row.map(cell => `<${tag}${heading ? ' scope="col"' : ""}>${inline(cell)}</${tag}>`).join("")}</tr>`;
         };
         const hasHeadings = data.withHeadings === true;
         const head = hasHeadings ? `<thead>${renderRow(rows[0], true)}</thead>` : "";
