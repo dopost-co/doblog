@@ -34,10 +34,7 @@ export default async function BlogMembersPage({
 
   return (
     <div className="space-y-6">
-      <SettingsSectionHeader
-        title="Members"
-        description="Members can access and edit this blog. The owner is always a member."
-      />
+      <SettingsSectionHeader title="Members" />
       <BlogMembers
         blogId={id}
         members={membersResult.members || []}

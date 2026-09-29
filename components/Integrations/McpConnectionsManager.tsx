@@ -6,7 +6,7 @@ import { Cable, ShieldCheck } from "lucide-react";
 import { API_SCOPES, SCOPE_DESCRIPTIONS, type ApiScope } from "@/lib/integrations/scopes";
 import { revokeMcpConnection, updateMcpConnection } from "@/src/server/services/mcp-connections/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Connection = {
   id: string; clientName: string; clientUri: string | null; scopes: string[];
@@ -31,7 +31,7 @@ export function McpConnectionsManager({ blogId, connections }: { blogId: string;
   return <Card>
     <CardHeader>
       <CardTitle className="flex items-center gap-2"><Cable className="h-5 w-5" />Connected MCP clients</CardTitle>
-      <CardDescription>OAuth connections keep their own refresh token. Permission changes apply immediately, without copying or replacing secrets.</CardDescription>
+      
     </CardHeader>
     <CardContent className="space-y-5">
       {message && <p role="status" className="rounded-lg border p-3 text-sm">{message}</p>}

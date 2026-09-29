@@ -36,7 +36,6 @@ export default async function BlogAuthorsPage({
     <div className="space-y-6">
       <SettingsSectionHeader
         title="Authors"
-        description="People who can be credited as the author of a post."
         action={<CreateAuthorDialog blogId={id} />}
       />
       <AuthorsList authors={authors} blogId={id} />

@@ -63,7 +63,7 @@ export function SeoSettingsManager({ blogId, initialCredentials, settings }: { b
   return <div className="space-y-8">
     {error && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">{error}</p>}
     {success && <p role="status" className="rounded-lg border border-emerald-600/30 p-4 text-sm text-emerald-700 dark:text-emerald-400">{success}</p>}
-    <Card><CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />DataForSEO connection</CardTitle><CardDescription>Connections belong to your account and can be reused by your own blogs. API secrets are encrypted and never exposed to MCP clients or invited members.</CardDescription></CardHeader>
+    <Card><CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />DataForSEO connection</CardTitle><CardDescription>Secrets are encrypted and never shared with MCP clients or members.</CardDescription></CardHeader>
       <CardContent className="space-y-6">
         {credentials.length > 0 && <div className="space-y-2"><Label htmlFor="credential">Connection for this blog</Label><select id="credential" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={credentialId} onChange={e => setCredentialId(e.target.value)} disabled={pending}>
           <option value="">No connection</option>{credentials.map(item => <option key={item.id} value={item.id}>{item.label} · {item.loginHint}{item.verifiedAt ? " · verified" : ""}</option>)}
@@ -75,7 +75,7 @@ export function SeoSettingsManager({ blogId, initialCredentials, settings }: { b
           <div className="md:col-span-3"><Button type="submit" variant="outline" disabled={pending}><ShieldCheck className="mr-2 h-4 w-4" />{pending ? "Verifying…" : "Verify and save connection"}</Button></div>
         </form>
       </CardContent></Card>
-    <form onSubmit={save}><Card><CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" />Blog SEO strategy</CardTitle><CardDescription>MCP research is disabled until you explicitly enable it. Article creation remains draft-first.</CardDescription></CardHeader><CardContent className="space-y-6">
+    <form onSubmit={save}><Card><CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" />Blog SEO strategy</CardTitle></CardHeader><CardContent className="space-y-6">
       <div className="flex items-center justify-between gap-6 rounded-lg border p-4"><div><Label htmlFor="seo-enabled">Enable SEO tools for this blog</Label><p className="mt-1 text-xs text-muted-foreground">Allows authorized MCP clients to spend within the limits below.</p></div><Switch id="seo-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={pending} /></div>
       <div className="grid gap-4 md:grid-cols-3">
         <Field label="Target domain" name="targetDomain" defaultValue={settings?.targetDomain || ""} placeholder="dopost.co" />
@@ -85,7 +85,7 @@ export function SeoSettingsManager({ blogId, initialCredentials, settings }: { b
         <div className="space-y-2"><Label htmlFor="publishingMode">Publishing mode</Label><select id="publishingMode" name="publishingMode" defaultValue={settings?.publishingMode ?? "draft"} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="draft">Draft only</option><option value="review">Review queue</option><option value="auto_publish">Auto publish (reserved)</option></select></div>
         <div className="space-y-2">
           <Field label="Maximum inline images" name="maxInlineImages" type="number" min="0" max="8" defaultValue={String(settings?.maxInlineImages ?? 3)} />
-          <p className="text-xs leading-relaxed text-muted-foreground">The MCP may use fewer when extra images do not improve the explanation. The thumbnail is separate and does not count toward this maximum.</p>
+          <p className="text-xs text-muted-foreground">Excludes the thumbnail.</p>
         </div>
       </div>
       <div className="space-y-2"><Label htmlFor="competitors">Competitor domains</Label><Textarea id="competitors" name="competitors" defaultValue={settings?.competitorDomains.join("\n") || ""} placeholder={'competitor-one.com\ncompetitor-two.com'} /></div>

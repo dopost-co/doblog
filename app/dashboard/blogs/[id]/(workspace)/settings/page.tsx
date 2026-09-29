@@ -35,14 +35,14 @@ export default async function BlogSettingsPage({
 
   return (
     <div className="space-y-6">
-      <SettingsSectionHeader title="General" description="Basic information about this blog." />
+      <SettingsSectionHeader title="General" />
       <BlogNameSettings blogId={id} initialName={blog.name} canEdit={isOwner} />
       <BlogIdDisplay blogId={blog.blogId} />
       <div className="flex flex-col gap-3 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <Label>Import posts</Label>
           <p className="text-sm text-muted-foreground">
-            Bulk import markdown files with frontmatter. Supports multiple files and drag & drop.
+            Markdown files with frontmatter.
           </p>
         </div>
         <ImportPostsDialog blogId={id} />

@@ -46,7 +46,6 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
             <div className="rounded-lg bg-primary/10 p-2 text-primary"><Link2 className="h-5 w-5" /></div>
             <div>
               <h2 className="font-semibold">Connect to Zenex</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Use the hosted MCP endpoint. Compatible clients open a secure OAuth consent screen and keep access through rotating refresh tokens.</p>
             </div>
           </div>
 

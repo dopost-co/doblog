@@ -36,7 +36,6 @@ export default async function BlogCategoriesPage({
     <div className="space-y-6">
       <SettingsSectionHeader
         title="Categories"
-        description="Group posts by topic. Categories are exposed through the public API."
         action={<CreateCategoryDialog blogId={id} />}
       />
       <CategoriesList categories={categories} blogId={id} />

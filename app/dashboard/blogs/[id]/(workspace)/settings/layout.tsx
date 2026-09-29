@@ -12,7 +12,7 @@ export default async function BlogSettingsLayout({
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
-      <PageHeader title="Settings" description="Manage your blog, its team and the taxonomy used by posts." />
+      <PageHeader title="Settings" />
       <div className="flex flex-col gap-6 border-t pt-6 lg:flex-row lg:gap-10">
         <aside className="lg:w-44 lg:shrink-0">
           <SettingsNav blogId={id} />

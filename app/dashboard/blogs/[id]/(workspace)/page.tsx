@@ -60,7 +60,6 @@ export default async function BlogPostsPage({
     <div className="mx-auto w-full max-w-5xl space-y-6">
         <PageHeader
           title="Posts"
-          description="Write, translate and publish the content of this blog."
           actions={
             <>
               <GroupTranslationsToggle enabled={groupTranslations} />

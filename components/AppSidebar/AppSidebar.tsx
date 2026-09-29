@@ -155,10 +155,7 @@ function BlogSwitcher({ blog, blogs, onNavigate }: Pick<AppSidebarProps, "blog" 
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
           {initials(blog.name)}
         </span>
-        <span className="grid flex-1 leading-tight">
-          <span className="truncate text-sm font-semibold">{blog.name}</span>
-          <span className="truncate text-xs text-muted-foreground">Blog</span>
-        </span>
+        <span className="flex-1 truncate text-sm font-semibold">{blog.name}</span>
         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-56">

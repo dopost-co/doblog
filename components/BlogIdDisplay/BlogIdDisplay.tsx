@@ -23,7 +23,7 @@ export function BlogIdDisplay({ blogId }: BlogIdDisplayProps) {
       <div className="space-y-1">
         <Label htmlFor="blog-id">Blog ID</Label>
         <p className="text-sm text-muted-foreground">
-          Public identifier for published content, not a secret. Manage private access in API keys.
+          Public identifier for the content API. Not a secret.
         </p>
       </div>
       <div className="flex gap-2">

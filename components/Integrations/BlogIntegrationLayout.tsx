@@ -15,7 +15,7 @@ export async function integrationBlog(id: string) {
 }
 
 export function BlogIntegrationLayout({ title, description, children }: {
-  blog: { id: string; name: string }; title: string; description: string; children: React.ReactNode;
+  blog: { id: string; name: string }; title: string; description?: string; children: React.ReactNode;
 }) {
   return <div className="mx-auto w-full max-w-5xl space-y-8">
     <PageHeader title={title} description={description} />

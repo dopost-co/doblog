@@ -41,10 +41,7 @@ export function BlogNameSettings({
 
   return (
     <form onSubmit={save} className="space-y-3">
-      <div className="space-y-1">
-        <Label htmlFor="blog-name">Blog name</Label>
-        <p className="text-sm text-muted-foreground">Shown in your blog list and in the sidebar.</p>
-      </div>
+      <Label htmlFor="blog-name">Blog name</Label>
       <div className="flex gap-2">
         <Input
           id="blog-name"

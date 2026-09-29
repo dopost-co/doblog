@@ -62,7 +62,7 @@ export function ApiKeysManager({ blogId, keys }: { blogId: string; keys: KeyInfo
       </div><Button variant="outline" onClick={() => setToken(null)}>I saved the key — dismiss</Button></CardContent>
     </Card>}
     <div className="grid items-start gap-8 lg:grid-cols-[1fr_280px]">
-      <Card><CardHeader><CardTitle>Create an API key</CardTitle><CardDescription>One key per client. Start with draft-only access and grant additional permissions only when needed.</CardDescription></CardHeader>
+      <Card><CardHeader><CardTitle>Create an API key</CardTitle></CardHeader>
         <CardContent><form onSubmit={create} className="space-y-6">
           <div className="space-y-2"><Label htmlFor="key-name">Name</Label><Input id="key-name" placeholder="Editorial assistant" value={name} onChange={e => setName(e.target.value)} maxLength={80} required disabled={pending} /></div>
           <div className="space-y-3">
