@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isValidLanguageCode } from "@/lib/languages";
+import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
 import { TranslationService } from "./TranslationService";
 
 const include = {
@@ -51,8 +52,8 @@ export async function createPostTranslation(blogId: string, postId: string, targ
   });
   if (existing) throw new ApiError(409, `A ${targetLanguage} translation already exists (post ${existing.id})`);
 
-  const translator = new TranslationService();
-  if (!translator.isConfigured) throw new ApiError(503, "Translation is not configured: OPENAI_API_KEY is missing");
+  // Billed to the blog owner's own key on lifetime plans, to the platform on subscriptions.
+  const translator = new TranslationService(await resolveBlogOpenAiKey(blogId));
 
   const from = source.language;
   const text = (value: string | null) => (value ? translator.translateText(value, targetLanguage, from) : Promise.resolve(null));
@@ -112,8 +113,8 @@ export async function translatePostInto(blogId: string, postId: string, language
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) skipped.push({ language, reason: error.message });
       else if (error instanceof ApiError && error.status !== 500) {
-        // Missing posts or configuration affect every language equally.
-        if (error.status === 404 || error.status === 503) throw error;
+        // Missing posts, keys or configuration affect every language equally.
+        if (error.status === 404 || error.status === 412 || error.status === 503) throw error;
         failed.push({ language, error: error.message });
       } else {
         console.error("[Translations] failed", { postId, language, error: error instanceof Error ? error.message : String(error) });

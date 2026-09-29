@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), create: vi.fn(), translateText: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), create: vi.fn(), translateText: vi.fn(), resolveKey: vi.fn(async () => "owner-key") }));
+vi.mock("@/src/server/services/providers/credentials", () => ({ resolveBlogOpenAiKey: mocks.resolveKey }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     post: { findFirst: mocks.findFirst },
@@ -47,6 +48,13 @@ describe("translatePostInto", () => {
   it("fails fast when the post does not exist", async () => {
     mocks.findFirst.mockResolvedValue(null);
     await expect(translatePostInto("b", "missing", ["en"])).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("stops for every language when the owner has no AI key", async () => {
+    const { ApiError } = await import("@/lib/integrations/errors");
+    mocks.findFirst.mockImplementation(async ({ where }) => (where.id ? source : null));
+    mocks.resolveKey.mockRejectedValueOnce(new ApiError(412, "Add an OpenAI API key in Settings → Providers to use AI features"));
+    await expect(translatePostInto("b", "p", ["en", "it"])).rejects.toMatchObject({ status: 412 });
   });
 });
 

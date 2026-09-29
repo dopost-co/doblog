@@ -18,6 +18,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // lifetime: the user brings their own provider keys. subscription: the platform's keys are used.
+  plan                  String  @default("lifetime")
+  openaiApiKeyEncrypted String?
+  openaiKeyHint         String?
+  onboardingCompleted   Boolean @default(false)
+  onboardingStep        String?
+
   blogs Blog[]
 
   oauthAuthorizationCodes McpOAuthAuthorizationCode[]
@@ -121,7 +128,7 @@ model SeoCacheEntry {
 model SeoUsageEntry {
   id             String    @id @default(cuid())
   blogId         String
-  credentialId   String
+  credentialId   String? // null when the platform's managed DataForSEO account paid for it
   endpoint       String
   providerTaskId String?
   costUsdMicros  Int       @default(0)
@@ -131,7 +138,7 @@ model SeoUsageEntry {
   completedAt    DateTime?
 
   blog       Blog                  @relation(fields: [blogId], references: [id], onDelete: Cascade)
-  credential SeoProviderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  credential SeoProviderCredential? @relation(fields: [credentialId], references: [id], onDelete: Cascade)
 
   @@index([blogId, createdAt])
   @@index([credentialId, createdAt])

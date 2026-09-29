@@ -7,7 +7,7 @@ export default async function SeoPage({ params }: { params: Promise<{ id: string
   const { blog, isOwner } = await integrationBlog(id);
   const data = isOwner ? await getSeoDashboardData(id) : null;
   return <BlogIntegrationLayout blog={blog} title="Growth">
-    {data ? <SeoSettingsManager blogId={id} initialCredentials={data.credentials} settings={data.settings} /> :
-      <p className="rounded-xl border p-6 text-sm text-muted-foreground">Only the blog owner can configure paid SEO providers. Members can continue reviewing and editing generated drafts.</p>}
+    {data ? <SeoSettingsManager blogId={id} plan={data.plan} credentials={data.credentials} settings={data.settings} /> :
+      <p className="rounded-lg border p-6 text-sm text-muted-foreground">Only the blog owner can change these settings.</p>}
   </BlogIntegrationLayout>;
 }

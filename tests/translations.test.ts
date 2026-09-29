@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/integrations/errors";
+import { describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), createTranslation: vi.fn() }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), clientKeys: [] as string[] }));
 vi.mock("openai", () => ({
-  default: class { chat = { completions: { create: mocks.create } }; },
+  default: class {
+    chat = { completions: { create: mocks.create } };
+    constructor(options: { apiKey: string }) { mocks.clientKeys.push(options.apiKey); }
+  },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 import { TranslationService } from "@/src/server/services/translations/TranslationService";
@@ -11,8 +13,10 @@ import { TranslationService } from "@/src/server/services/translations/Translati
 const reply = (content: string) => ({ choices: [{ message: { content } }] });
 
 describe("TranslationService", () => {
-  beforeEach(() => {
-    vi.stubEnv("OPENAI_API_KEY", "test");
+  it("uses the key it is given and refuses to run without one", async () => {
+    new TranslationService("owner-key");
+    expect(mocks.clientKeys).toContain("owner-key");
+    await expect(new TranslationService(null).translateText("Hola", "en", "es")).rejects.toThrow("OpenAI API key is required");
   });
 
   it("never lets the model rewrite link URLs", async () => {
@@ -22,20 +26,21 @@ describe("TranslationService", () => {
       // A model that "translates" everything, including the placeholder's surroundings.
       return reply(input.replace("<text>", "").replace("</text>", "").replace("guía", "guida"));
     });
-    const out = await new TranslationService().translateText('Lee la <a href="/es/blog/como-limpiar">guía</a>', "it", "es");
+    const out = await new TranslationService("test").translateText('Lee la <a href="/es/blog/como-limpiar">guía</a>', "it", "es");
     expect(out).toContain('href="/es/blog/como-limpiar"');
     expect(out).toContain("guida");
   });
 
   it("retries once when the model echoes the source text", async () => {
+    mocks.create.mockReset();
     mocks.create.mockResolvedValueOnce(reply("Cómo elegir una butaca")).mockResolvedValueOnce(reply("Come scegliere una poltrona"));
-    expect(await new TranslationService().translateText("Cómo elegir una butaca", "it", "es")).toBe("Come scegliere una poltrona");
+    expect(await new TranslationService("test").translateText("Cómo elegir una butaca", "it", "es")).toBe("Come scegliere una poltrona");
     expect(mocks.create).toHaveBeenCalledTimes(2);
   });
 
   it("translates table cells and nested list items, keeping their shape", async () => {
     mocks.create.mockImplementation(async ({ messages }) => reply(`IT:${messages[1].content.slice(6, -7)}`));
-    const out = await new TranslationService().translatePostContent({ blocks: [
+    const out = await new TranslationService("test").translatePostContent({ blocks: [
       { type: "table", data: { withHeadings: true, content: [["Uso", ""]] } },
       { type: "list", data: { style: "unordered", items: [{ content: "Uno", meta: {}, items: [{ content: "Dos", meta: {}, items: [] }] }] } },
     ] }, "it", "es");
@@ -44,4 +49,3 @@ describe("TranslationService", () => {
     expect(out.blocks[1].data.items[0]).not.toHaveProperty("text");
   });
 });
-

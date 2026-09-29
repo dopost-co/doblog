@@ -38,8 +38,8 @@ export class TranslationService {
     }
   }
 
-  constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
+  /** Pass the key from resolveOpenAiKey: it belongs to the blog owner (or the platform for subscribers). */
+  constructor(apiKey: string | null | undefined) {
     if (apiKey) {
       // The SDK retries 429s and 5xx responses with backoff.
       this.client = new OpenAI({ apiKey, timeout: 60_000, maxRetries: 3 });
@@ -55,7 +55,7 @@ export class TranslationService {
     sourceLanguage?: string
   ): Promise<string> {
     if (!this.client) {
-      throw new Error("OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.");
+      throw new Error("An OpenAI API key is required for translation.");
     }
 
     if (!isValidLanguageCode(targetLanguage)) {
@@ -119,7 +119,7 @@ ${sourceLang ? `The source language is ${sourceLang.name}.` : "Detect the source
     sourceLanguage?: string
   ): Promise<OutputData> {
     if (!this.client) {
-      throw new Error("OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.");
+      throw new Error("An OpenAI API key is required for translation.");
     }
 
     if (!content || !content.blocks || !Array.isArray(content.blocks)) {

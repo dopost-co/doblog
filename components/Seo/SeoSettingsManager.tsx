@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, KeyRound, ShieldCheck } from "lucide-react";
-import { createDataForSeoCredential, saveBlogSeoSettings } from "@/src/server/services/seo/actions";
+import { ChevronRight } from "lucide-react";
+import { saveBlogSeoSettings } from "@/src/server/services/seo/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Credential = { id: string; label: string; loginHint: string; verifiedAt: string | null };
+type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
   credentialId: string | null; enabled: boolean; targetDomain: string | null; locationCode: number; languageCode: string;
   timezone: string; competitorDomains: string[]; audience: string | null; brandVoice: string | null; publishingMode: string;
@@ -20,89 +21,152 @@ type Settings = {
 } | null;
 
 const usd = (micros: number | undefined, fallback: number) => String((micros ?? fallback * 1_000_000) / 1_000_000);
+const PUBLISHING_MODES = [
+  { value: "draft", label: "Save as drafts" },
+  { value: "review", label: "Send to review" },
+  { value: "auto_publish", label: "Publish automatically" },
+];
 
-export function SeoSettingsManager({ blogId, initialCredentials, settings }: { blogId: string; initialCredentials: Credential[]; settings: Settings }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="grid gap-4 py-6 md:grid-cols-[12rem_1fr] md:gap-8">
+      <h2 className="text-sm font-medium">{title}</h2>
+      <div className="grid gap-4">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, name, hint, ...props }: { label: string; name: string; hint?: string } & React.ComponentProps<typeof Input>) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={name}>{label}</Label>
+      <Input id={name} name={name} {...props} />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function Area({ label, name, ...props }: { label: string; name: string } & React.ComponentProps<typeof Textarea>) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={name}>{label}</Label>
+      <Textarea id={name} name={name} rows={3} {...props} />
+    </div>
+  );
+}
+
+export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
+  blogId: string;
+  plan: "lifetime" | "subscription";
+  credentials: Credential[];
+  settings: Settings;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [credentials, setCredentials] = useState(initialCredentials);
-  const [credentialId, setCredentialId] = useState(settings?.credentialId || initialCredentials[0]?.id || "");
   const [enabled, setEnabled] = useState(settings?.enabled ?? false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [credentialId, setCredentialId] = useState(settings?.credentialId || credentials[0]?.id || "");
+  const [publishingMode, setPublishingMode] = useState(settings?.publishingMode ?? "draft");
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
-  function addConnection(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(""); setSuccess("");
-    const form = new FormData(event.currentTarget);
-    startTransition(async () => {
-      const result = await createDataForSeoCredential(blogId, { label: form.get("label"), login: form.get("login"), password: form.get("password") });
-      if (result.error || !result.credential) { setError(result.error || "Unable to add connection"); return; }
-      setCredentials(current => [result.credential!, ...current]); setCredentialId(result.credential.id);
-      setSuccess("Connection verified and encrypted. Select Save settings to attach it to this blog."); router.refresh();
-    });
-  }
+  const managed = plan === "subscription";
+  const connected = managed || credentials.length > 0;
+  const activeCredential = credentials.find((item) => item.id === credentialId);
 
   function save(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(""); setSuccess("");
+    event.preventDefault();
+    setMessage(null);
     const form = new FormData(event.currentTarget);
     const nullable = (name: string) => String(form.get(name) || "").trim() || null;
     startTransition(async () => {
       const result = await saveBlogSeoSettings(blogId, {
-        credentialId: credentialId || null, enabled, targetDomain: nullable("targetDomain"),
+        credentialId: managed ? null : credentialId || null, enabled, targetDomain: nullable("targetDomain"),
         locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
-        competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map(v => v.trim()).filter(Boolean),
-        audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: String(form.get("publishingMode")),
+        competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
+        audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode,
         thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
         maxInlineImages: Number(form.get("maxInlineImages")),
         perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
       });
-      if (result.error) { setError(result.error); return; }
-      setSuccess("SEO settings saved."); router.refresh();
+      setMessage(result.error ? { tone: "error", text: result.error } : { tone: "success", text: "Saved" });
+      if (!result.error) router.refresh();
     });
   }
 
-  return <div className="space-y-8">
-    {error && <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">{error}</p>}
-    {success && <p role="status" className="rounded-lg border border-emerald-600/30 p-4 text-sm text-emerald-700 dark:text-emerald-400">{success}</p>}
-    <Card><CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />DataForSEO connection</CardTitle><CardDescription>Secrets are encrypted and never shared with MCP clients or members.</CardDescription></CardHeader>
-      <CardContent className="space-y-6">
-        {credentials.length > 0 && <div className="space-y-2"><Label htmlFor="credential">Connection for this blog</Label><select id="credential" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={credentialId} onChange={e => setCredentialId(e.target.value)} disabled={pending}>
-          <option value="">No connection</option>{credentials.map(item => <option key={item.id} value={item.id}>{item.label} · {item.loginHint}{item.verifiedAt ? " · verified" : ""}</option>)}
-        </select></div>}
-        <form onSubmit={addConnection} className="grid gap-4 rounded-xl border p-4 md:grid-cols-3">
-          <div className="space-y-2"><Label htmlFor="connection-label">New connection label</Label><Input id="connection-label" name="label" placeholder="DataForSEO DoPost" required maxLength={80} disabled={pending} /></div>
-          <div className="space-y-2"><Label htmlFor="api-login">API login</Label><Input id="api-login" name="login" type="text" autoComplete="off" required disabled={pending} /></div>
-          <div className="space-y-2"><Label htmlFor="api-password">API password</Label><Input id="api-password" name="password" type="password" autoComplete="new-password" required disabled={pending} /></div>
-          <div className="md:col-span-3"><Button type="submit" variant="outline" disabled={pending}><ShieldCheck className="mr-2 h-4 w-4" />{pending ? "Verifying…" : "Verify and save connection"}</Button></div>
-        </form>
-      </CardContent></Card>
-    <form onSubmit={save}><Card><CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" />Blog SEO strategy</CardTitle></CardHeader><CardContent className="space-y-6">
-      <div className="flex items-center justify-between gap-6 rounded-lg border p-4"><div><Label htmlFor="seo-enabled">Enable SEO tools for this blog</Label><p className="mt-1 text-xs text-muted-foreground">Allows authorized MCP clients to spend within the limits below.</p></div><Switch id="seo-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={pending} /></div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <Field label="Target domain" name="targetDomain" defaultValue={settings?.targetDomain || ""} placeholder="dopost.co" />
-        <Field label="Location code" name="locationCode" type="number" defaultValue={String(settings?.locationCode ?? 2840)} />
-        <Field label="Language code" name="languageCode" defaultValue={settings?.languageCode ?? "en"} />
-        <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />
-        <div className="space-y-2"><Label htmlFor="publishingMode">Publishing mode</Label><select id="publishingMode" name="publishingMode" defaultValue={settings?.publishingMode ?? "draft"} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="draft">Draft only</option><option value="review">Review queue</option><option value="auto_publish">Auto publish (reserved)</option></select></div>
-        <div className="space-y-2">
-          <Field label="Maximum inline images" name="maxInlineImages" type="number" min="0" max="8" defaultValue={String(settings?.maxInlineImages ?? 3)} />
-          <p className="text-xs text-muted-foreground">Excludes the thumbnail.</p>
+  return (
+    <form onSubmit={save} className="space-y-6">
+      <div className="flex items-center justify-between gap-6 rounded-lg border p-4">
+        <div className="min-w-0 space-y-0.5">
+          <Label htmlFor="seo-enabled" className="text-sm font-medium">SEO research</Label>
+          <p className="text-sm text-muted-foreground">
+            {managed ? "Included in your plan."
+              : connected ? <>Uses {activeCredential?.label ?? "your DataForSEO connection"}.</>
+                : <>Connect DataForSEO in <Link href={`/dashboard/blogs/${blogId}/settings/providers`} className="underline underline-offset-2">Providers</Link> to enable it.</>}
+          </p>
         </div>
+        <Switch id="seo-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={pending || !connected} />
       </div>
-      <div className="space-y-2"><Label htmlFor="competitors">Competitor domains</Label><Textarea id="competitors" name="competitors" defaultValue={settings?.competitorDomains.join("\n") || ""} placeholder={'competitor-one.com\ncompetitor-two.com'} /></div>
-      <div className="grid gap-4 md:grid-cols-2"><Area label="Audience" name="audience" defaultValue={settings?.audience || ""} /><Area label="Brand voice" name="brandVoice" defaultValue={settings?.brandVoice || ""} /></div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Area label="Thumbnail style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, strong focal point, no embedded text…" />
-        <Area label="Inline image style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple hand-drawn diagrams that explain the adjacent section…" />
-      </div>
-      <fieldset className="grid gap-4 rounded-xl border p-4 md:grid-cols-3"><legend className="px-2 text-sm font-medium">Hard spend limits (USD)</legend>
-        <Field label="Per MCP run" name="perRunBudgetUsd" type="number" min="0.001" step="0.001" defaultValue={usd(settings?.perRunBudgetUsdMicros, .25)} />
-        <Field label="Per day (UTC)" name="dailyBudgetUsd" type="number" min="0.001" step="0.001" defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />
-        <Field label="Per month" name="monthlyBudgetUsd" type="number" min="0.001" step="0.001" defaultValue={usd(settings?.monthlyBudgetUsdMicros, 20)} />
-      </fieldset>
-      <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save SEO settings"}</Button>
-    </CardContent></Card></form>
-  </div>;
-}
 
-function Field({ label, name, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string }) { return <div className="space-y-2"><Label htmlFor={name}>{label}</Label><Input id={name} name={name} required {...props} /></div>; }
-function Area({ label, name, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; name: string }) { return <div className="space-y-2"><Label htmlFor={name}>{label}</Label><Textarea id={name} name={name} {...props} /></div>; }
+      <div className="divide-y rounded-lg border px-4 md:px-6">
+        <Section title="Search">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Your domain" name="targetDomain" defaultValue={settings?.targetDomain || ""} placeholder="example.com" />
+            <Field label="Content language" name="languageCode" defaultValue={settings?.languageCode ?? "en"} placeholder="en" />
+          </div>
+          {!managed && credentials.length > 1 && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="credential">DataForSEO connection</Label>
+              <Select value={credentialId} onValueChange={setCredentialId} disabled={pending}>
+                <SelectTrigger id="credential" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{credentials.map((item) => <SelectItem key={item.id} value={item.id}>{item.label} · {item.loginHint}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Brand">
+          <Area label="Audience" name="audience" defaultValue={settings?.audience || ""} placeholder="Who you write for" />
+          <Area label="Voice" name="brandVoice" defaultValue={settings?.brandVoice || ""} placeholder="Tone, words to use or avoid" />
+          <div className="grid gap-1.5 sm:max-w-xs">
+            <Label htmlFor="publishingMode">New articles</Label>
+            <Select value={publishingMode} onValueChange={setPublishingMode} disabled={pending}>
+              <SelectTrigger id="publishingMode" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{PUBLISHING_MODES.map((mode) => <SelectItem key={mode.value} value={mode.value}>{mode.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        </Section>
+
+        <Section title="Images">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Area label="Thumbnail style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
+            <Area label="Inline image style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
+          </div>
+          <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} hint="Maximum, excluding the thumbnail." />
+        </Section>
+
+        <details className="group py-2">
+          <summary className="flex cursor-pointer list-none items-center gap-1 py-4 text-sm font-medium text-muted-foreground hover:text-foreground">
+            <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
+            Advanced
+          </summary>
+          <div className="grid gap-4 pb-6 md:pl-[13rem]">
+            <Area label="Competitors" name="competitors" defaultValue={settings?.competitorDomains.join("\n") || ""} placeholder={"competitor-one.com\ncompetitor-two.com"} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Location code" name="locationCode" type="number" defaultValue={String(settings?.locationCode ?? 2840)} hint="DataForSEO location, e.g. 2724 for Spain." />
+              <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Per run (USD)" name="perRunBudgetUsd" type="number" step="0.001" min="0.001" defaultValue={usd(settings?.perRunBudgetUsdMicros, 0.25)} />
+              <Field label="Per day (USD)" name="dailyBudgetUsd" type="number" step="0.01" min="0.001" defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />
+              <Field label="Per month (USD)" name="monthlyBudgetUsd" type="number" step="0.01" min="0.001" defaultValue={usd(settings?.monthlyBudgetUsdMicros, 20)} />
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div className="flex items-center justify-end gap-3">
+        {message && <p role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{message.text}</p>}
+        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
+      </div>
+    </form>
+  );
+}

@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { decryptSecret } from "@/lib/crypto/secrets";
 import { ApiError } from "@/lib/integrations/errors";
+import { isManagedPlan, resolveDataForSeoAccess } from "@/src/server/services/providers/credentials";
 import { dataForSeoRequest, responseCostMicros } from "./dataforseo";
 
 export type SeoOperation = "keyword_ideas" | "search_intent" | "serp_brief";
@@ -55,10 +55,14 @@ async function usageSince(blogId: string, since: Date) {
 }
 
 export async function getSeoSettingsSummary(blogId: string) {
-  const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId }, include: { credential: { select: { label: true, loginHint: true, verifiedAt: true } } } });
-  if (!settings) return { configured: false, enabled: false };
+  const [settings, blog] = await Promise.all([
+    prisma.blogSeoSettings.findUnique({ where: { blogId }, include: { credential: { select: { label: true, loginHint: true, verifiedAt: true } } } }),
+    prisma.blog.findUnique({ where: { id: blogId }, select: { user: { select: { plan: true } } } }),
+  ]);
+  const managed = isManagedPlan(blog?.user.plan);
+  if (!settings) return { configured: managed, enabled: false };
   return {
-    configured: !!settings.credentialId, enabled: settings.enabled, targetDomain: settings.targetDomain,
+    configured: managed || !!settings.credentialId, enabled: settings.enabled, targetDomain: settings.targetDomain,
     locationCode: settings.locationCode, languageCode: settings.languageCode, timezone: settings.timezone,
     competitorDomains: settings.competitorDomains, audience: settings.audience, brandVoice: settings.brandVoice,
     publishingMode: settings.publishingMode,
@@ -112,17 +116,17 @@ export async function getSeoUsage(blogId: string) {
 
 export async function runSeoOperation(blogId: string, operation: SeoOperation, input: Record<string, unknown>) {
   const policy = POLICY[operation];
-  const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId }, include: { credential: true } });
-  if (!settings?.enabled || !settings.credential) throw new ApiError(409, "SEO is not enabled with a verified DataForSEO connection for this blog");
-  if (!settings.credential.verifiedAt) throw new ApiError(409, "The DataForSEO connection has not been verified");
+  const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId } });
+  if (!settings?.enabled) throw new ApiError(409, "SEO research is not enabled for this blog");
+  const access = await resolveDataForSeoAccess(blogId);
   if (policy.estimateMicros > settings.perRunBudgetUsdMicros) throw new ApiError(429, "This request exceeds the per-run SEO budget");
 
   const payload = operation === "serp_brief" ? [{ ...input, location_code: settings.locationCode, language_code: settings.languageCode, depth: 10 }]
     : [{ ...input, location_code: settings.locationCode, language_code: settings.languageCode }];
-  const payloadHash = createHash("sha256").update(`${settings.credential.id}:${stable(payload)}`).digest("hex");
+  const payloadHash = createHash("sha256").update(`${access.cacheScope}:${stable(payload)}`).digest("hex");
   const cached = await prisma.seoCacheEntry.findUnique({ where: { blogId_endpoint_payloadHash: { blogId, endpoint: policy.endpoint, payloadHash } } });
   if (cached && cached.expiresAt > new Date()) {
-    await prisma.seoUsageEntry.create({ data: { blogId, credentialId: settings.credential.id, endpoint: policy.endpoint, costUsdMicros: 0, cacheHit: true, status: "completed", completedAt: new Date() } });
+    await prisma.seoUsageEntry.create({ data: { blogId, credentialId: access.credentialId, endpoint: policy.endpoint, costUsdMicros: 0, cacheHit: true, status: "completed", completedAt: new Date() } });
     return { data: cached.response, cacheHit: true, actualCostUsd: 0, snapshotAt: cached.updatedAt.toISOString() };
   }
 
@@ -131,9 +135,9 @@ export async function runSeoOperation(blogId: string, operation: SeoOperation, i
   const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const [daily, monthly] = await Promise.all([usageSince(blogId, day), usageSince(blogId, month)]);
   if (daily + policy.estimateMicros > settings.dailyBudgetUsdMicros || monthly + policy.estimateMicros > settings.monthlyBudgetUsdMicros) throw new ApiError(429, "SEO budget reached for this blog");
-  const reservation = await prisma.seoUsageEntry.create({ data: { blogId, credentialId: settings.credential.id, endpoint: policy.endpoint, costUsdMicros: policy.estimateMicros } });
+  const reservation = await prisma.seoUsageEntry.create({ data: { blogId, credentialId: access.credentialId, endpoint: policy.endpoint, costUsdMicros: policy.estimateMicros } });
   try {
-    const raw = await dataForSeoRequest({ login: decryptSecret(settings.credential.encryptedLogin), password: decryptSecret(settings.credential.encryptedPassword) }, policy.endpoint, payload);
+    const raw = await dataForSeoRequest({ login: access.login, password: access.password }, policy.endpoint, payload);
     const actualCost = responseCostMicros(raw);
     const normalized = JSON.parse(JSON.stringify(normalizeSeoResponse(operation, raw as unknown as Record<string, unknown>)));
     await prisma.$transaction([
