@@ -57,6 +57,8 @@ interface PostFormProps {
   tags: Array<{ id: string; name: string }>;
   authors: Array<{ id: string; name: string }>;
   existingTranslations?: Array<{ id: string; language: string }>;
+  /** Language of new posts: the blog's main language. */
+  defaultLanguage?: string;
   initialScheduleAt?: string;
 }
 
@@ -67,7 +69,7 @@ function toLocalInput(date: Date) {
   return format(date, "yyyy-MM-dd'T'HH:mm");
 }
 
-export function PostForm({ blogId, post, categories, tags, authors, existingTranslations = [], initialScheduleAt }: PostFormProps) {
+export function PostForm({ blogId, post, categories, tags, authors, existingTranslations = [], initialScheduleAt, defaultLanguage = "en" }: PostFormProps) {
   const router = useRouter();
   const isEditing = !!post;
 
@@ -97,7 +99,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
     post?.tags?.map((t) => t.tagId) || []
   );
   const [authorId, setAuthorId] = useState(post?.authorId || "");
-  const [language, setLanguage] = useState(post?.language || "en");
+  const [language, setLanguage] = useState(post?.language || defaultLanguage);
 
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");

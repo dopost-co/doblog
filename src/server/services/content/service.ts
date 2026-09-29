@@ -9,6 +9,7 @@ import * as schemas from "@/lib/integrations/schemas";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
 import { cancelPostSchedule, syncPostSchedule } from "@/src/server/services/scheduling/service";
 import { translatePostInto } from "@/src/server/services/translations/post-translation";
+import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 
 const itemInput = z.object({ id: schemas.idSchema }).strict();
 export const operationSchemas: Record<OperationName, z.ZodType> = {
@@ -98,6 +99,7 @@ async function writePost(principal: ApiPrincipal, input: unknown, id?: string) {
   if (scheduleChanged && (previous?.status === "scheduled" || post.status === "scheduled")) {
     await syncPostSchedule(post.id, previous?.scheduleMessageId ?? null);
   }
+  await queueTranslationSync(principal.blogId, previous, post);
   return post;
 }
 

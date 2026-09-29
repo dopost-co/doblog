@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { OutputData } from "@editorjs/editorjs";
-import type { Prisma } from "@prisma/client";
+import type { Post, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isValidLanguageCode } from "@/lib/languages";
+import { missingLanguages } from "@/lib/blog-languages";
 import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
 import { TranslationService } from "./TranslationService";
 
@@ -39,6 +40,30 @@ export function rewriteLinks<T>(value: T, rewrites: Record<string, string> | und
   return walk(value) as T;
 }
 
+/** The language-specific text of a post; everything else is shared by its translations. */
+type PostText = Pick<Post, "title" | "content" | "excerpt" | "metaTitle" | "metaDescription" | "ogTitle" | "ogDescription" | "keywords" | "language">;
+
+/** Translates the language-specific text of a post. */
+export async function translatePostText(translator: TranslationService, source: PostText, targetLanguage: string) {
+  const from = source.language;
+  const text = (value: string | null) => (value ? translator.translateText(value, targetLanguage, from) : Promise.resolve(null));
+  const [content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords] = await Promise.all([
+    translator.translatePostContent(source.content as unknown as OutputData, targetLanguage, from),
+    translator.translateText(source.title, targetLanguage, from),
+    text(source.excerpt), text(source.metaTitle), text(source.metaDescription),
+    text(source.ogTitle), text(source.ogDescription), text(source.keywords),
+  ]);
+  return { content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords };
+}
+
+/** Whether a write changed text that translations are made from (Editor.js timestamps are ignored). */
+export function translatableTextChanged(before: Omit<PostText, "language">, after: Omit<PostText, "language">) {
+  const fields = ["title", "excerpt", "metaTitle", "metaDescription", "ogTitle", "ogDescription", "keywords"] as const;
+  if (fields.some((field) => (before[field] ?? null) !== (after[field] ?? null))) return true;
+  const blocks = (content: Prisma.JsonValue) => JSON.stringify((content as { blocks?: unknown } | null)?.blocks ?? null);
+  return blocks(before.content) !== blocks(after.content);
+}
+
 export async function createPostTranslation(blogId: string, postId: string, targetLanguage: string, linkRewrites?: Record<string, string>) {
   if (!isValidLanguageCode(targetLanguage)) throw new ApiError(400, `Invalid language code: ${targetLanguage}`);
   const source = await prisma.post.findFirst({ where: { id: postId, blogId }, include });
@@ -54,15 +79,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
 
   // Billed to the blog owner's own key on lifetime plans, to the platform on subscriptions.
   const translator = new TranslationService(await resolveBlogOpenAiKey(blogId));
-
-  const from = source.language;
-  const text = (value: string | null) => (value ? translator.translateText(value, targetLanguage, from) : Promise.resolve(null));
-  const [content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords] = await Promise.all([
-    translator.translatePostContent(source.content as unknown as OutputData, targetLanguage, from),
-    translator.translateText(source.title, targetLanguage, from),
-    text(source.excerpt), text(source.metaTitle), text(source.metaDescription),
-    text(source.ogTitle), text(source.ogDescription), text(source.keywords),
-  ]);
+  const { content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords } = await translatePostText(translator, source, targetLanguage);
 
   return prisma.$transaction(async (tx) => {
     if (!source.translationGroupId) {
@@ -123,4 +140,87 @@ export async function translatePostInto(blogId: string, postId: string, language
     }
   }
   return { created, skipped, failed };
+}
+
+/**
+ * Brings a post's translation group in step with it: every other translation
+ * gets its shared fields (media, status, dates, author, taxonomy) and, when the
+ * post's text changed (translationSyncPending), a fresh translation of it; blog
+ * languages the group lacks are added. `version` (the post's updatedAt when the
+ * sync was requested) skips requests a newer write has superseded.
+ */
+export async function syncTranslationGroup(postId: string, version?: string) {
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: { ...include, blog: { select: { languages: true, autoSyncTranslations: true } } },
+  });
+  if (!post || !post.blog.autoSyncTranslations) return { skipped: "Automatic translation is off" };
+  if (version && post.updatedAt.toISOString() !== version) return { skipped: "Superseded by a newer change" };
+
+  let source = post;
+  if (!source.translationGroupId) {
+    const translationGroupId = randomUUID();
+    await prisma.post.updateMany({ where: { id: source.id, translationGroupId: null }, data: { translationGroupId } });
+    const refreshed = await prisma.post.findUnique({ where: { id: postId }, include: { ...include, blog: { select: { languages: true, autoSyncTranslations: true } } } });
+    if (!refreshed?.translationGroupId) return { skipped: "Post not found" };
+    source = refreshed;
+  }
+
+  const translations = await prisma.post.findMany({
+    where: { blogId: source.blogId, translationGroupId: source.translationGroupId, id: { not: source.id } },
+    select: { id: true, language: true },
+  });
+  const retranslate = source.translationSyncPending;
+  let translator: TranslationService | null = null;
+  const getTranslator = async () => (translator ??= new TranslationService(await resolveBlogOpenAiKey(source.blogId)));
+
+  const shared = {
+    coverImage: source.coverImage,
+    ogImage: source.ogImage,
+    canonicalUrl: source.canonicalUrl,
+    status: source.status,
+    featured: source.featured,
+    publishedAt: source.publishedAt,
+    authorId: source.authorId,
+  };
+  const updated: string[] = [];
+  const failed: { language: string; error: string }[] = [];
+  for (const translation of translations) {
+    try {
+      const text = retranslate ? await translatePostText(await getTranslator(), source, translation.language) : null;
+      await prisma.post.update({
+        where: { id: translation.id },
+        data: {
+          ...shared,
+          ...(text ? { ...text, content: text.content as unknown as Prisma.InputJsonValue } : {}),
+          translationSyncPending: false,
+          categories: { deleteMany: {}, create: source.categories.map(({ categoryId }) => ({ categoryId })) },
+          tags: { deleteMany: {}, create: source.tags.map(({ tagId }) => ({ tagId })) },
+        },
+      });
+      updated.push(translation.language);
+    } catch (error) {
+      failed.push({ language: translation.language, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const missing = missingLanguages(source.blog.languages, [source.language, ...translations.map((translation) => translation.language)]);
+  const created: string[] = [];
+  for (const language of missing) {
+    try {
+      await createPostTranslation(source.blogId, source.id, language);
+      created.push(language);
+    } catch (error) {
+      // A concurrent sync may have added it already.
+      if (error instanceof ApiError && error.status === 409) continue;
+      failed.push({ language, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  // Unless a newer write changed the text again meanwhile, it is now translated.
+  if (retranslate && !failed.length) {
+    await prisma.post.updateMany({ where: { id: source.id, updatedAt: source.updatedAt }, data: { translationSyncPending: false } });
+  }
+  if (failed.length) console.error("[Translations] sync-failed", { postId, failed });
+  return { updated, created, failed };
 }

@@ -34,6 +34,15 @@ export const ONBOARDING_STEPS = [
     fields: [{ name: "blogs", label: "Blog name", placeholder: "My blog", required: true, maxLength: 120 }],
   },
   {
+    id: "blog-languages",
+    title: "Which languages is your blog in?",
+    description: "The first one is the main language. You can change this later in Settings.",
+    fields: [
+      { name: "languages", label: "Languages", required: true, maxLength: 5, multiple: true },
+      { name: "autoSyncTranslations", label: "Translate automatically", maxLength: 5 },
+    ],
+  },
+  {
     id: "autopilot-website",
     title: "What is your website?",
     description: "Zenex will find its sitemap and understand what you already cover.",
@@ -82,8 +91,8 @@ export type OnboardingValues = Record<string, string | string[]>;
  * - invited-user: someone invited to an existing blog; only needs their name.
  */
 export const ONBOARDING_FLOWS = {
-  "new-user": ["profile", "blogs", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
-  "new-blog": ["blogs", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
+  "new-user": ["profile", "blogs", "blog-languages", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
+  "new-blog": ["blogs", "blog-languages", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
   "invited-user": ["profile"],
 } as const satisfies Record<string, readonly OnboardingStepId[]>;
 

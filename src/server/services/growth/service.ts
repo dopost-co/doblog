@@ -21,6 +21,7 @@ import {
   type GeneratedInlineImage,
 } from "./content";
 import { schedulePendingDrafts } from "./planning";
+import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 
 const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1.5";
@@ -323,6 +324,8 @@ export async function generateContentPlanDraft(blogId: string, itemId: string, t
       } }),
     ]);
     invalidateContent({ blogId, publicBlogId: blog.blogId });
+    const finished = await prisma.post.findUnique({ where: { id: postId } });
+    if (finished) await queueTranslationSync(blogId, null, finished);
     return { postId, title: article.title, warnings, published: autoPublish };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Draft generation failed";

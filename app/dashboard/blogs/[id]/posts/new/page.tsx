@@ -43,7 +43,7 @@ export default async function NewPostPage({
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto w-full max-w-[800px] px-6 py-12">
-        <PostForm blogId={id} categories={categories} tags={tags} authors={authors} initialScheduleAt={initialScheduleAt} />
+        <PostForm blogId={id} categories={categories} tags={tags} authors={authors} initialScheduleAt={initialScheduleAt} defaultLanguage={blog.languages[0]} />
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutatio
 import { BlogIdDisplay } from "@/components/BlogIdDisplay/BlogIdDisplay";
 import { ImportPostsDialog } from "@/components/ImportPostsDialog/ImportPostsDialog";
 import { BlogNameSettings } from "@/components/BlogNameSettings/BlogNameSettings";
+import { BlogLanguagesSettings } from "@/components/BlogLanguages/BlogLanguagesSettings";
 import { SettingsSectionHeader } from "@/components/SettingsNav/SettingsNav";
 import { Label } from "@/components/ui/label";
 
@@ -37,6 +38,12 @@ export default async function BlogSettingsPage({
     <div className="space-y-6">
       <SettingsSectionHeader title="General" />
       <BlogNameSettings blogId={id} initialName={blog.name} canEdit={isOwner} />
+      <BlogLanguagesSettings
+        blogId={id}
+        initialLanguages={blog.languages}
+        initialAutoSync={blog.autoSyncTranslations}
+        canEdit={isOwner}
+      />
       <BlogIdDisplay blogId={blog.blogId} />
       <div className="flex flex-col gap-3 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">

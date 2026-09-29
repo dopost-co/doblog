@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { normalizeBlogLanguages } from "@/lib/blog-languages";
 
 const createBlogSchema = z.object({
   name: z.string().min(1),
@@ -118,6 +119,33 @@ export async function updateBlog(
     }
     return { error: "Failed to update blog" };
   }
+}
+
+/**
+ * Languages the blog is written in (the first is the main one, which Autopilot
+ * writes in) and whether translation groups stay in sync automatically.
+ */
+export async function updateBlogLanguages(id: string, data: { languages: string[]; autoSyncTranslations: boolean }) {
+  const session = await getSession();
+  if (!session?.user?.id) return { error: "Unauthorized" };
+
+  let languages: string[];
+  try { languages = normalizeBlogLanguages(data.languages); } catch (error) {
+    return { error: error instanceof Error ? error.message : "Choose the blog languages" };
+  }
+
+  const blog = await prisma.blog.findUnique({ where: { id }, select: { userId: true, languages: true } });
+  if (!blog) return { error: "Blog not found" };
+  if (blog.userId !== session.user.id) return { error: "Only the blog owner can change its languages" };
+
+  const autoSyncTranslations = languages.length > 1 && data.autoSyncTranslations;
+  await prisma.blog.update({ where: { id }, data: { languages, autoSyncTranslations } });
+  if (blog.languages[0] !== languages[0]) {
+    await prisma.blogSeoSettings.updateMany({ where: { blogId: id }, data: { languageCode: languages[0] } });
+  }
+
+  revalidatePath(`/dashboard/blogs/${id}`, "layout");
+  return { success: true, languages, autoSyncTranslations };
 }
 
 export async function deleteBlog(id: string) {

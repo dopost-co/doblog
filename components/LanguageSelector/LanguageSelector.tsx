@@ -11,6 +11,9 @@ interface LanguageSelectorProps {
   onValueChange: (value: string) => void;
   required?: boolean;
   className?: string;
+  /** Languages hidden from the list, e.g. ones already chosen. */
+  exclude?: readonly string[];
+  placeholder?: string;
 }
 
 export function LanguageSelector({
@@ -18,6 +21,8 @@ export function LanguageSelector({
   onValueChange,
   required = true,
   className,
+  exclude,
+  placeholder = "Search language...",
 }: LanguageSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -27,6 +32,7 @@ export function LanguageSelector({
   const selectedLanguage = value ? languages.find((lang) => lang.code === value) : null;
 
   const filteredLanguages = languages.filter((lang) => {
+    if (exclude?.includes(lang.code)) return false;
     const query = searchQuery.toLowerCase();
     return (
       lang.name.toLowerCase().includes(query) ||
@@ -88,7 +94,7 @@ export function LanguageSelector({
           value={isOpen ? searchQuery : selectedLanguage ? `${selectedLanguage.name} (${selectedLanguage.code})` : ""}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
-          placeholder="Search language..."
+          placeholder={placeholder}
           required={required}
           className="h-9 w-full border-0 bg-muted/40 px-2 pr-8 shadow-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-0 dark:bg-muted/40 dark:hover:bg-muted/60 dark:focus-visible:bg-muted/60"
           onClick={handleTriggerClick}

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
 import { slugify } from "@/lib/slug";
 import { ApiError, apiError } from "@/lib/integrations/errors";
+import { normalizeBlogLanguages } from "@/lib/blog-languages";
 import { AUTOPILOT_AUDIENCE_OPTIONS, AUTOPILOT_VOICE_OPTIONS } from "@/lib/autopilot/options";
 import { flowSteps, isOnboardingFlow, stepIndex, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
 import { resolveUserFlow } from "./queries";
@@ -47,6 +48,22 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
     for (let n = 2; slugs.has(slug); n++) slug = `${base}-${n}`;
     const blog = await prisma.blog.create({ data: { userId: context.userId, name, slug }, select: { id: true } });
     return blog.id;
+  },
+  "blog-languages": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    let languages: string[];
+    try { languages = normalizeBlogLanguages(list(values.languages)); } catch (error) {
+      throw new ApiError(400, error instanceof Error ? error.message : "Choose the blog languages");
+    }
+    // Keeping translations in sync only makes sense with more than one language.
+    const autoSyncTranslations = languages.length > 1 && single(values.autoSyncTranslations) !== "false";
+    await prisma.blog.update({ where: { id: blog.id }, data: { languages, autoSyncTranslations } });
+    // Autopilot writes in the main language.
+    await prisma.blogSeoSettings.upsert({
+      where: { blogId: blog.id },
+      create: { blogId: blog.id, languageCode: languages[0] },
+      update: { languageCode: languages[0] },
+    });
   },
   "autopilot-website": async (context, values) => {
     const blog = await onboardingBlog(context);

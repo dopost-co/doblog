@@ -7,7 +7,9 @@ import { ArrowLeft, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { BlogLanguagesPicker } from "@/components/BlogLanguages/BlogLanguagesPicker";
 import { cn } from "@/lib/utils";
 import {
   AUTOPILOT_AUDIENCE_OPTIONS,
@@ -93,6 +95,7 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
           : field.name === "audienceChoice" ? "founders"
             : field.name === "voiceChoice" ? "clear-expert"
               : "";
+      if (field.name === "languages") return [field.name, initialValues.languages ?? ["en"]];
       return [field.name, initialValues[field.name] ?? (multiple ? [""] : fallback)];
     })),
   ));
@@ -136,7 +139,26 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
       </div>
 
       <div className="space-y-5">
-        {step.id === "autopilot-audience" ? (
+        {step.id === "blog-languages" ? (
+          <div className="space-y-5">
+            <BlogLanguagesPicker
+              value={values.languages as string[]}
+              onChange={(languages) => setValues((current) => ({ ...current, languages }))}
+              disabled={pending}
+            />
+            {(values.languages as string[]).length > 1 && <label className="flex items-start justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+              <span className="grid gap-1">
+                <span className="text-sm font-medium">Translate automatically</span>
+                <span className="text-xs text-muted-foreground">New and updated posts are translated into the other languages.</span>
+              </span>
+              <Switch
+                checked={values.autoSyncTranslations !== "false"}
+                onCheckedChange={(checked) => setValues((current) => ({ ...current, autoSyncTranslations: String(checked) }))}
+                disabled={pending}
+              />
+            </label>}
+          </div>
+        ) : step.id === "autopilot-audience" ? (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {[...AUTOPILOT_AUDIENCE_OPTIONS, { id: "other", title: "Other", example: "Describe your exact audience." }].map((option) => {
