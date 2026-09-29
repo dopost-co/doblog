@@ -49,7 +49,7 @@ describe("integration schemas and secrets", () => {
   });
   it("has a schema and OpenAPI operation for every REST/MCP operation", () => {
     const spec = managementOpenApi();
-    expect(new Set(OPERATIONS.map(o => o.name)).size).toBe(23);
+    expect(new Set(OPERATIONS.map(o => o.name)).size).toBe(24);
     for (const op of OPERATIONS) {
       expect(operationSchemas[op.name]).toBeInstanceOf(z.ZodType);
       expect(spec.paths[`/api/v1/blogs/{blogId}${op.path}`][op.method.toLowerCase()]).toMatchObject({ operationId: op.name });

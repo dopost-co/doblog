@@ -14,7 +14,8 @@ async function handle(request: Request, { params }: Context) {
     checkOrigin(request);
     const { blogId, path = [] } = await params;
     const principal = await authenticateApiKey(request, blogId);
-    const template = path.length === 0 ? "" : path.length === 1 ? `/${path[0]}` : path.length === 2 ? `/${path[0]}/{id}` : null;
+    const template = path.length === 0 ? "" : path.length === 1 ? `/${path[0]}` : path.length === 2 ? `/${path[0]}/{id}`
+      : path.length === 3 ? `/${path[0]}/{id}/${path[2]}` : null;
     const operation = OPERATIONS.find(o => o.path === template && o.method === request.method);
     if (!operation) throw new ApiError(404, "Unknown endpoint or method");
     let input: Record<string, unknown> = {};
@@ -29,7 +30,7 @@ async function handle(request: Request, { params }: Context) {
       input = body as Record<string, unknown>;
       if ("id" in input) throw new ApiError(400, "Pass the record ID in the URL, not in the body");
     }
-    if (path.length === 2) input.id = path[1];
+    if (path.length >= 2) input.id = path[1];
     const result = await executeOperation(principal, operation.name, input);
     if (request.method !== "GET") invalidateContent(principal);
     return privateJson(result, request.method === "POST" ? 201 : 200);

@@ -75,7 +75,7 @@ function SidebarContent({ blog, blogs, user, onNavigate }: AppSidebarProps & { o
       items: [
         { href: basePath, label: "Posts", icon: FileText, active: isActive(basePath, true) },
         { href: `${basePath}/calendar`, label: "Calendar", icon: CalendarDays, active: isActive(`${basePath}/calendar`) },
-        { href: `${basePath}/seo`, label: "Growth / SEO", icon: TrendingUp, active: isActive(`${basePath}/seo`) },
+        { href: `${basePath}/seo`, label: "Growth", icon: TrendingUp, active: isActive(`${basePath}/seo`) },
       ],
     },
     {

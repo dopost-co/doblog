@@ -10,6 +10,17 @@ import { invalidateContent } from "@/src/server/services/content/cache";
 /** Scheduling can race a callback that fires in the same second, so allow a small skew. */
 const DUE_SKEW_MS = 5_000;
 
+/**
+ * QStash caps how far ahead a message can be delayed (7 days on the free plan).
+ * Posts further out get a relay message at the cap; when it fires, the callback
+ * re-syncs the post and enqueues the next hop, ending with the exact publish time.
+ */
+function maxDelayMs() {
+  const days = Number(process.env.QSTASH_MAX_DELAY_DAYS);
+  const limit = Number.isFinite(days) && days > 0 ? days : 7;
+  return limit * 24 * 60 * 60 * 1000 - 60 * 60 * 1000;
+}
+
 async function cancelMessage(messageId: string) {
   try {
     await getQStashClient().messages.delete(messageId);
@@ -43,7 +54,7 @@ export async function syncPostSchedule(postId: string, previousMessageId: string
       const result = await getQStashClient().publishJSON({
         url: `${getQStashDestinationBaseUrl()}${PUBLISH_SCHEDULED_PATH}`,
         body: { postId: post.id },
-        notBefore: Math.floor(post.publishedAt.getTime() / 1000),
+        notBefore: Math.floor(Math.min(post.publishedAt.getTime(), Date.now() + maxDelayMs()) / 1000),
         retries: 5,
       });
       messageId = result.messageId;
@@ -97,4 +108,26 @@ export async function publishDueScheduledPosts(options: { blogId?: string; now?:
   const blogs = new Map(published.map((post) => [post.blogId, post.blog.blogId]));
   for (const [blogId, publicBlogId] of blogs) invalidateContent({ blogId, publicBlogId });
   return { checked: due.length, published: published.map((post) => post.id) };
+}
+
+/**
+ * Enqueues future scheduled posts that have no QStash message, e.g. because
+ * QStash was unavailable when they were saved. Runs from the periodic sweep.
+ */
+export async function rearmScheduledPosts(options: { blogId?: string; now?: Date } = {}) {
+  if (!isQStashConfigured()) return { rearmed: 0 };
+  const now = options.now ?? new Date();
+  const posts = await prisma.post.findMany({
+    where: {
+      status: "scheduled",
+      scheduleMessageId: null,
+      publishedAt: { gt: now },
+      ...(options.blogId ? { blogId: options.blogId } : {}),
+    },
+    select: { id: true },
+    orderBy: { publishedAt: "asc" },
+    take: 100,
+  });
+  for (const post of posts) await syncPostSchedule(post.id, null);
+  return { rearmed: posts.length };
 }

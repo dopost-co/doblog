@@ -8,6 +8,7 @@ import { OPERATIONS, type OperationName, type ContentResource } from "@/lib/inte
 import * as schemas from "@/lib/integrations/schemas";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
 import { cancelPostSchedule, syncPostSchedule } from "@/src/server/services/scheduling/service";
+import { translatePostInto } from "@/src/server/services/translations/post-translation";
 
 const itemInput = z.object({ id: schemas.idSchema }).strict();
 export const operationSchemas: Record<OperationName, z.ZodType> = {
@@ -21,6 +22,7 @@ export const operationSchemas: Record<OperationName, z.ZodType> = {
   create_tags: schemas.tagSchema, update_tags: schemas.tagUpdateSchema.safeExtend({ id: schemas.idSchema }), delete_tags: itemInput,
   list_authors: schemas.listSchema, get_authors: itemInput,
   create_authors: schemas.authorSchema, update_authors: schemas.authorUpdateSchema.safeExtend({ id: schemas.idSchema }), delete_authors: itemInput,
+  translate_posts: schemas.translatePostSchema,
 };
 const postInclude = { categories: { include: { category: true } }, tags: { include: { tag: true } }, author: true } satisfies Prisma.PostInclude;
 const blogSelect = { id: true, blogId: true, name: true, slug: true, description: true, createdAt: true, updatedAt: true } satisfies Prisma.BlogSelect;
@@ -148,6 +150,13 @@ export async function executeOperation(principal: ApiPrincipal, name: OperationN
     const blog = await prisma.blog.findUniqueOrThrow({ where: { id: blogId } });
     if (data.slug && await prisma.blog.findFirst({ where: { userId: blog.userId, slug: data.slug, id: { not: blogId } }, select: { id: true } })) throw new ApiError(409, "Blog slug already exists");
     return { data: await prisma.blog.update({ where: { id: blogId }, data, select: blogSelect }) };
+  }
+  if (name === "translate_posts") {
+    const { id, languages } = schemas.translatePostSchema.parse(input);
+    const source = await prisma.post.findFirst({ where: { id, blogId }, select: { status: true } });
+    if (!source) throw new ApiError(404, "Post not found");
+    if (isLive(source.status)) requireScope(principal, "content:publish");
+    return { data: await translatePostInto(blogId, id, languages) };
   }
   const [verb, resourceName] = name.split("_");
   const resource = resourceName as ContentResource;

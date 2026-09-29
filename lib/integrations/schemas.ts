@@ -64,6 +64,12 @@ export const postListSchema = listSchema.extend({
   categoryId: idSchema.optional(), tagId: idSchema.optional(),
   search: z.string().trim().min(1).max(200).optional(),
 }).strict();
+export const translatePostSchema = z.object({
+  id: idSchema,
+  languages: z.array(z.string().refine(isValidLanguageCode, "Invalid language code")).min(1).max(10)
+    .refine(v => new Set(v).size === v.length, "Duplicate languages")
+    .describe("ISO 639-1 codes to translate into, e.g. [\"en\", \"it\"]"),
+}).strict();
 export const createKeySchema = z.object({
   name: z.string().trim().min(1).max(80),
   scopes: z.array(z.enum(API_SCOPES)).min(1).max(API_SCOPES.length)

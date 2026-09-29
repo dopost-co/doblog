@@ -5,12 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
 import { revalidatePath, updateTag } from "next/cache";
 import type { OutputData } from "@editorjs/editorjs";
-import { isValidLanguageCode } from "@/lib/languages";
-import { v4 as uuidv4 } from "uuid";
 import { TranslationService } from "@/src/server/services/translations/TranslationService";
 import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
 import { dashboardOperation, recordBlogId } from "@/src/server/services/content/dashboard";
-import { apiError } from "@/lib/integrations/errors";
+import { ApiError, apiError } from "@/lib/integrations/errors";
+import { createPostTranslation } from "@/src/server/services/translations/post-translation";
 import type { PostStatus } from "@/lib/integrations/schemas";
 
 export async function createPost(data: {
@@ -95,200 +94,18 @@ export async function translatePost(postId: string, targetLanguage: string) {
   }
 
   try {
-    // Get the original post
-    const originalPost = await prisma.post.findUnique({
-      where: { id: postId },
-      include: {
-        blog: true,
-        categories: {
-          include: {
-            category: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-      },
-    });
+    const source = await prisma.post.findUnique({ where: { id: postId }, select: { blogId: true } });
+    if (!source) return { error: "Post not found" };
+    const hasAccess = await userHasAccessToBlog(session.user.id, session.user.email || "", source.blogId);
+    if (!hasAccess) return { error: "Unauthorized" };
 
-    if (!originalPost) {
-      return { error: "Post not found" };
-    }
-
-    const hasAccess = await userHasAccessToBlog(
-      session.user.id,
-      session.user.email || "",
-      originalPost.blogId
-    );
-
-    if (!hasAccess) {
-      return { error: "Unauthorized" };
-    }
-
-    // Validate target language
-    if (!isValidLanguageCode(targetLanguage)) {
-      return { error: "Invalid target language code" };
-    }
-
-    // Check if target language is the same as source
-    if (originalPost.language === targetLanguage) {
-      return { error: "Target language must be different from source language" };
-    }
-
-    // Check if translation already exists
-    const existingTranslation = originalPost.translationGroupId
-      ? await prisma.post.findFirst({
-          where: {
-            blogId: originalPost.blogId,
-            translationGroupId: originalPost.translationGroupId,
-            language: targetLanguage,
-          },
-        })
-      : null;
-
-    if (existingTranslation) {
-      return { error: "Translation in this language already exists", post: existingTranslation };
-    }
-
-    // Initialize translation service
-    const translationService = new TranslationService();
-
-    // Translate content
-    const translatedContent = await translationService.translatePostContent(
-      originalPost.content as unknown as OutputData,
-      targetLanguage,
-      originalPost.language
-    );
-
-    // Translate text fields
-    const translatedTitle = await translationService.translateText(
-      originalPost.title,
-      targetLanguage,
-      originalPost.language
-    );
-
-    const translatedExcerpt = originalPost.excerpt
-      ? await translationService.translateText(
-          originalPost.excerpt,
-          targetLanguage,
-          originalPost.language
-        )
-      : null;
-
-    const translatedMetaTitle = originalPost.metaTitle
-      ? await translationService.translateText(
-          originalPost.metaTitle,
-          targetLanguage,
-          originalPost.language
-        )
-      : null;
-
-    const translatedMetaDescription = originalPost.metaDescription
-      ? await translationService.translateText(
-          originalPost.metaDescription,
-          targetLanguage,
-          originalPost.language
-        )
-      : null;
-
-    const translatedOgTitle = originalPost.ogTitle
-      ? await translationService.translateText(
-          originalPost.ogTitle,
-          targetLanguage,
-          originalPost.language
-        )
-      : null;
-
-    const translatedOgDescription = originalPost.ogDescription
-      ? await translationService.translateText(
-          originalPost.ogDescription,
-          targetLanguage,
-          originalPost.language
-        )
-      : null;
-
-    const translatedKeywords = originalPost.keywords
-      ? await translationService.translateText(
-          originalPost.keywords,
-          targetLanguage,
-          originalPost.language
-        )
-      : null;
-
-    // Use the same translationGroupId as the original post
-    const translationGroupId = originalPost.translationGroupId || uuidv4();
-
-    // Create the translated post
-    const translatedPost = await prisma.post.create({
-      data: {
-        blogId: originalPost.blogId,
-        title: translatedTitle,
-        slug: originalPost.slug, // Same slug, different language
-        content: translatedContent as unknown as Prisma.InputJsonValue,
-        excerpt: translatedExcerpt,
-        coverImage: originalPost.coverImage, // Keep same image
-        status: originalPost.status,
-        featured: originalPost.featured, // Keep same featured status
-        publishedAt: originalPost.publishedAt,
-        authorId: originalPost.authorId,
-        language: targetLanguage,
-        translationGroupId,
-        metaTitle: translatedMetaTitle,
-        metaDescription: translatedMetaDescription,
-        ogImage: originalPost.ogImage, // Keep same OG image
-        ogTitle: translatedOgTitle,
-        ogDescription: translatedOgDescription,
-        canonicalUrl: originalPost.canonicalUrl,
-        keywords: translatedKeywords,
-        // Copy categories and tags
-        categories: originalPost.categories.length > 0
-          ? {
-              create: originalPost.categories.map((pc) => ({
-                categoryId: pc.categoryId,
-              })),
-            }
-          : undefined,
-        tags: originalPost.tags.length > 0
-          ? {
-              create: originalPost.tags.map((pt) => ({
-                tagId: pt.tagId,
-              })),
-            }
-          : undefined,
-      },
-      include: {
-        categories: {
-          include: {
-            category: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-      },
-    });
-
-    // If original post didn't have translationGroupId, update it
-    if (!originalPost.translationGroupId) {
-      await prisma.post.update({
-        where: { id: postId },
-        data: { translationGroupId },
-      });
-    }
-
-    updateTag(`blog-${originalPost.blogId}-posts`);
-    revalidatePath(`/dashboard/blogs/${originalPost.blogId}`);
-    return { success: true, post: translatedPost };
+    const post = await createPostTranslation(source.blogId, postId, targetLanguage);
+    updateTag(`blog-${source.blogId}-posts`);
+    revalidatePath(`/dashboard/blogs/${source.blogId}`);
+    return { success: true, post };
   } catch (error) {
     console.error("Error translating post:", error);
-    if (error instanceof Error) {
-      return { error: error.message };
-    }
-    return { error: "Failed to translate post" };
+    return { error: error instanceof ApiError ? error.message : "Failed to translate post" };
   }
 }
 

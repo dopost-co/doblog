@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyScheduledRequest } from "@/lib/qstash";
-import { publishDueScheduledPosts } from "@/src/server/services/scheduling/service";
+import { publishDueScheduledPosts, rearmScheduledPosts, syncPostSchedule } from "@/src/server/services/scheduling/service";
 
 const payloadSchema = z.object({ postId: z.string().min(1).max(128).optional() });
 
@@ -27,12 +27,18 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
   try {
-    const blogId = parsed.data.postId
-      ? (await prisma.post.findUnique({ where: { id: parsed.data.postId }, select: { blogId: true } }))?.blogId
-      : undefined;
-    if (parsed.data.postId && !blogId) return NextResponse.json({ handled: true, reason: "post-not-found" });
-    const result = await publishDueScheduledPosts({ blogId });
-    return NextResponse.json({ handled: true, ...result });
+    const post = parsed.data.postId
+      ? await prisma.post.findUnique({ where: { id: parsed.data.postId }, select: { id: true, blogId: true } })
+      : null;
+    if (parsed.data.postId && !post) return NextResponse.json({ handled: true, reason: "post-not-found" });
+    const result = await publishDueScheduledPosts({ blogId: post?.blogId });
+    if (post && !result.published.includes(post.id)) {
+      // A relay message for a post beyond QStash's delay cap: enqueue the next hop.
+      const current = await prisma.post.findUnique({ where: { id: post.id }, select: { status: true, scheduleMessageId: true } });
+      if (current?.status === "scheduled") await syncPostSchedule(post.id, null);
+    }
+    const rearm = post ? { rearmed: 0 } : await rearmScheduledPosts();
+    return NextResponse.json({ handled: true, ...result, ...rearm });
   } catch (error) {
     console.error("[Scheduling] callback-failed", { error: error instanceof Error ? error.message : String(error) });
     // A 5xx makes QStash retry the delivery.

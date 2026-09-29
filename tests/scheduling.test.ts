@@ -70,6 +70,19 @@ describe("scheduled publishing", () => {
     expect(mocks.deleteMessage.mock.calls.map(([id]) => id).sort()).toEqual(["old", "older"]);
   });
 
+  it("relays posts beyond the QStash delay cap instead of failing", async () => {
+    vi.stubEnv("QSTASH_TOKEN", "token");
+    vi.stubEnv("QSTASH_API_URL", "https://cms.example");
+    const now = Date.now();
+    const far = new Date(now + 14 * 24 * 60 * 60 * 1000);
+    mocks.findUnique.mockResolvedValue({ id: "p", status: "scheduled", publishedAt: far, scheduleMessageId: null });
+    mocks.publishJSON.mockResolvedValue({ messageId: "relay" });
+    await syncPostSchedule("p", null);
+    const notBefore = mocks.publishJSON.mock.calls[0][0].notBefore * 1000;
+    expect(notBefore).toBeLessThan(now + 7 * 24 * 60 * 60 * 1000);
+    expect(notBefore).toBeGreaterThan(now + 6 * 24 * 60 * 60 * 1000);
+  });
+
   it("only cancels when a post is unscheduled", async () => {
     vi.stubEnv("QSTASH_TOKEN", "token");
     mocks.findUnique.mockResolvedValue({ id: "p", status: "draft", publishedAt: null, scheduleMessageId: null });

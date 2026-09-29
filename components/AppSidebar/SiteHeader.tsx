@@ -8,7 +8,7 @@ import { useSidebar } from "./SidebarProvider";
 const SECTION_TITLES: [segment: string, title: string][] = [
   ["calendar", "Calendar"],
   ["settings", "Settings"],
-  ["seo", "Growth / SEO"],
+  ["seo", "Growth"],
   ["mcp", "MCP"],
   ["api-keys", "API keys"],
 ];
