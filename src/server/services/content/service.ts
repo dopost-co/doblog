@@ -152,11 +152,11 @@ export async function executeOperation(principal: ApiPrincipal, name: OperationN
     return { data: await prisma.blog.update({ where: { id: blogId }, data, select: blogSelect }) };
   }
   if (name === "translate_posts") {
-    const { id, languages } = schemas.translatePostSchema.parse(input);
+    const { id, languages, paths } = schemas.translatePostSchema.parse(input);
     const source = await prisma.post.findFirst({ where: { id, blogId }, select: { status: true } });
     if (!source) throw new ApiError(404, "Post not found");
     if (isLive(source.status)) requireScope(principal, "content:publish");
-    return { data: await translatePostInto(blogId, id, languages) };
+    return { data: await translatePostInto(blogId, id, languages, paths) };
   }
   const [verb, resourceName] = name.split("_");
   const resource = resourceName as ContentResource;

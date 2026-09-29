@@ -17,7 +17,28 @@ const include = {
  * scheduled source yields a translation scheduled for the same instant.
  * Shared by the dashboard, REST API and MCP.
  */
-export async function createPostTranslation(blogId: string, postId: string, targetLanguage: string) {
+/** Rewrites href prefixes (longest match first) in every string of an Editor.js document. */
+export function rewriteLinks<T>(value: T, rewrites: Record<string, string> | undefined): T {
+  const prefixes = Object.keys(rewrites ?? {}).sort((a, b) => b.length - a.length);
+  if (!rewrites || prefixes.length === 0) return value;
+  const rewriteHref = (url: string) => {
+    const prefix = prefixes.find((candidate) => url.startsWith(candidate));
+    return prefix ? rewrites[prefix] + url.slice(prefix.length) : url;
+  };
+  const walk = (node: unknown): unknown => {
+    if (typeof node === "string") {
+      return node.replace(/\bhref=(["'])(.*?)\1/gi, (_match, quote: string, url: string) => `href=${quote}${rewriteHref(url)}${quote}`);
+    }
+    if (Array.isArray(node)) return node.map(walk);
+    if (node && typeof node === "object") {
+      return Object.fromEntries(Object.entries(node).map(([key, child]) => [key, key === "link" && typeof child === "string" ? rewriteHref(child) : walk(child)]));
+    }
+    return node;
+  };
+  return walk(value) as T;
+}
+
+export async function createPostTranslation(blogId: string, postId: string, targetLanguage: string, linkRewrites?: Record<string, string>) {
   if (!isValidLanguageCode(targetLanguage)) throw new ApiError(400, `Invalid language code: ${targetLanguage}`);
   const source = await prisma.post.findFirst({ where: { id: postId, blogId }, include });
   if (!source) throw new ApiError(404, "Post not found");
@@ -53,7 +74,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
         language: targetLanguage,
         slug: source.slug,
         title,
-        content: content as unknown as Prisma.InputJsonValue,
+        content: rewriteLinks(content, linkRewrites) as unknown as Prisma.InputJsonValue,
         excerpt,
         metaTitle,
         metaDescription,
@@ -80,13 +101,13 @@ export async function createPostTranslation(blogId: string, postId: string, targ
  * never floods the model provider. A failure in one language never aborts the
  * others; each outcome is reported separately.
  */
-export async function translatePostInto(blogId: string, postId: string, languages: string[]) {
+export async function translatePostInto(blogId: string, postId: string, languages: string[], paths?: Record<string, Record<string, string>>) {
   const created: { language: string; id: string; title: string; status: string }[] = [];
   const skipped: { language: string; reason: string }[] = [];
   const failed: { language: string; error: string }[] = [];
   for (const language of languages) {
     try {
-      const post = await createPostTranslation(blogId, postId, language);
+      const post = await createPostTranslation(blogId, postId, language, paths?.[language]);
       created.push({ language, id: post.id, title: post.title, status: post.status });
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) skipped.push({ language, reason: error.message });

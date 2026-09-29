@@ -14,7 +14,7 @@ vi.mock("@/src/server/services/translations/TranslationService", () => ({
     translatePostContent = async (content: unknown) => content;
   },
 }));
-import { translatePostInto } from "@/src/server/services/translations/post-translation";
+import { rewriteLinks, translatePostInto } from "@/src/server/services/translations/post-translation";
 
 const source = {
   id: "p", blogId: "b", language: "es", translationGroupId: "g", slug: "s", title: "Título", content: { blocks: [] },
@@ -47,5 +47,17 @@ describe("translatePostInto", () => {
   it("fails fast when the post does not exist", async () => {
     mocks.findFirst.mockResolvedValue(null);
     await expect(translatePostInto("b", "missing", ["en"])).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("rewriteLinks", () => {
+  it("rewrites the longest matching prefix and leaves other links alone", () => {
+    const content = { blocks: [
+      { type: "paragraph", data: { text: 'See <a href="/es/productos/silla">this</a>, <a href="/es/blog/x">that</a> and <a href="https://example.com">out</a>' } },
+      { type: "linkTool", data: { link: "/es/contacto" } },
+    ] };
+    const out = rewriteLinks(content, { "/es/": "/en/", "/es/productos": "/en/products", "/es/contacto": "/en/contact" });
+    expect(out.blocks[0].data.text).toBe('See <a href="/en/products/silla">this</a>, <a href="/en/blog/x">that</a> and <a href="https://example.com">out</a>');
+    expect(out.blocks[1].data.link).toBe("/en/contact");
   });
 });
