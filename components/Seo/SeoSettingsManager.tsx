@@ -94,7 +94,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
 
   return (
     <form onSubmit={save} className="space-y-6">
-      <div className="flex items-center justify-between gap-6 rounded-lg border p-4">
+      <div className="flex items-center justify-between gap-6 rounded-lg border bg-card p-4">
         <div className="min-w-0 space-y-0.5">
           <Label htmlFor="seo-enabled" className="text-sm font-medium">SEO research</Label>
           <p className="text-sm text-muted-foreground">
@@ -106,7 +106,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         <Switch id="seo-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={pending || !connected} />
       </div>
 
-      <div className="divide-y rounded-lg border px-4 md:px-6">
+      <div className="divide-y rounded-lg border bg-card px-4 md:px-6">
         <Section title="Search">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Your domain" name="targetDomain" defaultValue={settings?.targetDomain || ""} placeholder="example.com" />

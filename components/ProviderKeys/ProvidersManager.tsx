@@ -30,14 +30,14 @@ function Row({ title, description, children }: { title: string; description: str
 export function ProvidersManager({ settings }: { settings: ProviderSettings }) {
   if (settings.plan === "subscription") {
     return (
-      <div className="divide-y rounded-lg border">
+      <div className="divide-y rounded-lg border bg-card">
         <Row title="OpenAI" description="Included in your plan" />
         <Row title="DataForSEO" description="Included in your plan" />
       </div>
     );
   }
   return (
-    <div className="divide-y rounded-lg border">
+    <div className="divide-y rounded-lg border bg-card">
       <OpenAiRow hint={settings.openai.hint} />
       <DataForSeoRow connections={settings.dataForSeo} />
     </div>

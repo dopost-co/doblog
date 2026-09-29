@@ -17,7 +17,7 @@ export function MonthView({ currentDate, entriesByDate, pendingIds, onOpen, onAd
   const todayKey = toDateKey(new Date());
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
       <div className="grid shrink-0 grid-cols-7 border-b bg-muted/40">
         {Array.from({ length: 7 }, (_, index) => (
           <div key={index} className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground">

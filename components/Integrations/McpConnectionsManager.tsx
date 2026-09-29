@@ -34,18 +34,18 @@ export function McpConnectionsManager({ blogId, connections }: { blogId: string;
       
     </CardHeader>
     <CardContent className="space-y-5">
-      {message && <p role="status" className="rounded-lg border p-3 text-sm">{message}</p>}
+      {message && <p role="status" className="rounded-lg border bg-card p-3 text-sm">{message}</p>}
       {connections.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No OAuth clients are connected to this blog yet. Add the MCP URL to a compatible client and approve the requested access.</p> : connections.map(connection => {
         const scopes = drafts[connection.id] || [];
         const active = !connection.revokedAt;
-        return <section key={connection.id} className="space-y-4 rounded-xl border p-4">
+        return <section key={connection.id} className="space-y-4 rounded-xl border bg-card p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><h3 className="font-medium">{connection.clientName}</h3><p className="mt-1 text-xs text-muted-foreground">{active ? "Active" : "Revoked"} · Last used {displayDate(connection.lastUsedAt)}</p></div>
             <span className="rounded-full bg-muted px-2.5 py-1 text-xs">{connection.blogs.map(blog => blog.name).join(", ")}</span>
           </div>
           <fieldset className="grid gap-2 sm:grid-cols-2" disabled={pending || !active}>
             <legend className="sr-only">Permissions for {connection.clientName}</legend>
-            {API_SCOPES.map(scope => <label key={scope} className="flex cursor-pointer items-start gap-2 rounded-lg border p-3">
+            {API_SCOPES.map(scope => <label key={scope} className="flex cursor-pointer items-start gap-2 rounded-lg border bg-card p-3">
               <input type="checkbox" className="mt-1 size-4 accent-foreground" checked={scopes.includes(scope)} onChange={event => setDrafts(current => ({ ...current, [connection.id]: event.target.checked ? [...scopes, scope] : scopes.filter(item => item !== scope) }))} />
               <span><span className="block font-mono text-xs">{scope}</span><span className="mt-1 block text-xs text-muted-foreground">{SCOPE_DESCRIPTIONS[scope]}</span></span>
             </label>)}

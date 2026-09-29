@@ -27,7 +27,7 @@ export function WeekView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
       <div className={cn(GRID, "shrink-0 border-b bg-muted/40")}>
         <div />
         {days.map((day) => {

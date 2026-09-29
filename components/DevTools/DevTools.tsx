@@ -110,7 +110,7 @@ export function DevTools() {
             </div>
           </div>
 
-          <div className="divide-y rounded-lg border">
+          <div className="divide-y rounded-lg border bg-card">
             {DEV_TOOLS.map(({ id, title, component: Tool }) => (
               <section key={id} className="grid gap-2 p-3">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>

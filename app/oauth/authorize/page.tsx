@@ -87,7 +87,7 @@ export default async function OAuthAuthorizePage({ searchParams }: { searchParam
               </ul>
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Blogs</legend>
-                <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-input p-3">
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-input bg-card p-3">
                   {blogs.map((blog) => (
                     <label key={blog.id} className="flex cursor-pointer items-start gap-3 text-sm">
                       <input

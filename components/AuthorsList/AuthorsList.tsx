@@ -66,7 +66,7 @@ export function AuthorsList({ authors, blogId }: AuthorsListProps) {
 
   return (
     <>
-      <div className="divide-y rounded-lg border">
+      <div className="divide-y rounded-lg border bg-card">
         {authors.map((author) => (
           <div key={author.id} className="flex items-center gap-3 px-4 py-3">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">

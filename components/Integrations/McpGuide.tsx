@@ -79,7 +79,7 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
         </CardContent>
       </Card>
 
-      <details className="group rounded-lg border">
+      <details className="group rounded-lg border bg-card">
         <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium">
           Using a client that only supports local stdio?
           <span className="float-right text-muted-foreground transition-transform group-open:rotate-180">⌄</span>

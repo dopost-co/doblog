@@ -23,6 +23,8 @@
   --destructive: 239 68 68;
   --border: 229 229 229;
   --input: 229 229 229;
+  /* Opaque background for form fields, in any container. */
+  --field: 255 255 255;
   --ring: 163 163 163;
   --chart-1: 239 68 68;
   --chart-2: 34 197 94;
@@ -59,6 +61,7 @@
   --color-chart-1: rgb(var(--chart-1));
   --color-ring: rgb(var(--ring));
   --color-input: rgb(var(--input));
+  --color-field: rgb(var(--field));
   --color-border: rgb(var(--border));
   --color-destructive: rgb(var(--destructive));
   --color-accent-foreground: rgb(var(--accent-foreground));
@@ -97,6 +100,7 @@
   --destructive: 239 68 68;
   --border: 55 55 61;
   --input: 48 48 54;
+  --field: 34 34 38;
   --ring: 113 113 122;
   --chart-1: 239 68 68;
   --chart-2: 34 197 94;

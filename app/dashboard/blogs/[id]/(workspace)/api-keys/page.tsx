@@ -8,6 +8,6 @@ export default async function ApiKeysPage({ params }: { params: Promise<{ id: st
   const keys = isOwner ? await listApiKeys(id) : [];
   return <BlogIntegrationLayout blog={blog} title="API keys" actions={isOwner ? <CreateApiKeyDialog blogId={id} /> : undefined}>
     {isOwner ? <ApiKeysTable blogId={id} keys={keys.map(key => ({ ...key, createdAt: key.createdAt.toISOString(), expiresAt: key.expiresAt?.toISOString() ?? null, revokedAt: key.revokedAt?.toISOString() ?? null, lastUsedAt: key.lastUsedAt?.toISOString() ?? null }))} /> :
-      <p className="rounded-xl border p-6 text-sm text-muted-foreground">Only the blog owner can manage API keys. Ask the owner to create a scoped key for your client.</p>}
+      <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Only the blog owner can manage API keys. Ask the owner to create a scoped key for your client.</p>}
   </BlogIntegrationLayout>;
 }

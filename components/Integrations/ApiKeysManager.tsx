@@ -97,7 +97,7 @@ export function CreateApiKeyDialog({ blogId }: { blogId: string }) {
             </div>
             <fieldset className="grid gap-2" disabled={pending}>
               <legend className="mb-2 text-sm font-medium">Permissions</legend>
-              <div className="divide-y rounded-lg border">
+              <div className="divide-y rounded-lg border bg-card">
                 {API_SCOPES.map((scope) => (
                   <label key={scope} className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-accent/40">
                     <Checkbox
@@ -146,7 +146,7 @@ export function ApiKeysTable({ blogId, keys }: { blogId: string; keys: KeyInfo[]
 
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>

@@ -15,7 +15,7 @@ export function ListView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd
     .filter((day) => toDateKey(day) >= todayKey || (entriesByDate[toDateKey(day)]?.length ?? 0) > 0);
 
   return (
-    <div data-calendar-scroll-container className="h-full min-h-0 overflow-y-auto rounded-lg border">
+    <div data-calendar-scroll-container className="h-full min-h-0 overflow-y-auto rounded-lg border bg-card">
       {days.map((day) => {
         const dateKey = toDateKey(day);
         const entries = entriesByDate[dateKey] ?? [];

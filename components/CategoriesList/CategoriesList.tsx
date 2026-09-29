@@ -52,7 +52,7 @@ export function CategoriesList({ categories, blogId }: { categories: Category[];
 
   return (
     <>
-      <div className="divide-y rounded-lg border">
+      <div className="divide-y rounded-lg border bg-card">
         {categories.map((category) => (
           <div key={category.id} className="flex items-center gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
