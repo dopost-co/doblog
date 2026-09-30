@@ -36,6 +36,7 @@ export async function blogOnboardingValues(blogId: string) {
       brandVoiceCustom: voicePreset ? "" : settings.brandVoice,
     } : {}),
     ...(settings?.draftsPerWeek ? { draftsPerWeek: String(settings.draftsPerWeek) } : {}),
-    ...(settings?.publishingMode ? { publishingMode: settings.publishingMode } : {}),
+    // Older blogs default to "draft", which is not one of the onboarding choices.
+    ...(settings?.publishingMode === "review" || settings?.publishingMode === "auto_publish" ? { publishingMode: settings.publishingMode } : {}),
   };
 }

@@ -10,7 +10,7 @@ import {
   planItemInputSchema,
   removeContentPlanItem,
 } from "./service";
-import { discoverContentOpportunities, saveDiscoverySettings } from "./discovery";
+import { discoverContentOpportunities, saveDiscoverySettings, setAutopilotActive } from "./discovery";
 
 async function requireOwner(blogId: string) {
   const session = await getSession();
@@ -57,10 +57,21 @@ export async function generatePlanItemAction(blogId: string, itemId: string) {
 export async function saveDiscoverySettingsAction(blogId: string, input: unknown, runNow = false) {
   try {
     await requireOwner(blogId);
-    await saveDiscoverySettings(blogId, input);
+    await saveDiscoverySettings(blogId, input, { activate: false });
     const discovery = runNow ? await discoverContentOpportunities(blogId, "dashboard") : null;
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
     return { success: true, discovery };
+  } catch (error) {
+    return { error: apiError(error).error };
+  }
+}
+
+export async function setAutopilotActiveAction(blogId: string, active: boolean) {
+  try {
+    await requireOwner(blogId);
+    const result = await setAutopilotActive(blogId, active);
+    revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
+    return { success: true, active: result.active, nextDiscoveryAt: result.nextDiscoveryAt?.toISOString() ?? null };
   } catch (error) {
     return { error: apiError(error).error };
   }

@@ -208,30 +208,50 @@ async function planOpportunities(openai: OpenAI, input: Record<string, unknown>)
   return response.output_parsed.ideas;
 }
 
-export async function saveDiscoverySettings(blogId: string, raw: unknown) {
+/**
+ * Saves the website, pace and publishing mode. By default (API, MCP) this also
+ * turns Autopilot on; the dashboard passes `activate: false` so saving never
+ * resumes an Autopilot the owner paused.
+ */
+export async function saveDiscoverySettings(blogId: string, raw: unknown, { activate = true }: { activate?: boolean } = {}) {
   const input = discoverySettingsSchema.parse(raw);
-  await resolveBlogOpenAiKey(blogId);
   const domain = normalizeWebsite(input.website);
   const sitemapUrl = normalizeSitemapUrl(input.sitemapUrl, domain);
   const previous = await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { discoveryEnabled: true, nextDiscoveryAt: true } });
+  // Running Autopilot spends AI credits; only saving the settings does not.
+  if (activate || !previous) await resolveBlogOpenAiKey(blogId);
   const nextDiscoveryAt = previous?.discoveryEnabled && previous.nextDiscoveryAt ? previous.nextDiscoveryAt : new Date();
+  const values = {
+    targetDomain: domain, sitemapUrl,
+    discoveryFrequency: input.frequency, discoveryTopicsPerRun: input.topicsPerRun,
+    draftsPerWeek: input.draftsPerWeek, publishingMode: input.publishingMode,
+  };
+  const activation = { discoveryEnabled: true, draftAutomationEnabled: true, nextDiscoveryAt };
   await prisma.blogSeoSettings.upsert({
     where: { blogId },
-    create: {
-      blogId, targetDomain: domain, sitemapUrl, discoveryEnabled: true,
-      discoveryFrequency: input.frequency, discoveryTopicsPerRun: input.topicsPerRun,
-      draftAutomationEnabled: true, draftsPerWeek: input.draftsPerWeek, nextDiscoveryAt,
-      publishingMode: input.publishingMode,
-    },
-    update: {
-      targetDomain: domain, sitemapUrl, discoveryEnabled: true,
-      discoveryFrequency: input.frequency, discoveryTopicsPerRun: input.topicsPerRun,
-      draftAutomationEnabled: true, draftsPerWeek: input.draftsPerWeek,
-      publishingMode: input.publishingMode, nextDiscoveryAt,
-    },
+    create: { blogId, ...values, ...activation },
+    update: { ...values, ...(activate || !previous ? activation : {}) },
   });
   await schedulePendingDrafts(blogId, true);
   return { domain, sitemapUrl, nextDiscoveryAt };
+}
+
+/**
+ * Pauses or resumes Autopilot: no idea refreshes and no scheduled writing while
+ * paused. Resuming refreshes ideas and schedules writing from tomorrow, so
+ * dates that passed during the pause do not all fire at once.
+ */
+export async function setAutopilotActive(blogId: string, active: boolean) {
+  const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { targetDomain: true } });
+  if (!settings?.targetDomain) throw new ApiError(409, "Set up Autopilot before turning it on");
+  if (active) await resolveBlogOpenAiKey(blogId);
+  const nextDiscoveryAt = active ? new Date() : null;
+  await prisma.blogSeoSettings.update({
+    where: { blogId },
+    data: { discoveryEnabled: active, draftAutomationEnabled: active, nextDiscoveryAt },
+  });
+  await schedulePendingDrafts(blogId, true);
+  return { active, nextDiscoveryAt };
 }
 
 export async function discoverContentOpportunities(blogId: string, trigger = "dashboard") {

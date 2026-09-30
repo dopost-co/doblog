@@ -89,14 +89,19 @@ export type OnboardingValues = Record<string, string | string[]>;
  * - new-user: someone who signed up on their own; sets up their profile and first blog.
  * - new-blog: an existing user adding another blog (same setup, without the profile).
  * - invited-user: someone invited to an existing blog; only needs their name.
+ * - autopilot-setup: a blog created before onboarding asked about Autopilot.
  */
 export const ONBOARDING_FLOWS = {
   "new-user": ["profile", "blogs", "blog-languages", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
   "new-blog": ["blogs", "blog-languages", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
   "invited-user": ["profile"],
+  "autopilot-setup": ["autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
 } as const satisfies Record<string, readonly OnboardingStepId[]>;
 
 export type OnboardingFlowId = keyof typeof ONBOARDING_FLOWS;
+
+/** Flows that set up one blog and leave the user's own onboarding untouched. */
+export const BLOG_FLOWS: readonly OnboardingFlowId[] = ["new-blog", "autopilot-setup"];
 
 export function isOnboardingFlow(value: unknown): value is OnboardingFlowId {
   return typeof value === "string" && Object.hasOwn(ONBOARDING_FLOWS, value);

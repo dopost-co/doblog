@@ -119,7 +119,9 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
       if (result.done) {
         setFinished(true);
         celebrate();
-        const destination = flow === "new-blog" && result.blogId ? `/dashboard/blogs/${result.blogId}` : "/dashboard";
+        const destination = flow === "autopilot-setup" ? `/dashboard/blogs/${result.blogId}/autopilot`
+          : flow === "new-blog" && result.blogId ? `/dashboard/blogs/${result.blogId}`
+            : "/dashboard";
         setTimeout(() => router.replace(destination), 1600);
         return;
       }
@@ -304,6 +306,11 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
           </Button>
         ) : flow === "new-blog" ? (
           <Button type="button" variant="ghost" disabled={pending} onClick={() => (window.history.length > 1 ? router.back() : router.push("/dashboard"))}>
+            <ArrowLeft /> Cancel
+          </Button>
+        ) : flow === "autopilot-setup" ? (
+          // Going back would reopen this setup, since Autopilot sends unfinished blogs here.
+          <Button type="button" variant="ghost" disabled={pending} onClick={() => router.push(`/dashboard/blogs/${blogId}`)}>
             <ArrowLeft /> Cancel
           </Button>
         ) : <span />}

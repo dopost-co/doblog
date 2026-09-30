@@ -77,9 +77,11 @@ export async function getGrowthDashboard(blogId: string) {
       website: settings?.targetDomain || "",
       sitemapUrl: settings?.sitemapUrl || "",
       enabled: settings?.discoveryEnabled || false,
+      // Idea refreshes and scheduled writing both run; false while paused.
+      active: Boolean(settings?.discoveryEnabled && settings.draftAutomationEnabled),
       frequency: settings?.discoveryFrequency === "monthly" ? "monthly" as const : "weekly" as const,
       topicsPerRun: settings?.discoveryTopicsPerRun || 8,
-      draftsPerWeek: settings?.draftAutomationEnabled ? settings.draftsPerWeek : 0,
+      draftsPerWeek: settings?.draftsPerWeek || 2,
       publishingMode: settings?.publishingMode === "auto_publish" ? "auto_publish" as const : "review" as const,
       nextDiscoveryAt: settings?.nextDiscoveryAt || null,
       lastDiscoveryAt: settings?.lastDiscoveryAt || null,

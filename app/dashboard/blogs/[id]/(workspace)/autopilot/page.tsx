@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { missingAutopilotStep } from "@/lib/autopilot/setup";
 import { Button } from "@/components/ui/button";
 import { BlogIntegrationLayout, integrationBlog } from "@/components/Integrations/BlogIntegrationLayout";
 import { GrowthPlanManager } from "@/components/Growth/GrowthPlanManager";
@@ -16,6 +19,11 @@ export default async function AutopilotPage({ params, searchParams }: {
   const { id } = await params;
   const { view } = await searchParams;
   const { blog, isOwner } = await integrationBlog(id);
+  if (isOwner) {
+    // Blogs created before onboarding asked about Autopilot finish setting it up there.
+    const setup = await prisma.blogSeoSettings.findUnique({ where: { blogId: id }, select: { targetDomain: true, audience: true, brandVoice: true } });
+    if (missingAutopilotStep(setup)) redirect(`/onboarding/autopilot?blog=${id}`);
+  }
   const settingsView = view === "settings";
   const ideasView = view === "ideas";
   const settingsData = isOwner && settingsView ? await getSeoDashboardData(id) : null;

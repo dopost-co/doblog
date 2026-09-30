@@ -7,7 +7,7 @@ import { slugify } from "@/lib/slug";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
 import { AUTOPILOT_AUDIENCE_OPTIONS, AUTOPILOT_VOICE_OPTIONS } from "@/lib/autopilot/options";
-import { flowSteps, isOnboardingFlow, stepIndex, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
+import { BLOG_FLOWS, flowSteps, isOnboardingFlow, stepIndex, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
 import { resolveUserFlow } from "./queries";
 import { normalizeWebsite } from "@/src/server/services/growth/discovery";
 import { analyzeCompetitorBrandVoice, competitorVoiceInstruction } from "@/src/server/services/growth/brand";
@@ -133,7 +133,7 @@ function validate(flow: OnboardingFlowId, stepId: string, values: OnboardingValu
 /**
  * Saves one step of a flow. The first-run flows (new-user, invited-user)
  * record progress on the user (onboardingStep) and mark onboarding as
- * completed after the last step; the new-blog flow only sets up its blog.
+ * completed after the last step; blog flows (BLOG_FLOWS) only set up their blog.
  */
 export async function completeOnboardingStep(flowId: string, stepId: string, values: OnboardingValues, blogId: string | null = null) {
   try {
@@ -142,12 +142,12 @@ export async function completeOnboardingStep(flowId: string, stepId: string, val
     const userId = session.user.id;
     if (!isOnboardingFlow(flowId)) throw new ApiError(400, "Unknown onboarding");
     // The first-run flow depends on the account, not on what the client says.
-    const flow = flowId === "new-blog" ? "new-blog" : await resolveUserFlow(userId, session.user.email);
+    const flow = BLOG_FLOWS.includes(flowId) ? flowId : await resolveUserFlow(userId, session.user.email);
     const step = validate(flow, stepId, values);
     const savedBlogId = (await STEP_HANDLERS[step.id]?.({ userId, blogId }, values)) || blogId;
 
     const next = flowSteps(flow)[stepIndex(flow, step.id) + 1];
-    if (flow !== "new-blog") {
+    if (!BLOG_FLOWS.includes(flow)) {
       await prisma.user.update({
         where: { id: userId },
         data: next ? { onboardingStep: next.id } : { onboardingStep: null, onboardingCompleted: true },
