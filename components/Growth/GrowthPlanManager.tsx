@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Check, LoaderCircle, Plus, Trash2 } from "lucide-react";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type PlanItem = {
   id: string;
@@ -67,40 +68,58 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [language, setLanguage] = useState(defaultLanguage);
   const [adding, setAdding] = useState(false);
-  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  // Only for the add dialog, next to the form; everything else is a toast.
+  const [addError, setAddError] = useState("");
 
   function add(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    setMessage(null);
+    setAddError("");
     startTransition(async () => {
       const result = await addPlanItemAction(blogId, {
         keyword: String(data.get("keyword") || ""), language,
         title: String(data.get("title") || "").trim() || undefined,
         notes: String(data.get("notes") || "").trim() || undefined,
       });
-      if (result.error) return setMessage({ tone: "error", text: result.error });
+      if (result.error) return setAddError(result.error);
       form.reset();
       setAdding(false);
-      setMessage({ tone: "success", text: "Added to the queue." });
+      toast.success("Idea added to the queue");
       router.refresh();
     });
   }
 
   function generate(itemId: string) {
     setActiveItem(itemId);
-    setMessage(null);
     startTransition(async () => {
       const result = await generatePlanItemAction(blogId, itemId);
       setActiveItem(null);
-      if (result.error) setMessage({ tone: "error", text: result.error });
+      if (result.error) toast.error(result.error);
+      else toast.success("Writing started", { description: "It continues in the background. You can keep working." });
       router.refresh();
     });
   }
 
   // Drafts are written in the background; refresh until none is in progress.
   const writing = items.some(isInProgress);
+
+  // Tell the owner when a background run finishes.
+  const inProgressIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const current = new Set(items.filter(isInProgress).map((item) => item.id));
+    const previous = inProgressIds.current;
+    inProgressIds.current = current;
+    if (!previous) return;
+    for (const id of previous) {
+      const item = items.find((candidate) => candidate.id === id);
+      if (!item || current.has(id)) continue;
+      const title = item.post?.title || item.title || item.primaryKeyword;
+      if (item.status === "failed" || item.runs[0]?.status === "failed") toast.error(`“${title}” could not be written`, { description: item.lastError || item.runs[0]?.error || undefined });
+      else if (item.post?.status === "published") toast.success(`“${title}” is published`);
+      else if (item.post) toast.success(`“${title}” is ready to review`);
+    }
+  }, [items]);
   useEffect(() => {
     if (!writing) return;
     const timer = setInterval(() => router.refresh(), 4000);
@@ -109,11 +128,11 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
 
   function remove(itemId: string) {
     setActiveItem(itemId);
-    setMessage(null);
     startTransition(async () => {
       const result = await removePlanItemAction(blogId, itemId);
       setActiveItem(null);
-      if (result.error) setMessage({ tone: "error", text: result.error });
+      if (result.error) toast.error(result.error);
+      else toast.success("Idea removed");
       router.refresh();
     });
   }
@@ -126,7 +145,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {message ? <p role={message.tone === "error" ? "alert" : "status"} className={cn("text-sm", message.tone === "error" ? "text-destructive" : "text-muted-foreground")}>{message.text}</p> : <span />}
+          <span />
           <Button size="sm" onClick={() => setAdding(true)} disabled={pending}><Plus />Add idea</Button>
         </div>
         {items.length === 0 ? (
@@ -222,7 +241,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
             </div>
             <div className="grid gap-1.5"><Label htmlFor="title">Title <span className="font-normal text-muted-foreground">(optional)</span></Label><Input id="title" name="title" disabled={pending} /></div>
             <div className="grid gap-1.5"><Label htmlFor="notes">Notes <span className="font-normal text-muted-foreground">(optional)</span></Label><Textarea id="notes" name="notes" rows={3} placeholder="Points to include or avoid" disabled={pending} /></div>
-            {message?.tone === "error" && <p className="text-sm text-destructive">{message.text}</p>}
+            {addError && <p className="text-sm text-destructive">{addError}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" disabled={pending} onClick={() => setAdding(false)}>Cancel</Button>
               <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add idea"}</Button>

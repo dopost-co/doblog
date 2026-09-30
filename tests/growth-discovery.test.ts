@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nextDiscoveryDate, normalizeSitemapUrl, normalizeWebsite, sitemapLocations } from "@/src/server/services/growth/discovery";
-import { draftScheduleDates } from "@/src/server/services/growth/planning";
+import { weekdayScheduleDates } from "@/src/server/services/growth/planning";
+import { daysForPace } from "@/lib/autopilot/writing-days";
 
 describe("content opportunity discovery", () => {
   it("accepts a friendly website URL and stores only its hostname", () => {
@@ -26,13 +27,13 @@ describe("content opportunity discovery", () => {
     expect(nextDiscoveryDate("monthly", now).toISOString()).toBe("2026-10-29T10:00:00.000Z");
   });
 
-  it("turns a simple weekly pace into visible draft dates", () => {
-    const dates = draftScheduleDates(2, 4, new Date("2026-09-29T10:00:00.000Z"));
+  it("spreads a weekly count over the week as visible draft dates", () => {
+    // Tuesday 29 September 2026; two a week means Mondays and Thursdays.
+    const dates = weekdayScheduleDates(daysForPace(2), 4, new Date("2026-09-29T10:00:00.000Z"));
     expect(dates.map(date => date.toISOString())).toEqual([
-      "2026-09-30T09:00:00.000Z",
-      "2026-10-03T09:00:00.000Z",
-      "2026-10-07T09:00:00.000Z",
-      "2026-10-10T09:00:00.000Z",
+      "2026-10-01T09:00:00.000Z",
+      "2026-10-05T09:00:00.000Z",
+      "2026-10-08T09:00:00.000Z",
+      "2026-10-12T09:00:00.000Z",
     ]);
-  });
-});
+  });});

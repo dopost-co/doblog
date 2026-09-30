@@ -23,6 +23,7 @@ import {
 import { schedulePendingDrafts } from "./planning";
 import { loadStyleReferences } from "./image-references";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
+import { daysForPace } from "@/lib/autopilot/writing-days";
 
 const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1.5";
@@ -82,8 +83,7 @@ export async function getGrowthDashboard(blogId: string) {
       active: Boolean(settings?.discoveryEnabled && settings.draftAutomationEnabled),
       frequency: settings?.discoveryFrequency === "monthly" ? "monthly" as const : "weekly" as const,
       topicsPerRun: settings?.discoveryTopicsPerRun || 8,
-      draftsPerWeek: settings?.draftsPerWeek || 2,
-      writingDays: settings?.writingDays ?? [],
+      writingDays: settings?.writingDays.length ? settings.writingDays : daysForPace(settings?.draftsPerWeek ?? 3),
       publishingMode: settings?.publishingMode === "auto_publish" ? "auto_publish" as const : "review" as const,
       nextDiscoveryAt: settings?.nextDiscoveryAt || null,
       lastDiscoveryAt: settings?.lastDiscoveryAt || null,

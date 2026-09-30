@@ -99,7 +99,7 @@ export function createMcpServer(principal: ApiPrincipal) {
       return updateSeoEditorialSettings(blogId, rest);
     }));
     server.registerTool("growth_configure_discovery", {
-      description: "Configure the website, continuous weekly opportunity scans, automatic writing pace and what happens after writing. draftsPerWeek accepts 1, 2, 3, 5 or 7. publishingMode defaults to review; auto_publish requires content:publish permission and explicit user intent.",
+      description: "Configure the website, continuous weekly opportunity scans, automatic writing pace and what happens after writing. writingDays lists the UTC weekdays to write on (0 = Sunday … 6 = Saturday); draftsPerWeek (1-7) is still accepted and spread evenly across the week. publishingMode defaults to review; auto_publish requires content:publish permission and explicit user intent.",
       inputSchema: withBlog(discoverySettingsSchema.shape),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async (input: Record<string, unknown>) => seoResult(input, (blogId, rest) => {

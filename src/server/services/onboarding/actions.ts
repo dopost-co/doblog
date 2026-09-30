@@ -7,6 +7,7 @@ import { slugify } from "@/lib/slug";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
 import { AUTOPILOT_AUDIENCE_OPTIONS, AUTOPILOT_VOICE_OPTIONS, CONTENT_MODE_OPTIONS, INLINE_IMAGE_STYLE_OPTIONS, THUMBNAIL_STYLE_OPTIONS } from "@/lib/autopilot/options";
+import { normalizeWritingDays } from "@/lib/autopilot/writing-days";
 import { normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 import { BLOG_FLOWS, flowSteps, isOnboardingFlow, nextVisibleStep, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
 import { blogOnboardingValues, resolveUserFlow } from "./queries";
@@ -146,12 +147,13 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
   },
   "autopilot-frequency": async (context, values) => {
     const blog = await onboardingBlog(context);
-    const draftsPerWeek = Number(single(values.draftsPerWeek));
-    if (![1, 2, 3, 5, 7].includes(draftsPerWeek)) throw new ApiError(400, "Choose how often Zenex should write");
+    const writingDays = normalizeWritingDays(list(values.writingDays));
+    if (!writingDays.length) throw new ApiError(400, "Choose at least one day to write on");
+    const draftsPerWeek = writingDays.length;
     await prisma.blogSeoSettings.upsert({
       where: { blogId: blog.id },
-      create: { blogId: blog.id, discoveryEnabled: true, draftAutomationEnabled: true, draftsPerWeek, discoveryTopicsPerRun: Math.max(8, draftsPerWeek * 4), nextDiscoveryAt: new Date() },
-      update: { discoveryEnabled: true, draftAutomationEnabled: true, draftsPerWeek, discoveryTopicsPerRun: Math.max(8, draftsPerWeek * 4), nextDiscoveryAt: new Date() },
+      create: { blogId: blog.id, discoveryEnabled: true, draftAutomationEnabled: true, writingDays, draftsPerWeek, discoveryTopicsPerRun: Math.max(8, draftsPerWeek * 4), nextDiscoveryAt: new Date() },
+      update: { discoveryEnabled: true, draftAutomationEnabled: true, writingDays, draftsPerWeek, discoveryTopicsPerRun: Math.max(8, draftsPerWeek * 4), nextDiscoveryAt: new Date() },
     });
   },
   "autopilot-publishing": async (context, values) => {

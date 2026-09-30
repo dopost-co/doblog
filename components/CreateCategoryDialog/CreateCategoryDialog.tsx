@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createCategory, updateCategory } from "@/src/server/services/categories/mutations";
 import { slugify } from "@/lib/slug";
 import { Plus } from "lucide-react";
+import { toast } from "sonner";
 
 interface CreateCategoryDialogProps {
   blogId: string;
@@ -62,6 +63,7 @@ export function CreateCategoryDialog({ blogId, category, open: controlledOpen, o
         setManualSlug(false);
       }
       setIsLoading(false);
+      toast.success(category ? "Category saved" : "Category created");
       router.refresh();
     }
   }

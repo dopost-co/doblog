@@ -21,6 +21,7 @@ import { slugify } from "@/lib/slug";
 import { Upload, FileText, Check, AlertCircle, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ImportPostsDialogProps {
   blogId: string;
@@ -210,7 +211,7 @@ export function ImportPostsDialog({ blogId }: ImportPostsDialogProps) {
     setIsLoading(false);
 
     if (result.error) {
-      alert(result.error);
+      toast.error(result.error);
       return;
     }
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 type ProviderSettings = {
   plan: "lifetime" | "subscription";
@@ -56,15 +57,22 @@ function OpenAiRow({ hint }: { hint: string | null }) {
     setError("");
     startTransition(async () => {
       const result = await saveOpenAiKey(key);
-      if (result.error) { setError(result.error); return; }
-      setOpen(false); setKey(""); router.refresh();
+      if (result.error) { setError(result.error); toast.error(result.error); return; }
+      setOpen(false); setKey("");
+      toast.success("OpenAI key saved");
+      router.refresh();
     });
   }
 
   return (
     <Row title="OpenAI" description={hint ? `Connected · ${hint}` : "Used for translations and AI features"}>
       {hint && (
-        <Button variant="ghost" size="sm" disabled={pending} onClick={() => startTransition(async () => { await removeOpenAiKey(); router.refresh(); })}>
+        <Button variant="ghost" size="sm" disabled={pending} onClick={() => startTransition(async () => {
+          const result = await removeOpenAiKey();
+          if (result.error) { toast.error(result.error); return; }
+          toast.success("OpenAI key removed");
+          router.refresh();
+        })}>
           Remove
         </Button>
       )}
@@ -99,8 +107,10 @@ function DataForSeoRow({ connections }: { connections: ProviderSettings["dataFor
     const form = new FormData(event.currentTarget);
     startTransition(async () => {
       const result = await addDataForSeoConnection({ label: form.get("label"), login: form.get("login"), password: form.get("password") });
-      if (result.error) { setError(result.error); return; }
-      setOpen(false); router.refresh();
+      if (result.error) { setError(result.error); toast.error(result.error); return; }
+      setOpen(false);
+      toast.success("DataForSEO connected");
+      router.refresh();
     });
   }
 

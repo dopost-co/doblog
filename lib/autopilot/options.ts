@@ -1,11 +1,3 @@
-export const AUTOPILOT_PACE_OPTIONS = [
-  { value: 1, label: "1 / week", help: "A gentle pace" },
-  { value: 2, label: "2 / week", help: "Recommended" },
-  { value: 3, label: "3 / week", help: "Steady growth" },
-  { value: 5, label: "5 / week", help: "Every workday" },
-  { value: 7, label: "1 / day", help: "Maximum pace" },
-] as const;
-
 export const AUTOPILOT_PUBLISHING_OPTIONS = [
   { value: "auto_publish", title: "Publish automatically", help: "Go live as soon as text and images are ready." },
   { value: "review", title: "Wait for my review", help: "Edit it before it goes live." },
@@ -46,5 +38,4 @@ export const INLINE_IMAGE_STYLE_OPTIONS = [
   { id: "sketch", title: "Hand-drawn sketch", example: "Friendly, notebook-like drawings.", value: "Hand-drawn sketch style with loose ink lines, light watercolor accents and a friendly notebook feel." },
 ] as const;
 
-export type AutopilotPace = typeof AUTOPILOT_PACE_OPTIONS[number]["value"];
 export type AutopilotPublishingMode = typeof AUTOPILOT_PUBLISHING_OPTIONS[number]["value"];

@@ -38,7 +38,7 @@ export async function blogOnboardingValues(blogId: string) {
       voiceChoice: voicePreset?.id ?? "other",
       brandVoiceCustom: voicePreset ? "" : settings.brandVoice,
     } : {}),
-    ...(settings?.draftsPerWeek ? { draftsPerWeek: String(settings.draftsPerWeek) } : {}),
+    ...(settings?.writingDays.length ? { writingDays: settings.writingDays.map(String) } : {}),
     ...(blog.contentMode ? { contentMode: blog.contentMode } : {}),
     ...(settings ? {
       thumbnailEnabled: String(settings.thumbnailEnabled),

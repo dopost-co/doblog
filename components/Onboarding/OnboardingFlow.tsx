@@ -11,13 +11,14 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { BlogLanguagesPicker } from "@/components/BlogLanguages/BlogLanguagesPicker";
 import { StyleReferencesPicker } from "@/components/Growth/StyleReferencesPicker";
+import { WritingDaysPicker } from "@/components/Growth/WritingDaysPicker";
+import { DEFAULT_WRITING_DAYS } from "@/lib/autopilot/writing-days";
 import { cn } from "@/lib/utils";
 import {
   CONTENT_MODE_OPTIONS,
   INLINE_IMAGE_STYLE_OPTIONS,
   THUMBNAIL_STYLE_OPTIONS,
   AUTOPILOT_AUDIENCE_OPTIONS,
-  AUTOPILOT_PACE_OPTIONS,
   AUTOPILOT_PUBLISHING_OPTIONS,
   AUTOPILOT_VOICE_OPTIONS,
 } from "@/lib/autopilot/options";
@@ -26,7 +27,6 @@ import { completeOnboardingStep } from "@/src/server/services/onboarding/actions
 
 /** Starting answer for choice fields, so every card question has a selection. */
 const FIELD_DEFAULTS: Record<string, string> = {
-  draftsPerWeek: "2",
   publishingMode: "auto_publish",
   audienceChoice: "founders",
   voiceChoice: "clear-expert",
@@ -146,6 +146,7 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
       const multiple = "multiple" in field && field.multiple;
       const fallback = FIELD_DEFAULTS[field.name] ?? "";
       if (field.name === "languages") return [field.name, initialValues.languages ?? ["en"]];
+      if (field.name === "writingDays") return [field.name, initialValues.writingDays ?? DEFAULT_WRITING_DAYS.map(String)];
       // Reference lists start empty; other multi-value fields start with one input.
       if (field.name.endsWith("References")) return [field.name, initialValues[field.name] ?? []];
       return [field.name, initialValues[field.name] ?? (multiple ? [""] : fallback)];
@@ -342,25 +343,11 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
             </div>}
           </div>
         ) : step.id === "autopilot-frequency" ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {AUTOPILOT_PACE_OPTIONS.map((option) => {
-              const selected = values.draftsPerWeek === String(option.value);
-              return <button
-                key={option.value}
-                type="button"
-                aria-pressed={selected}
-                disabled={pending}
-                onClick={() => setValues((current) => ({ ...current, draftsPerWeek: String(option.value) }))}
-                className={cn(
-                  "rounded-xl border bg-card p-4 text-left transition-all hover:border-primary/60 hover:bg-primary/[0.03]",
-                  selected && "border-primary bg-primary/[0.05] ring-1 ring-primary",
-                )}
-              >
-                <span className="block text-sm font-medium">{option.label}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">{option.help}</span>
-              </button>;
-            })}
-          </div>
+          <WritingDaysPicker
+            value={(values.writingDays as string[]).map(Number)}
+            onChange={(days) => setValues((current) => ({ ...current, writingDays: days.map(String) }))}
+            disabled={pending}
+          />
         ) : step.id === "autopilot-publishing" ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {AUTOPILOT_PUBLISHING_OPTIONS.map((option) => {

@@ -10,6 +10,7 @@ import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credential
 import { runSeoOperation } from "@/src/server/services/seo/service";
 import { normalizeKeyword } from "./content";
 import { schedulePendingDrafts } from "./planning";
+import { daysForPace, normalizeWritingDays } from "@/lib/autopilot/writing-days";
 
 const DISCOVERY_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
 const MAX_SITEMAP_BYTES = 2 * 1024 * 1024;
@@ -20,17 +21,12 @@ export const discoverySettingsSchema = z.object({
   sitemapUrl: z.string().trim().max(2048).optional(),
   frequency: z.enum(["weekly", "monthly"]),
   topicsPerRun: z.number().int().min(3).max(20),
-  draftsPerWeek: z.number().int().min(1).max(7),
-  /** Custom pace: UTC weekdays to write on (0 = Sunday … 6 = Saturday). Empty uses draftsPerWeek. */
-  writingDays: z.array(z.number().int().min(0).max(6)).max(7).refine(days => new Set(days).size === days.length, "Each day can be chosen once").optional(),
+  /** UTC weekdays to write on (0 = Sunday … 6 = Saturday). */
+  writingDays: z.array(z.number().int().min(0).max(6)).min(1, "Choose at least one day").max(7).refine(days => new Set(days).size === days.length, "Each day can be chosen once").optional(),
+  /** Older clients: how many drafts per week; converted to evenly spread days. */
+  draftsPerWeek: z.number().int().min(1).max(7).optional(),
   publishingMode: z.enum(["review", "auto_publish"]).default("review"),
-}).strict().superRefine((value, ctx) => {
-  if (value.writingDays?.length) {
-    if (value.draftsPerWeek !== value.writingDays.length) ctx.addIssue({ code: "custom", path: ["draftsPerWeek"], message: "The weekly pace must match the chosen days" });
-  } else if (![1, 2, 3, 5, 7].includes(value.draftsPerWeek)) {
-    ctx.addIssue({ code: "custom", path: ["draftsPerWeek"], message: "Choose a supported weekly pace" });
-  }
-});
+}).strict().refine(value => value.writingDays?.length || value.draftsPerWeek, { message: "Choose the days to write on", path: ["writingDays"] });
 
 const siteAnalysisSchema = z.object({
   summary: z.string().min(20).max(1000),
@@ -223,6 +219,7 @@ async function planOpportunities(openai: OpenAI, input: Record<string, unknown>)
  */
 export async function saveDiscoverySettings(blogId: string, raw: unknown, { activate = true }: { activate?: boolean } = {}) {
   const input = discoverySettingsSchema.parse(raw);
+  const writingDays = input.writingDays?.length ? normalizeWritingDays(input.writingDays) : daysForPace(input.draftsPerWeek ?? 0);
   const domain = normalizeWebsite(input.website);
   const sitemapUrl = normalizeSitemapUrl(input.sitemapUrl, domain);
   const previous = await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { discoveryEnabled: true, nextDiscoveryAt: true } });
@@ -232,9 +229,8 @@ export async function saveDiscoverySettings(blogId: string, raw: unknown, { acti
   const values = {
     targetDomain: domain, sitemapUrl,
     discoveryFrequency: input.frequency, discoveryTopicsPerRun: input.topicsPerRun,
-    draftsPerWeek: input.draftsPerWeek, publishingMode: input.publishingMode,
-    // Callers that don't send days (older API/MCP clients) keep the current ones.
-    ...(input.writingDays !== undefined ? { writingDays: [...input.writingDays].sort((a, b) => a - b) } : {}),
+    publishingMode: input.publishingMode,
+    writingDays, draftsPerWeek: writingDays.length,
   };
   const activation = { discoveryEnabled: true, draftAutomationEnabled: true, nextDiscoveryAt };
   await prisma.blogSeoSettings.upsert({

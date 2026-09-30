@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { addMonths, addWeeks, endOfWeek, format, startOfWeek, subMonths, subWeeks } from "date-fns";
@@ -38,6 +39,8 @@ function defaultSlotTime(at: Date) {
   return slot;
 }
 
+const slotLabel = (date: Date) => new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+
 export function ContentCalendar({
   blogId,
   view,
@@ -57,7 +60,6 @@ export function ContentCalendar({
   const currentDate = useMemo(() => new Date(`${date}T00:00:00`), [date]);
   const [overrides, setOverrides] = useState<Record<string, { from: string; to: string }>>({});
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
-  const [error, setError] = useState("");
   const [draftSlot, setDraftSlot] = useState<Date | null>(null);
   const [dayDialog, setDayDialog] = useState<Date | null>(null);
 
@@ -91,11 +93,10 @@ export function ContentCalendar({
 
   async function reschedule(entry: CalendarEntry, at: Date) {
     if (at <= new Date()) {
-      setError("Pick a time in the future to schedule a post.");
+      toast.error("Pick a time in the future to schedule a post.");
       return;
     }
     const iso = at.toISOString();
-    setError("");
     setPendingIds((ids) => new Set(ids).add(entry.entryId));
     const from = entry.post.publishedAt;
     setOverrides((current) => ({ ...current, ...Object.fromEntries(entry.postIds.map((id) => [id, { from, to: iso }])) }));
@@ -103,9 +104,10 @@ export function ContentCalendar({
     const results = await Promise.all(entry.postIds.map((id) => updatePost(id, { status: "scheduled", publishedAt: at })));
     const failed = results.find((result) => result.error);
     if (failed?.error) {
-      setError(failed.error);
+      toast.error(failed.error);
       setOverrides((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !entry.postIds.includes(id))));
     }
+    else toast.success(`Moved to ${slotLabel(at)}`);
     setPendingIds((ids) => {
       const next = new Set(ids);
       next.delete(entry.entryId);
@@ -118,9 +120,9 @@ export function ContentCalendar({
     if (!draftSlot) return;
     const at = defaultSlotTime(draftSlot);
     setDraftSlot(null);
-    setError("");
     const result = await updatePost(draft.id, { status: "scheduled", publishedAt: at });
-    if (result.error) setError(result.error);
+    if (result.error) toast.error(result.error);
+    else toast.success(`Scheduled for ${slotLabel(at)}`);
     router.refresh();
   }
 
@@ -159,13 +161,6 @@ export function ContentCalendar({
           </div>
         </div>
       </div>
-
-      {error && (
-        <div className="flex shrink-0 items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-          <button type="button" className="text-xs underline" onClick={() => setError("")}>Dismiss</button>
-        </div>
-      )}
 
       <div className={cn("min-h-0 flex-1 transition-opacity", isNavigating && "opacity-60")}>
         <CalendarDragProvider

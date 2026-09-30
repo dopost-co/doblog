@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { updateBlogLanguages } from "@/src/server/services/blogs/mutations";
 import { BlogLanguagesPicker } from "./BlogLanguagesPicker";
+import { toast } from "sonner";
 
 export function BlogLanguagesSettings({ blogId, initialLanguages, initialAutoSync, canEdit }: {
   blogId: string;
@@ -19,8 +20,6 @@ export function BlogLanguagesSettings({ blogId, initialLanguages, initialAutoSyn
   const [languages, setLanguages] = useState(initialLanguages);
   const [autoSync, setAutoSync] = useState(initialAutoSync);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
 
   const multilingual = languages.length > 1;
   const effectiveAutoSync = multilingual && autoSync;
@@ -29,14 +28,12 @@ export function BlogLanguagesSettings({ blogId, initialLanguages, initialAutoSyn
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setPending(true);
-    setMessage("");
-    setError("");
     const result = await updateBlogLanguages(blogId, { languages, autoSyncTranslations: effectiveAutoSync });
     setPending(false);
-    if ("error" in result && result.error) { setError(result.error); return; }
+    if ("error" in result && result.error) { toast.error(result.error); return; }
     if (result.success) {
       setSaved({ languages: result.languages, autoSync: result.autoSyncTranslations });
-      setMessage("Languages updated.");
+      toast.success("Languages saved");
       router.refresh();
     }
   }
@@ -64,8 +61,6 @@ export function BlogLanguagesSettings({ blogId, initialLanguages, initialAutoSyn
       ) : (
         <p className="text-xs text-muted-foreground">Only the blog owner can change the languages.</p>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {message && <p className="text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
     </form>
   );
 }

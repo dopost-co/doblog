@@ -25,6 +25,7 @@ import {
 import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
 import { getLanguageName } from "@/lib/languages";
 import { deletePost, updatePost } from "@/src/server/services/posts/mutations";
+import { toast } from "sonner";
 
 interface PostCardProps {
   id: string;
@@ -78,17 +79,24 @@ export function PostCard({
     setIsUpdating(true);
     const result = await updatePost(id, data);
     setIsUpdating(false);
-    if (result.error) return false;
+    if (result.error) { toast.error(result.error); return false; }
     router.refresh();
     return true;
   }
 
   async function setStatus(next: "draft" | "published") {
-    if (await patchPost({ status: next })) setCurrentStatus(next);
+    const wasScheduled = currentStatus === "scheduled";
+    if (await patchPost({ status: next })) {
+      setCurrentStatus(next);
+      toast.success(next === "published" ? "Post published" : wasScheduled ? "Post unscheduled" : "Moved to draft");
+    }
   }
 
   async function toggleFeatured(next: boolean) {
-    if (await patchPost({ featured: next })) setIsFeatured(next);
+    if (await patchPost({ featured: next })) {
+      setIsFeatured(next);
+      toast.success(next ? "Marked as featured" : "Removed from featured");
+    }
   }
 
   async function handleDelete() {
@@ -101,6 +109,7 @@ export function PostCard({
       return;
     }
     setDeleteOpen(false);
+    toast.success("Post deleted");
     router.refresh();
   }
 

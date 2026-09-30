@@ -124,9 +124,9 @@ export const ONBOARDING_STEPS = [
   {
     id: "autopilot-frequency",
     when: usesAutopilot,
-    title: "How often should Zenex write?",
-    description: "Each article will receive an exact generation date.",
-    fields: [{ name: "draftsPerWeek", label: "Writing frequency", required: true, maxLength: 1 }],
+    title: "Which days should Zenex write?",
+    description: "One article on each day you pick.",
+    fields: [{ name: "writingDays", label: "Writing days", required: true, maxLength: 1, multiple: true }],
   },
   {
     id: "autopilot-publishing",

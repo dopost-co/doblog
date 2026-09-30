@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StyleReferencesPicker } from "@/components/Growth/StyleReferencesPicker";
+import { toast } from "sonner";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
@@ -78,7 +79,6 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
   const [thumbnailReferences, setThumbnailReferences] = useState(settings?.thumbnailReferenceUrls ?? []);
   const [inlineReferences, setInlineReferences] = useState(settings?.inlineImageReferenceUrls ?? []);
   const [credentialId, setCredentialId] = useState(settings?.credentialId || credentials[0]?.id || "");
-  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   const managed = plan === "subscription";
   const connected = managed || credentials.length > 0;
@@ -86,7 +86,6 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
 
   function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(null);
     const form = new FormData(event.currentTarget);
     const nullable = (name: string) => String(form.get(name) || "").trim() || null;
     startTransition(async () => {
@@ -102,8 +101,9 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         maxInlineImages: Number(form.get("maxInlineImages") ?? settings?.maxInlineImages ?? 3),
         perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
       });
-      setMessage(result.error ? { tone: "error", text: result.error } : { tone: "success", text: "Saved" });
-      if (!result.error) router.refresh();
+      if (result.error) { toast.error(result.error); return; }
+      toast.success("Autopilot settings saved");
+      router.refresh();
     });
   }
 
@@ -179,7 +179,6 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
       </div>
 
       <div className="flex items-center justify-end gap-3 border-t pt-5">
-        {message && <p role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{message.text}</p>}
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
       </div>
     </form>

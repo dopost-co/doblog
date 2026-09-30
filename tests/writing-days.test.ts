@@ -21,13 +21,13 @@ describe("Custom writing days", () => {
     expect(weekdayScheduleDates([9], 3, from)).toEqual([]);
   });
 
-  it("requires the weekly pace to match the chosen days", () => {
+  it("accepts days, or a weekly count from older clients", () => {
     const base = { website: "https://example.com", frequency: "weekly" as const, topicsPerRun: 12, publishingMode: "review" as const };
-    expect(discoverySettingsSchema.safeParse({ ...base, draftsPerWeek: 3, writingDays: [1, 3, 4] }).success).toBe(true);
-    expect(discoverySettingsSchema.safeParse({ ...base, draftsPerWeek: 4, writingDays: [1, 2, 3, 4] }).success).toBe(true);
-    expect(discoverySettingsSchema.safeParse({ ...base, draftsPerWeek: 2, writingDays: [1, 3, 4] }).success).toBe(false);
-    expect(discoverySettingsSchema.safeParse({ ...base, draftsPerWeek: 3, writingDays: [1, 1, 4] }).success).toBe(false);
-    expect(discoverySettingsSchema.safeParse({ ...base, draftsPerWeek: 4 }).success).toBe(false);
+    expect(discoverySettingsSchema.safeParse({ ...base, writingDays: [1, 3, 4] }).success).toBe(true);
+    expect(discoverySettingsSchema.safeParse({ ...base, draftsPerWeek: 4 }).success).toBe(true);
+    expect(discoverySettingsSchema.safeParse({ ...base, writingDays: [1, 1, 4] }).success).toBe(false);
+    expect(discoverySettingsSchema.safeParse({ ...base, writingDays: [] }).success).toBe(false);
+    expect(discoverySettingsSchema.safeParse(base).success).toBe(false);
   });
 });
 

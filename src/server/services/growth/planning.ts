@@ -1,32 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { daysForPace } from "@/lib/autopilot/writing-days";
 
 const DAY_MS = 86_400_000;
-const GAPS: Record<number, number[]> = {
-  1: [7],
-  2: [3, 4],
-  3: [2, 2, 3],
-  5: [1, 1, 1, 1, 3],
-  7: [1, 1, 1, 1, 1, 1, 1],
-};
 
 function nextMorning(from: Date) {
   const next = new Date(from);
   next.setUTCDate(next.getUTCDate() + 1);
   next.setUTCHours(9, 0, 0, 0);
   return next;
-}
-
-export function draftScheduleDates(perWeek: number, count: number, from = new Date(), append = false) {
-  const gaps = GAPS[perWeek] || GAPS[2];
-  const dates: Date[] = [];
-  let cursor = append
-    ? new Date(from.getTime() + gaps[0] * DAY_MS)
-    : nextMorning(from);
-  for (let index = 0; index < count; index += 1) {
-    dates.push(new Date(cursor));
-    cursor = new Date(cursor.getTime() + gaps[index % gaps.length] * DAY_MS);
-  }
-  return dates;
 }
 
 /**
@@ -66,9 +47,8 @@ export async function schedulePendingDrafts(blogId: string, reset = false) {
     }),
   ]);
   if (!items.length) return { scheduled: 0 };
-  const dates = settings.writingDays.length
-    ? weekdayScheduleDates(settings.writingDays, items.length, last?.scheduledFor || new Date())
-    : draftScheduleDates(settings.draftsPerWeek, items.length, last?.scheduledFor || new Date(), Boolean(last?.scheduledFor));
+  const days = settings.writingDays.length ? settings.writingDays : daysForPace(settings.draftsPerWeek);
+  const dates = weekdayScheduleDates(days, items.length, last?.scheduledFor || new Date());
   await prisma.$transaction(items.map((item, index) => prisma.contentPlanItem.update({ where: { id: item.id }, data: { scheduledFor: dates[index] } })));
   return { scheduled: items.length };
 }

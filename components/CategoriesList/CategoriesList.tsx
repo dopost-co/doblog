@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CreateCategoryDialog } from "@/components/CreateCategoryDialog/CreateCategoryDialog";
 import { deleteCategory } from "@/src/server/services/categories/mutations";
+import { toast } from "sonner";
 
 interface Category {
   id: string;
@@ -24,21 +25,20 @@ export function CategoriesList({ categories, blogId }: { categories: Category[];
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
   async function handleDelete(category: Category) {
     if (!confirm(`Are you sure you want to delete ${category.name}?`)) {
       return;
     }
 
-    setError("");
     setDeletingId(category.id);
     const result = await deleteCategory(category.id);
     setDeletingId(null);
     if (result.error) {
-      setError(result.error);
+      toast.error(result.error);
       return;
     }
+    toast.success("Category deleted");
     router.refresh();
   }
 
@@ -89,11 +89,6 @@ export function CategoriesList({ categories, blogId }: { categories: Category[];
           </div>
         ))}
       </div>
-      {error && (
-        <div className="mt-4 rounded-md border border-destructive/50 bg-destructive/10 p-3">
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      )}
     </>
   );
 }

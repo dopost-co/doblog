@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createAuthor } from "@/src/server/services/authors/mutations";
 import { slugify } from "@/lib/slug";
+import { toast } from "sonner";
 
 interface CreateAuthorDialogProps {
   blogId: string;
@@ -55,6 +56,7 @@ export function CreateAuthorDialog({ blogId }: CreateAuthorDialogProps) {
       setSlug("");
       setBio("");
       setIsLoading(false);
+      toast.success("Author created");
       router.refresh();
     }
   }

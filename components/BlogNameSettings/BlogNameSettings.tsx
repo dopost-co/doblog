@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateBlog } from "@/src/server/services/blogs/mutations";
+import { toast } from "sonner";
 
 export function BlogNameSettings({
   blogId,
@@ -19,23 +20,19 @@ export function BlogNameSettings({
   const router = useRouter();
   const [name, setName] = useState(initialName);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const nextName = name.trim();
     if (!nextName || nextName === initialName) return;
     setPending(true);
-    setMessage("");
-    setError("");
     const result = await updateBlog(blogId, { name: nextName });
     setPending(false);
     if (result.error) {
-      setError(result.error);
+      toast.error(result.error);
       return;
     }
-    setMessage("Blog name updated.");
+    toast.success("Blog name saved");
     router.refresh();
   }
 
@@ -53,8 +50,6 @@ export function BlogNameSettings({
         {canEdit && <Button type="submit" variant="outline" disabled={pending || !name.trim() || name.trim() === initialName}>{pending ? "Saving…" : "Save"}</Button>}
       </div>
       {!canEdit && <p className="text-xs text-muted-foreground">Only the blog owner can change this name.</p>}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {message && <p className="text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
     </form>
   );
 }

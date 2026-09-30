@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { ScopeChecklist } from "./ScopeChecklist";
+import { toast } from "sonner";
 
 type Connection = {
   id: string; clientName: string; clientUri: string | null; scopes: string[];
@@ -41,7 +42,8 @@ export function McpConnectionsManager({ blogId, connections }: { blogId: string;
     setError("");
     startTransition(async () => {
       const result = await updateMcpConnection(blogId, editing.id, { scopes });
-      if (result.error) { setError(result.error); return; }
+      if (result.error) { setError(result.error); toast.error(result.error); return; }
+      toast.success(`${editing.clientName} permissions saved`);
       setEditing(null);
       router.refresh();
     });
@@ -52,7 +54,8 @@ export function McpConnectionsManager({ blogId, connections }: { blogId: string;
     setError("");
     startTransition(async () => {
       const result = await revokeMcpConnection(blogId, revoking.id);
-      if (result.error) { setError(result.error); return; }
+      if (result.error) { setError(result.error); toast.error(result.error); return; }
+      toast.success(`${revoking.clientName} can no longer access your blogs`);
       setRevoking(null);
       router.refresh();
     });

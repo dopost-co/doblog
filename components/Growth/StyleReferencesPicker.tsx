@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ImagePlus, LoaderCircle, X } from "lucide-react";
+import { toast } from "sonner";
 
 const MAX_REFERENCES = 2;
 
@@ -17,12 +18,10 @@ export function StyleReferencesPicker({ blogId, value, onChange, disabled }: {
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
   const references = value.filter(Boolean);
 
   async function upload(file: File) {
     if (!blogId) return;
-    setError("");
     setUploading(true);
     try {
       const body = new FormData();
@@ -32,8 +31,9 @@ export function StyleReferencesPicker({ blogId, value, onChange, disabled }: {
       const result = await response.json().catch(() => ({}));
       if (!response.ok || typeof result.url !== "string") throw new Error(result.error || "The image could not be uploaded");
       onChange([...references, result.url]);
+      toast.success("Reference added");
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "The image could not be uploaded");
+      toast.error(uploadError instanceof Error ? uploadError.message : "The image could not be uploaded");
     } finally {
       setUploading(false);
       if (input.current) input.current.value = "";
@@ -81,7 +81,6 @@ export function StyleReferencesPicker({ blogId, value, onChange, disabled }: {
         className="hidden"
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}
       />
-      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

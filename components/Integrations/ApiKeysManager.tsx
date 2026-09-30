@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { ScopeChecklist } from "./ScopeChecklist";
+import { toast } from "sonner";
 
 type KeyInfo = { id: string; name: string; prefix: string; scopes: string[]; createdAt: string; expiresAt: string | null; neverExpires: boolean; revokedAt: string | null; lastUsedAt: string | null; expired: boolean };
 
@@ -48,16 +49,17 @@ export function CreateApiKeyDialog({ blogId }: { blogId: string }) {
       try {
         const neverExpires = expiration === "never";
         const result = await createApiKey(blogId, { name, scopes, neverExpires, ...(neverExpires ? {} : { expiresInDays: Number(expiration) }) });
-        if (result.error) { setError(result.error); return; }
+        if (result.error) { setError(result.error); toast.error(result.error); return; }
         setToken(result.token ?? null);
+        toast.success("API key created", { description: "Copy it now: it won’t be shown again." });
         router.refresh();
-      } catch { setError("Unable to create the key. Try again."); }
+      } catch { setError("Unable to create the key. Try again."); toast.error("Unable to create the key. Try again."); }
     });
   }
 
   async function copy() {
     if (!token) return;
-    try { await navigator.clipboard.writeText(token); setCopied(true); } catch { setError("Clipboard unavailable. Select and copy the key manually."); }
+    try { await navigator.clipboard.writeText(token); setCopied(true); toast.success("API key copied"); } catch { setError("Clipboard unavailable. Select and copy the key manually."); }
   }
 
   return (
@@ -120,10 +122,11 @@ export function ApiKeysTable({ blogId, keys }: { blogId: string; keys: KeyInfo[]
     startTransition(async () => {
       try {
         const result = await revokeApiKey(blogId, revoking.id);
-        if (result.error) { setError(result.error); return; }
+        if (result.error) { setError(result.error); toast.error(result.error); return; }
+        toast.success(`${revoking.name} revoked`);
         setRevoking(null);
         router.refresh();
-      } catch { setError("Unable to revoke the key. Try again."); }
+      } catch { setError("Unable to revoke the key. Try again."); toast.error("Unable to revoke the key. Try again."); }
     });
   }
 

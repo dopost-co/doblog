@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { deleteBlog } from "@/src/server/services/blogs/mutations";
+import { toast } from "sonner";
 
 export function DeleteBlog({ blogId, blogName }: { blogId: string; blogName: string }) {
   const router = useRouter();
@@ -43,6 +44,7 @@ export function DeleteBlog({ blogId, blogName }: { blogId: string; blogName: str
         setError(result.error);
         return;
       }
+      toast.success("Blog deleted");
       router.replace("/dashboard");
       router.refresh();
     });

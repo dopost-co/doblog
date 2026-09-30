@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/Providers/SessionProvider";
 import { ThemeProvider } from "@/components/Providers/ThemeProvider";
+import { Toaster } from "@/components/ui/sonner";
 import { config } from "@/data/config";
 
 const geistSans = Geist({
@@ -45,6 +46,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider>{children}</SessionProvider>
+          <Toaster />
           {DevTools && <DevTools />}
         </ThemeProvider>
       </body>

@@ -13,6 +13,7 @@ import RawTool from "@editorjs/raw";
 import Delimiter from "@editorjs/delimiter";
 import InlineCode from "@editorjs/inline-code";
 import { attachMarkdownSupport } from "./markdown-support";
+import { toast } from "sonner";
 
 interface EditorProps {
   data?: OutputData;
@@ -114,6 +115,7 @@ export function Editor({ data, onChange, placeholder, blogId }: EditorProps) {
                     return data;
                   } catch (error) {
                     console.error('Image upload error:', error);
+                    toast.error(error instanceof Error ? error.message : 'The image could not be uploaded');
                     return {
                       success: 0,
                       error: error instanceof Error ? error.message : 'Upload failed',

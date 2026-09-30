@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Trash2, Loader2 } from "lucide-react";
 import { deletePost } from "@/src/server/services/posts/mutations";
+import { toast } from "sonner";
 
 interface DeletePostDialogProps {
   postId: string;
@@ -38,6 +39,7 @@ export function DeletePostDialog({ postId, postTitle, blogId }: DeletePostDialog
         setIsDeleting(false);
       } else {
         setOpen(false);
+        toast.success("Post deleted");
         router.push(`/dashboard/blogs/${blogId}`);
         router.refresh();
       }

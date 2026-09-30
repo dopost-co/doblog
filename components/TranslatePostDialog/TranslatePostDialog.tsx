@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { translatePost } from "@/src/server/services/posts/mutations";
 import { languages, getLanguageByCode } from "@/lib/languages";
 import { Loader2, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
 interface TranslatePostDialogProps {
   open: boolean;
@@ -66,10 +67,11 @@ export function TranslatePostDialog({
 
       if (result.error) {
         setError(result.error);
+        toast.error(result.error);
         setIsLoading(false);
       } else {
-        // Success - close dialog and refresh
         handleClose();
+        toast.success("Translation created", { description: "It keeps the original’s status and schedule." });
         router.push(`/dashboard/blogs/${blogId}`);
         router.refresh();
       }

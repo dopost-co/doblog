@@ -12,6 +12,7 @@ import {
 import { EditAuthorDialog } from "@/components/EditAuthorDialog/EditAuthorDialog";
 import { MoreHorizontal } from "lucide-react";
 import { deleteAuthor } from "@/src/server/services/authors/mutations";
+import { toast } from "sonner";
 
 interface Author {
   id: string;
@@ -30,28 +31,27 @@ export function AuthorsList({ authors, blogId }: AuthorsListProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
   async function handleDelete(authorId: string, authorName: string) {
     if (!confirm(`Are you sure you want to delete ${authorName}?`)) {
       return;
     }
 
-    setError("");
     setDeletingId(authorId);
 
     try {
       const result = await deleteAuthor(authorId);
 
       if (result.error) {
-        setError(result.error);
+        toast.error(result.error);
         setDeletingId(null);
       } else {
+        toast.success("Author deleted");
         setDeletingId(null);
         router.refresh();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete author");
+      toast.error(err instanceof Error ? err.message : "Failed to delete author");
       setDeletingId(null);
     }
   }
@@ -102,11 +102,6 @@ export function AuthorsList({ authors, blogId }: AuthorsListProps) {
           </div>
         ))}
       </div>
-      {error && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      )}
     </>
   );
 }

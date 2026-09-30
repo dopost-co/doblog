@@ -28,6 +28,7 @@ import { LanguageSelector } from "@/components/LanguageSelector/LanguageSelector
 import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
 import { getLanguageByCode } from "@/lib/languages";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface PostFormProps {
   blogId: string;
@@ -102,7 +103,6 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
   const [language, setLanguage] = useState(post?.language || defaultLanguage);
 
   const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -130,7 +130,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
 
       setCoverImage(data.file.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload image');
+      toast.error(err instanceof Error ? err.message : 'Failed to upload image');
     } finally {
       setUploadingCover(false);
     }
@@ -183,8 +183,14 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
 
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
       setIsLoading(false);
     } else {
+      toast.success(
+        status === "published" ? "Post published"
+          : status === "scheduled" ? "Post scheduled"
+            : isEditing ? "Post saved" : "Draft created",
+      );
       router.push(`/dashboard/blogs/${blogId}`);
       router.refresh();
     }
@@ -192,45 +198,28 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
 
   async function handleSync() {
     if (!post?.id) return;
-
-    setError("");
-    setSuccessMessage("");
     setIsSyncing(true);
-
     try {
       const result = await syncPostTranslations(post.id);
-
       if (result.error) {
-        setError(result.error);
-        setIsSyncing(false);
-      } else {
-        // Success - show success message and refresh
-        const count = result.syncedCount || 0;
-        const total = result.totalCount || 0;
-        
-        if (count === total) {
-          setSuccessMessage(`Successfully synced ${count} translation${count !== 1 ? "s" : ""}`);
-        } else {
-          setSuccessMessage(
-            `Synced ${count} of ${total} translation${total !== 1 ? "s" : ""}${result.warnings ? ". Some translations failed." : ""}`
-          );
-          if (result.warnings) {
-            setError(result.warnings);
-          }
-        }
-        setIsSyncing(false);
-        
-        // Refresh after a short delay to show the success message
-        setTimeout(() => {
-          router.refresh();
-        }, 1500);
+        toast.error(result.error);
+        return;
       }
+      const count = result.syncedCount || 0;
+      const total = result.totalCount || 0;
+      if (count === total) {
+        toast.success(`${count} translation${count !== 1 ? "s" : ""} synced`);
+      } else {
+        toast.warning(`Synced ${count} of ${total} translation${total !== 1 ? "s" : ""}`, { description: result.warnings || undefined });
+      }
+      router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sync translations");
-      setSuccessMessage("");
+      toast.error(err instanceof Error ? err.message : "Failed to sync translations");
+    } finally {
       setIsSyncing(false);
     }
   }
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -616,10 +605,6 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {successMessage && (
-        <p className="text-sm text-green-600 dark:text-green-400">{successMessage}</p>
-      )}
-
       {isEditing && post && (
         <TranslatePostDialog
           open={translateDialogOpen}

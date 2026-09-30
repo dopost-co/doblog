@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateAuthor } from "@/src/server/services/authors/mutations";
 import { slugify } from "@/lib/slug";
+import { toast } from "sonner";
 
 interface Author {
   id: string;
@@ -75,6 +76,7 @@ function EditAuthorForm({ author, setOpen }: { author: Author; setOpen: (open: b
     } else {
       setOpen(false);
       setIsLoading(false);
+      toast.success("Author saved");
       router.refresh();
     }
   }
