@@ -122,6 +122,8 @@ model BlogSeoSettings {
   discoveryTopicsPerRun  Int      @default(8)
   draftAutomationEnabled Boolean  @default(false)
   draftsPerWeek          Int      @default(2)
+  // Custom pace: UTC weekdays to write on (0 = Sunday … 6 = Saturday). Empty uses draftsPerWeek.
+  writingDays            Int[]    @default([])
   discoveryRunningAt     DateTime?
   nextDiscoveryAt        DateTime?
   lastDiscoveryAt        DateTime?

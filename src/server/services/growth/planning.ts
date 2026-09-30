@@ -29,9 +29,25 @@ export function draftScheduleDates(perWeek: number, count: number, from = new Da
   return dates;
 }
 
+/**
+ * Writing dates on the chosen UTC weekdays (0 = Sunday … 6 = Saturday) at
+ * 09:00, the first one after `from`, one per day.
+ */
+export function weekdayScheduleDates(days: readonly number[], count: number, from = new Date()) {
+  const wanted = new Set(days.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6));
+  const dates: Date[] = [];
+  if (!wanted.size) return dates;
+  let cursor = nextMorning(from);
+  while (dates.length < count) {
+    if (wanted.has(cursor.getUTCDay())) dates.push(new Date(cursor));
+    cursor = new Date(cursor.getTime() + DAY_MS);
+  }
+  return dates;
+}
+
 export async function schedulePendingDrafts(blogId: string, reset = false) {
   const settings = await prisma.blogSeoSettings.findUnique({
-    where: { blogId }, select: { draftAutomationEnabled: true, draftsPerWeek: true },
+    where: { blogId }, select: { draftAutomationEnabled: true, draftsPerWeek: true, writingDays: true },
   });
   if (!settings?.draftAutomationEnabled) {
     if (reset) await prisma.contentPlanItem.updateMany({ where: { blogId, status: "planned", postId: null }, data: { scheduledFor: null } });
@@ -50,7 +66,9 @@ export async function schedulePendingDrafts(blogId: string, reset = false) {
     }),
   ]);
   if (!items.length) return { scheduled: 0 };
-  const dates = draftScheduleDates(settings.draftsPerWeek, items.length, last?.scheduledFor || new Date(), Boolean(last?.scheduledFor));
+  const dates = settings.writingDays.length
+    ? weekdayScheduleDates(settings.writingDays, items.length, last?.scheduledFor || new Date())
+    : draftScheduleDates(settings.draftsPerWeek, items.length, last?.scheduledFor || new Date(), Boolean(last?.scheduledFor));
   await prisma.$transaction(items.map((item, index) => prisma.contentPlanItem.update({ where: { id: item.id }, data: { scheduledFor: dates[index] } })));
   return { scheduled: items.length };
 }

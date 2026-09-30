@@ -20,9 +20,17 @@ export const discoverySettingsSchema = z.object({
   sitemapUrl: z.string().trim().max(2048).optional(),
   frequency: z.enum(["weekly", "monthly"]),
   topicsPerRun: z.number().int().min(3).max(20),
-  draftsPerWeek: z.number().int().refine(value => [1, 2, 3, 5, 7].includes(value), "Choose a supported weekly pace"),
+  draftsPerWeek: z.number().int().min(1).max(7),
+  /** Custom pace: UTC weekdays to write on (0 = Sunday … 6 = Saturday). Empty uses draftsPerWeek. */
+  writingDays: z.array(z.number().int().min(0).max(6)).max(7).refine(days => new Set(days).size === days.length, "Each day can be chosen once").optional(),
   publishingMode: z.enum(["review", "auto_publish"]).default("review"),
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (value.writingDays?.length) {
+    if (value.draftsPerWeek !== value.writingDays.length) ctx.addIssue({ code: "custom", path: ["draftsPerWeek"], message: "The weekly pace must match the chosen days" });
+  } else if (![1, 2, 3, 5, 7].includes(value.draftsPerWeek)) {
+    ctx.addIssue({ code: "custom", path: ["draftsPerWeek"], message: "Choose a supported weekly pace" });
+  }
+});
 
 const siteAnalysisSchema = z.object({
   summary: z.string().min(20).max(1000),
@@ -225,6 +233,8 @@ export async function saveDiscoverySettings(blogId: string, raw: unknown, { acti
     targetDomain: domain, sitemapUrl,
     discoveryFrequency: input.frequency, discoveryTopicsPerRun: input.topicsPerRun,
     draftsPerWeek: input.draftsPerWeek, publishingMode: input.publishingMode,
+    // Callers that don't send days (older API/MCP clients) keep the current ones.
+    ...(input.writingDays !== undefined ? { writingDays: [...input.writingDays].sort((a, b) => a - b) } : {}),
   };
   const activation = { discoveryEnabled: true, draftAutomationEnabled: true, nextDiscoveryAt };
   await prisma.blogSeoSettings.upsert({
@@ -254,6 +264,17 @@ export async function setAutopilotActive(blogId: string, active: boolean) {
   return { active, nextDiscoveryAt };
 }
 
+/** Scheduled refreshes keep about this many weeks of writing waiting in the queue. */
+export const IDEA_BACKLOG_WEEKS = 2;
+
+/**
+ * How many new ideas a scheduled refresh should add: enough to reach
+ * IDEA_BACKLOG_WEEKS of writing at the current pace, never more than a run allows.
+ */
+export function ideasNeeded(draftsPerWeek: number, waiting: number, perRun: number) {
+  return Math.max(0, Math.min(perRun, draftsPerWeek * IDEA_BACKLOG_WEEKS - waiting));
+}
+
 export async function discoverContentOpportunities(blogId: string, trigger = "dashboard") {
   const staleBefore = new Date(Date.now() - 30 * 60_000);
   const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId } });
@@ -269,6 +290,26 @@ export async function discoverContentOpportunities(blogId: string, trigger = "da
   } });
   const warnings: string[] = [];
   try {
+    // Scheduled refreshes only top the queue up; asking for ideas directly always adds them.
+    let limit = settings.discoveryTopicsPerRun;
+    if (trigger === "scheduler") {
+      const waiting = await prisma.contentPlanItem.count({ where: { blogId, postId: null, status: { in: ["planned", "generating"] } } });
+      limit = ideasNeeded(settings.draftsPerWeek, waiting, settings.discoveryTopicsPerRun);
+      if (limit === 0) {
+        const now = new Date();
+        await prisma.$transaction([
+          prisma.contentDiscoveryRun.update({ where: { id: run.id }, data: {
+            status: "completed", stage: "completed", suggestionsAdded: 0, completedAt: now,
+            outputSnapshot: json({ skipped: "queue-full", waiting, target: settings.draftsPerWeek * IDEA_BACKLOG_WEEKS }),
+          } }),
+          prisma.blogSeoSettings.update({ where: { blogId }, data: {
+            discoveryRunningAt: null, lastDiscoveryAt: now,
+            nextDiscoveryAt: settings.discoveryEnabled ? nextDiscoveryDate(settings.discoveryFrequency, now) : null,
+          } }),
+        ]);
+        return { runId: run.id, added: 0, analyzedPages: 0, warnings: [] as string[], skipped: true };
+      }
+    }
     const [blog, posts, planItems, targets, apiKey] = await Promise.all([
       prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { name: true, description: true } }),
       prisma.post.findMany({ where: { blogId, language: settings.languageCode }, orderBy: { updatedAt: "desc" }, take: 300, select: { title: true, slug: true, excerpt: true } }),
@@ -322,7 +363,7 @@ export async function discoverContentOpportunities(blogId: string, trigger = "da
     const covered = [...posts.map(post => post.title), ...planItems.flatMap(item => [item.primaryKeyword, item.title || ""]), ...targets.map(target => target.primaryKeyword)];
     const planningInput = {
       ...baseContext, siteSummary: analysis.summary, seeds: analysis.seedKeywords,
-      searchCandidates, coveredTopics: covered, maxIdeas: settings.discoveryTopicsPerRun,
+      searchCandidates, coveredTopics: covered, maxIdeas: limit,
     };
     await prisma.contentDiscoveryRun.update({ where: { id: run.id }, data: { stage: "planning", inputSnapshot: json(planningInput) } });
     const proposed = await planOpportunities(openai, planningInput);
@@ -334,7 +375,7 @@ export async function discoverContentOpportunities(blogId: string, trigger = "da
       if (!key || coveredNormalized.has(key) || seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).slice(0, settings.discoveryTopicsPerRun);
+    }).slice(0, limit);
 
     const data = ideas.map((idea: OpportunityIdea) => ({
         blogId, primaryKeyword: idea.keyword, normalizedKeyword: normalizeKeyword(idea.keyword),

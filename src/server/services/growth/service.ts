@@ -83,6 +83,7 @@ export async function getGrowthDashboard(blogId: string) {
       frequency: settings?.discoveryFrequency === "monthly" ? "monthly" as const : "weekly" as const,
       topicsPerRun: settings?.discoveryTopicsPerRun || 8,
       draftsPerWeek: settings?.draftsPerWeek || 2,
+      writingDays: settings?.writingDays ?? [],
       publishingMode: settings?.publishingMode === "auto_publish" ? "auto_publish" as const : "review" as const,
       nextDiscoveryAt: settings?.nextDiscoveryAt || null,
       lastDiscoveryAt: settings?.lastDiscoveryAt || null,
