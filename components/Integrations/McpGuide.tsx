@@ -28,18 +28,13 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
       <section className="space-y-3">
         <div className="space-y-1">
           <h2 className="text-sm font-medium">Server URL</h2>
-          <p className="text-sm text-muted-foreground">
-            Add it to any client that supports remote MCP. You’ll sign in, choose the blog and approve what the client can do.
-          </p>
+          <p className="text-sm text-muted-foreground">Add it to your AI client and approve access when asked.</p>
         </div>
         <div className="flex max-w-xl gap-2">
           <Input aria-label="MCP server URL" value={endpoint} readOnly className="font-mono text-sm" onFocus={(event) => event.currentTarget.select()} />
           <Button variant="outline" size="icon" onClick={copy} aria-label="Copy MCP server URL">{copied ? <Check /> : <Copy />}</Button>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Access renews automatically. Writes are saved as drafts unless the client can publish.
-          {dashboardId && <>{" "}<Link href="/docs/mcp" className="text-foreground underline underline-offset-4">MCP documentation</Link></>}
-        </p>
+        {dashboardId && <Link href="/docs/mcp" className="inline-block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">Documentation</Link>}
       </section>
 
       <details className="group border-t pt-4">
@@ -48,9 +43,7 @@ export function McpGuide({ dashboardId }: { dashboardId?: string }) {
           <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
         </summary>
         <div className="mt-4 space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Local stdio clients can’t complete the sign-in, so the bridge uses an API key instead. Create one only for this, and keep it out of prompts and repositories.
-          </p>
+          <p className="text-sm text-muted-foreground">These clients connect with an API key instead of signing in.</p>
           <Button variant="outline" size="sm" asChild>
             <Link href={dashboardId ? `/dashboard/blogs/${dashboardId}/api-keys` : "/dashboard"}>Open API keys</Link>
           </Button>

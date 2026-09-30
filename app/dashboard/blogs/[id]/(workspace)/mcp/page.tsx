@@ -6,7 +6,7 @@ import { listMcpConnections } from "@/src/server/services/mcp-connections/action
 export default async function McpPage({ params }: { params: Promise<{ id: string }> }) {
   const { blog } = await integrationBlog((await params).id);
   const connections = await listMcpConnections(blog.id);
-  return <BlogIntegrationLayout blog={blog} title="MCP" description="Let AI assistants read and write this blog, with the permissions you choose.">
+  return <BlogIntegrationLayout blog={blog} title="MCP">
     <McpGuide dashboardId={blog.id} />
     <McpConnectionsManager blogId={blog.id} connections={connections} />
   </BlogIntegrationLayout>;

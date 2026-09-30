@@ -24,7 +24,7 @@ type Settings = {
 const usd = (micros: number | undefined, fallback: number) => String((micros ?? fallback * 1_000_000) / 1_000_000);
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="grid gap-4 py-6 md:grid-cols-[12rem_1fr] md:gap-8">
+    <section className="grid gap-4 py-6 md:grid-cols-[11rem_1fr] md:gap-8">
       <h2 className="text-sm font-medium">{title}</h2>
       <div className="grid gap-4">{children}</div>
     </section>
@@ -89,23 +89,19 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
 
   return (
     <form onSubmit={save} className="space-y-6">
-      <div className="flex items-center justify-between gap-6 rounded-lg border bg-card p-4">
-        <div className="min-w-0 space-y-0.5">
-          <Label htmlFor="seo-enabled" className="text-sm font-medium">SEO research</Label>
-          <p className="text-sm text-muted-foreground">
-            {managed ? "Included in your plan."
-              : connected ? <>Uses {activeCredential?.label ?? "your DataForSEO connection"}.</>
-                : <>Connect DataForSEO in <Link href={`/dashboard/blogs/${blogId}/settings/providers`} className="underline underline-offset-2">Providers</Link> to enable it.</>}
-          </p>
-        </div>
-        <Switch id="seo-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={pending || !connected} />
-      </div>
+      {/* Edited in the Schedule tab and the blog's languages; kept so saving here never clears them. */}
+      <input type="hidden" name="targetDomain" value={settings?.targetDomain || ""} />
+      <input type="hidden" name="languageCode" value={settings?.languageCode ?? "en"} />
 
-      <div className="divide-y rounded-lg border bg-card px-4 md:px-6">
-        <Section title="Search">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Your domain" name="targetDomain" defaultValue={settings?.targetDomain || ""} placeholder="example.com" />
-            <Field label="Content language" name="languageCode" defaultValue={settings?.languageCode ?? "en"} placeholder="en" />
+      <div className="divide-y">
+        <Section title="SEO research">
+          <div className="flex items-center justify-between gap-6">
+            <p className="text-sm text-muted-foreground">
+              {managed ? "Included in your plan."
+                : connected ? <>Uses {activeCredential?.label ?? "your DataForSEO connection"}.</>
+                  : <>Connect DataForSEO in <Link href={`/dashboard/blogs/${blogId}/settings/providers`} className="text-foreground underline underline-offset-4">Providers</Link> to use search data.</>}
+            </p>
+            <Switch id="seo-enabled" aria-label="SEO research" checked={enabled} onCheckedChange={setEnabled} disabled={pending || !connected} />
           </div>
           {!managed && credentials.length > 1 && (
             <div className="grid gap-1.5">
@@ -128,7 +124,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
             <Area label="Thumbnail style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
             <Area label="Inline image style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
           </div>
-          <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} hint="Maximum, excluding the thumbnail." />
+          <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
         </Section>
 
         <details className="group py-2">
@@ -152,7 +148,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         </details>
       </div>
 
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex items-center justify-end gap-3 border-t pt-5">
         {message && <p role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{message.text}</p>}
         <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
       </div>
