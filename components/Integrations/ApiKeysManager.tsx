@@ -3,16 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, MoreHorizontal, Plus } from "lucide-react";
-import { API_SCOPES, SCOPE_DESCRIPTIONS, type ApiScope } from "@/lib/integrations/scopes";
+import type { ApiScope } from "@/lib/integrations/scopes";
 import { createApiKey, revokeApiKey } from "@/src/server/services/api-keys/actions";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { ScopeChecklist } from "./ScopeChecklist";
 
 type KeyInfo = { id: string; name: string; prefix: string; scopes: string[]; createdAt: string; expiresAt: string | null; neverExpires: boolean; revokedAt: string | null; lastUsedAt: string | null; expired: boolean };
 
@@ -95,24 +95,7 @@ export function CreateApiKeyDialog({ blogId }: { blogId: string }) {
                 </Select>
               </div>
             </div>
-            <fieldset className="grid gap-2" disabled={pending}>
-              <legend className="mb-2 text-sm font-medium">Permissions</legend>
-              <div className="divide-y rounded-lg border bg-card">
-                {API_SCOPES.map((scope) => (
-                  <label key={scope} className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-accent/40">
-                    <Checkbox
-                      className="mt-0.5"
-                      checked={scopes.includes(scope)}
-                      onCheckedChange={(checked) => setScopes((current) => checked ? [...current, scope] : current.filter((s) => s !== scope))}
-                    />
-                    <span className="grid gap-0.5">
-                      <span className="font-mono text-xs">{scope}</span>
-                      <span className="text-xs text-muted-foreground">{SCOPE_DESCRIPTIONS[scope]}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <ScopeChecklist value={scopes} onChange={setScopes} disabled={pending} />
             {error && <p className="text-sm text-destructive">{error}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" disabled={pending} onClick={() => setOpen(false)}>Cancel</Button>

@@ -2,9 +2,9 @@
 
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Check, Copy, ExternalLink, KeyRound, Link2, ShieldCheck } from "lucide-react";
+import { Check, ChevronDown, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { DocsCodeBlock } from "@/components/Docs/DocsCodeBlock";
 import { stdioConfig } from "@/lib/integrations/examples";
 
@@ -12,88 +12,51 @@ const subscribe = () => () => {};
 const getOrigin = () => window.location.origin;
 const serverOrigin = () => "https://your-cms.example";
 
-function CopyRow({ label, value }: { label: string; value: string }) {
+export function McpGuide({ dashboardId }: { dashboardId?: string }) {
+  const origin = useSyncExternalStore(subscribe, getOrigin, serverOrigin);
+  const endpoint = `${origin}/api/mcp`;
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    await navigator.clipboard.writeText(value);
+    await navigator.clipboard.writeText(endpoint);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <code className="block truncate text-sm">{value}</code>
-      </div>
-      <Button variant="ghost" size="icon-sm" onClick={copy} aria-label={`Copy ${label}`}>
-        {copied ? <Check /> : <Copy />}
-      </Button>
-    </div>
-  );
-}
-
-export function McpGuide({ dashboardId }: { dashboardId?: string }) {
-  const origin = useSyncExternalStore(subscribe, getOrigin, serverOrigin);
-  const endpoint = `${origin}/api/mcp`;
-
-  return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="space-y-6 p-6">
-          <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-primary/10 p-2 text-primary"><Link2 className="h-5 w-5" /></div>
-            <div>
-              <h2 className="font-semibold">Connect to Zenex</h2>
-            </div>
-          </div>
+      <section className="space-y-3">
+        <div className="space-y-1">
+          <h2 className="text-sm font-medium">Server URL</h2>
+          <p className="text-sm text-muted-foreground">
+            Add it to any client that supports remote MCP. You’ll sign in, choose the blog and approve what the client can do.
+          </p>
+        </div>
+        <div className="flex max-w-xl gap-2">
+          <Input aria-label="MCP server URL" value={endpoint} readOnly className="font-mono text-sm" onFocus={(event) => event.currentTarget.select()} />
+          <Button variant="outline" size="icon" onClick={copy} aria-label="Copy MCP server URL">{copied ? <Check /> : <Copy />}</Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Access renews automatically. Writes are saved as drafts unless the client can publish.
+          {dashboardId && <>{" "}<Link href="/docs/mcp" className="text-foreground underline underline-offset-4">MCP documentation</Link></>}
+        </p>
+      </section>
 
-          <div className="space-y-2">
-            <CopyRow label="MCP server URL" value={endpoint} />
-          </div>
-
-          <div className="grid gap-4 border-t pt-5 sm:grid-cols-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium"><Link2 className="h-4 w-4" /> 1. Add the URL</div>
-              <p className="text-xs leading-relaxed text-muted-foreground">Paste the endpoint into a remote MCP client.</p>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4" /> 2. Approve access</div>
-              <p className="text-xs leading-relaxed text-muted-foreground">Sign in, select the blog and review the requested permissions.</p>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium"><KeyRound className="h-4 w-4" /> 3. Stay connected</div>
-              <p className="text-xs leading-relaxed text-muted-foreground">The client refreshes access automatically. Edit or revoke it below at any time.</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button asChild>
-              <Link href="https://modelcontextprotocol.io/docs/tutorials/use-remote-mcp-server" target="_blank">How remote MCP works <ExternalLink /></Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/docs/mcp">MCP documentation <ExternalLink /></Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <details className="group rounded-lg border bg-card">
-        <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium">
-          Using a client that only supports local stdio?
-          <span className="float-right text-muted-foreground transition-transform group-open:rotate-180">⌄</span>
+      <details className="group border-t pt-4">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          Client only supports local stdio?
+          <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
         </summary>
-        <div className="space-y-3 border-t px-5 py-4">
-          <p className="text-sm text-muted-foreground">The stdio bridge uses an API key because local stdio clients cannot complete the hosted OAuth flow. Create one only for this fallback.</p>
-          <Button variant="outline" size="sm" asChild><Link href={dashboardId ? `/dashboard/blogs/${dashboardId}/api-keys` : "/dashboard"}>Open API keys</Link></Button>
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Local stdio clients can’t complete the sign-in, so the bridge uses an API key instead. Create one only for this, and keep it out of prompts and repositories.
+          </p>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={dashboardId ? `/dashboard/blogs/${dashboardId}/api-keys` : "/dashboard"}>Open API keys</Link>
+          </Button>
           <DocsCodeBlock language="json" code={stdioConfig(origin)} filename="mcpServers configuration" />
         </div>
       </details>
-
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        OAuth is recommended. Keep fallback API keys out of prompts, repositories and browser bundles. Writes are draft-first unless the connection also has publish permission.
-      </p>
     </div>
   );
 }
