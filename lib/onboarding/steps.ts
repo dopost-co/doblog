@@ -19,7 +19,18 @@ export type OnboardingStep = {
   title: string;
   description?: string;
   fields: OnboardingField[];
+  /** Shown only when this returns true for the answers so far (and saved ones). */
+  // `flow` is a plain string: its union type is derived from the steps themselves.
+  when?: (values: OnboardingValues, flow: string) => boolean;
 };
+
+const answer = (values: OnboardingValues, name: string): string | undefined => {
+  const value = values[name];
+  return Array.isArray(value) ? value[0] : value;
+};
+/** Autopilot questions are skipped for blogs whose owner only writes by hand. */
+const usesAutopilot = (values: OnboardingValues, flow: string): boolean =>
+  flow === "autopilot-setup" || answer(values, "contentMode") !== "manual";
 
 export const ONBOARDING_STEPS = [
   {
@@ -43,13 +54,20 @@ export const ONBOARDING_STEPS = [
     ],
   },
   {
+    id: "content-mode",
+    title: "How will you use Zenex?",
+    fields: [{ name: "contentMode", label: "How you’ll use Zenex", required: true, maxLength: 20 }],
+  },
+  {
     id: "autopilot-website",
+    when: usesAutopilot,
     title: "What is your website?",
     description: "Zenex will find its sitemap and understand what you already cover.",
     fields: [{ name: "website", label: "Website address", placeholder: "https://yourwebsite.com", required: true, maxLength: 2048 }],
   },
   {
     id: "autopilot-audience",
+    when: usesAutopilot,
     title: "Who are you writing for?",
     description: "Choose the closest audience. You can make it more specific later.",
     fields: [
@@ -59,6 +77,7 @@ export const ONBOARDING_STEPS = [
   },
   {
     id: "autopilot-voice",
+    when: usesAutopilot,
     title: "How should your brand sound?",
     description: "Start from a style, write your own, or learn from a competitor you like.",
     fields: [
@@ -68,13 +87,50 @@ export const ONBOARDING_STEPS = [
     ],
   },
   {
+    id: "autopilot-thumbnails",
+    when: usesAutopilot,
+    title: "Should Zenex create a thumbnail for each article?",
+    fields: [{ name: "thumbnailEnabled", label: "Thumbnails", required: true, maxLength: 5 }],
+  },
+  {
+    id: "autopilot-thumbnail-style",
+    when: (values, flow) => usesAutopilot(values, flow) && answer(values, "thumbnailEnabled") !== "false",
+    title: "What should thumbnails look like?",
+    description: "Pick a style or describe your own. Reference images help keep every thumbnail consistent.",
+    fields: [
+      { name: "thumbnailStyleChoice", label: "Thumbnail style", required: true, maxLength: 40 },
+      { name: "thumbnailStyleCustom", label: "Custom thumbnail style", maxLength: 1000 },
+      { name: "thumbnailReferences", label: "Thumbnail references", maxLength: 2048, multiple: true },
+    ],
+  },
+  {
+    id: "autopilot-inline-images",
+    when: usesAutopilot,
+    title: "Should articles include images?",
+    description: "Up to two images inside each article, only where they help explain something.",
+    fields: [{ name: "inlineImagesEnabled", label: "Images in articles", required: true, maxLength: 5 }],
+  },
+  {
+    id: "autopilot-inline-style",
+    when: (values, flow) => usesAutopilot(values, flow) && answer(values, "inlineImagesEnabled") !== "false",
+    title: "What should images in articles look like?",
+    description: "Pick a style or describe your own. Reference images help keep them consistent.",
+    fields: [
+      { name: "inlineStyleChoice", label: "Image style", required: true, maxLength: 40 },
+      { name: "inlineStyleCustom", label: "Custom image style", maxLength: 1000 },
+      { name: "inlineReferences", label: "Image references", maxLength: 2048, multiple: true },
+    ],
+  },
+  {
     id: "autopilot-frequency",
+    when: usesAutopilot,
     title: "How often should Zenex write?",
     description: "Each article will receive an exact generation date.",
     fields: [{ name: "draftsPerWeek", label: "Writing frequency", required: true, maxLength: 1 }],
   },
   {
     id: "autopilot-publishing",
+    when: usesAutopilot,
     title: "What happens when an article is ready?",
     description: "You can change this later from Autopilot.",
     fields: [{ name: "publishingMode", label: "Publishing mode", required: true, maxLength: 20 }],
@@ -92,10 +148,10 @@ export type OnboardingValues = Record<string, string | string[]>;
  * - autopilot-setup: a blog created before onboarding asked about Autopilot.
  */
 export const ONBOARDING_FLOWS = {
-  "new-user": ["profile", "blogs", "blog-languages", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
-  "new-blog": ["blogs", "blog-languages", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
+  "new-user": ["profile", "blogs", "blog-languages", "content-mode", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
+  "new-blog": ["blogs", "blog-languages", "content-mode", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
   "invited-user": ["profile"],
-  "autopilot-setup": ["autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-frequency", "autopilot-publishing"],
+  "autopilot-setup": ["autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
 } as const satisfies Record<string, readonly OnboardingStepId[]>;
 
 export type OnboardingFlowId = keyof typeof ONBOARDING_FLOWS;
@@ -115,4 +171,24 @@ export function flowSteps(flow: OnboardingFlowId) {
 export function stepIndex(flow: OnboardingFlowId, id: string | null | undefined) {
   const index = (ONBOARDING_FLOWS[flow] as readonly string[]).indexOf(id ?? "");
   return index === -1 ? 0 : index;
+}
+
+/** The steps of a flow that apply, given the answers so far. */
+export function visibleSteps(flow: OnboardingFlowId, values: OnboardingValues): OnboardingStep[] {
+  return flowSteps(flow).filter((step: OnboardingStep) => !step.when || step.when(values, flow));
+}
+
+/** The next step to show after `stepId`, or null when the flow is finished. */
+export function nextVisibleStep(flow: OnboardingFlowId, stepId: string, values: OnboardingValues) {
+  const order = ONBOARDING_FLOWS[flow] as readonly string[];
+  const position = order.indexOf(stepId);
+  return visibleSteps(flow, values).find((step) => order.indexOf(step.id) > position) ?? null;
+}
+
+/** `stepId` if it applies, otherwise the next step that does (for resuming). */
+export function resolveVisibleStep(flow: OnboardingFlowId, stepId: string | null | undefined, values: OnboardingValues) {
+  const steps = visibleSteps(flow, values);
+  const order = ONBOARDING_FLOWS[flow] as readonly string[];
+  const position = order.indexOf(stepId ?? "");
+  return steps.find((step) => order.indexOf(step.id) >= position) ?? steps[steps.length - 1] ?? null;
 }

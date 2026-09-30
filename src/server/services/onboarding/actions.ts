@@ -6,9 +6,10 @@ import { getSession } from "@/lib/get-session";
 import { slugify } from "@/lib/slug";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
-import { AUTOPILOT_AUDIENCE_OPTIONS, AUTOPILOT_VOICE_OPTIONS } from "@/lib/autopilot/options";
-import { BLOG_FLOWS, flowSteps, isOnboardingFlow, stepIndex, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
-import { resolveUserFlow } from "./queries";
+import { AUTOPILOT_AUDIENCE_OPTIONS, AUTOPILOT_VOICE_OPTIONS, CONTENT_MODE_OPTIONS, INLINE_IMAGE_STYLE_OPTIONS, THUMBNAIL_STYLE_OPTIONS } from "@/lib/autopilot/options";
+import { normalizeStyleReferences } from "@/src/server/services/growth/image-references";
+import { BLOG_FLOWS, flowSteps, isOnboardingFlow, nextVisibleStep, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
+import { blogOnboardingValues, resolveUserFlow } from "./queries";
 import { normalizeWebsite } from "@/src/server/services/growth/discovery";
 import { analyzeCompetitorBrandVoice, competitorVoiceInstruction } from "@/src/server/services/growth/brand";
 
@@ -26,6 +27,18 @@ async function onboardingBlog({ userId, blogId }: Context) {
   const blog = await prisma.blog.findFirst({ where: { id: blogId, userId }, select: { id: true } });
   if (!blog) throw new ApiError(404, "Blog not found");
   return blog;
+}
+
+/** A preset or custom image style, plus the uploaded references it should follow. */
+function imageStyle(blogId: string, presets: readonly { id: string; value: string }[], choice: string, custom: string, referenceUrls: string[]) {
+  const references = normalizeStyleReferences(blogId, referenceUrls);
+  if (choice === "other") {
+    if (!custom && !references.length) throw new ApiError(400, "Describe the style or add a reference image");
+    return { style: custom || null, references };
+  }
+  const preset = presets.find((option) => option.id === choice);
+  if (!preset) throw new ApiError(400, "Choose an image style");
+  return { style: preset.value, references };
 }
 
 /** What each step saves. Steps without an entry only advance. */
@@ -65,8 +78,44 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
       update: { languageCode: languages[0] },
     });
   },
+  "content-mode": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const contentMode = single(values.contentMode);
+    if (!CONTENT_MODE_OPTIONS.some((option) => option.id === contentMode)) throw new ApiError(400, "Choose how you’ll use Zenex");
+    await prisma.blog.update({ where: { id: blog.id }, data: { contentMode } });
+  },
+  "autopilot-thumbnails": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const thumbnailEnabled = single(values.thumbnailEnabled) !== "false";
+    await prisma.blogSeoSettings.upsert({ where: { blogId: blog.id }, create: { blogId: blog.id, thumbnailEnabled }, update: { thumbnailEnabled } });
+  },
+  "autopilot-thumbnail-style": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const { style, references } = imageStyle(blog.id, THUMBNAIL_STYLE_OPTIONS, single(values.thumbnailStyleChoice), single(values.thumbnailStyleCustom), list(values.thumbnailReferences));
+    await prisma.blogSeoSettings.upsert({
+      where: { blogId: blog.id },
+      create: { blogId: blog.id, thumbnailStyle: style, thumbnailReferenceUrls: references },
+      update: { thumbnailStyle: style, thumbnailReferenceUrls: references },
+    });
+  },
+  "autopilot-inline-images": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const inlineImagesEnabled = single(values.inlineImagesEnabled) !== "false";
+    await prisma.blogSeoSettings.upsert({ where: { blogId: blog.id }, create: { blogId: blog.id, inlineImagesEnabled }, update: { inlineImagesEnabled } });
+  },
+  "autopilot-inline-style": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const { style, references } = imageStyle(blog.id, INLINE_IMAGE_STYLE_OPTIONS, single(values.inlineStyleChoice), single(values.inlineStyleCustom), list(values.inlineReferences));
+    await prisma.blogSeoSettings.upsert({
+      where: { blogId: blog.id },
+      create: { blogId: blog.id, inlineImageStyle: style, inlineImageReferenceUrls: references },
+      update: { inlineImageStyle: style, inlineImageReferenceUrls: references },
+    });
+  },
   "autopilot-website": async (context, values) => {
     const blog = await onboardingBlog(context);
+    // Setting up Autopilot later on a blog that was written by hand: it now does both.
+    await prisma.blog.updateMany({ where: { id: blog.id, contentMode: "manual" }, data: { contentMode: "both" } });
     const targetDomain = normalizeWebsite(single(values.website));
     await prisma.blogSeoSettings.upsert({
       where: { blogId: blog.id },
@@ -146,7 +195,9 @@ export async function completeOnboardingStep(flowId: string, stepId: string, val
     const step = validate(flow, stepId, values);
     const savedBlogId = (await STEP_HANDLERS[step.id]?.({ userId, blogId }, values)) || blogId;
 
-    const next = flowSteps(flow)[stepIndex(flow, step.id) + 1];
+    // Which step comes next depends on the answers, both saved and just submitted.
+    const answers = { ...(savedBlogId ? await blogOnboardingValues(savedBlogId) : {}), ...values };
+    const next = nextVisibleStep(flow, step.id, answers);
     if (!BLOG_FLOWS.includes(flow)) {
       await prisma.user.update({
         where: { id: userId },

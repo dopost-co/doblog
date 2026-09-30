@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import OpenAI from "openai";
+import OpenAI, { type Uploadable } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -21,6 +21,7 @@ import {
   type GeneratedInlineImage,
 } from "./content";
 import { schedulePendingDrafts } from "./planning";
+import { loadStyleReferences } from "./image-references";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 
 const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
@@ -168,23 +169,36 @@ Inline images are optional and must explain a particular section. Request no mor
   return { article: response.output_parsed, usage: response.usage };
 }
 
+/**
+ * One landscape image. With style references it uses the edit endpoint, which
+ * takes them as input images (up to 16 for GPT image models) and, with high
+ * input fidelity, follows their style closely. If that fails, it falls back to
+ * text-only generation so the draft still gets its image.
+ */
+export async function requestImage(openai: Pick<OpenAI, "images">, prompt: string, references: Uploadable[], runId: string) {
+  const options = { model: IMAGE_MODEL, prompt, size: "1536x1024", quality: "medium", output_format: "webp", n: 1 } as const;
+  if (!references.length) return openai.images.generate(options);
+  try {
+    return await openai.images.edit({ ...options, image: references, input_fidelity: "high" });
+  } catch (error) {
+    console.warn("[Growth] reference-image-failed", { runId, error: error instanceof Error ? error.message : String(error) });
+    return openai.images.generate(options);
+  }
+}
+
 async function generateImage(openai: OpenAI, args: {
   blogId: string; postId: string; runId: string; kind: "cover" | "inline";
   prompt: string; alt: string; caption?: string; style?: string | null;
+  /** Style references (see image-references.ts); empty for text-only generation. */
+  references: Uploadable[];
 }) {
   const prompt = [
     args.prompt,
     args.style ? `Visual direction: ${args.style}` : "Polished editorial illustration with a restrained, modern visual language.",
+    args.references.length ? "Match the visual style of the reference images: palette, rendering, texture and mood. Do not copy their subjects, text or layout." : null,
     "Landscape composition for a blog article. No words, letters, watermarks, brand marks or UI text.",
-  ].join("\n");
-  const result = await openai.images.generate({
-    model: IMAGE_MODEL,
-    prompt,
-    size: "1536x1024",
-    quality: "medium",
-    output_format: "webp",
-    n: 1,
-  });
+  ].filter(Boolean).join("\n");
+  const result = await requestImage(openai, prompt, args.references, args.runId);
   const encoded = result.data?.[0]?.b64_json;
   if (!encoded) throw new ApiError(502, "The image provider returned no image");
   const bytes = Buffer.from(encoded, "base64");
@@ -347,11 +361,15 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
     if (!mediaReady && (thumbnailEnabled || inlineImageLimit > 0)) {
       warnings.push("Media storage is not configured, so the draft was created without generated images.");
     } else if (makesImages) {
+      const [thumbnailReferences, inlineReferences] = await Promise.all([
+        thumbnailEnabled ? loadStyleReferences(blogId, settings?.thumbnailReferenceUrls ?? []) : [],
+        inlineImageLimit > 0 ? loadStyleReferences(blogId, settings?.inlineImageReferenceUrls ?? []) : [],
+      ]);
       if (thumbnailEnabled) {
         try {
           coverImage = await generateImage(openai, {
             blogId, postId, runId: claimed.run.id, kind: "cover", prompt: article.coverImage.prompt,
-            alt: article.coverImage.alt, style: settings?.thumbnailStyle,
+            alt: article.coverImage.alt, style: settings?.thumbnailStyle, references: thumbnailReferences,
           });
         } catch (error) {
           warnings.push(`The cover image could not be generated: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -361,7 +379,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
         try {
           const url = await generateImage(openai, {
             blogId, postId, runId: claimed.run.id, kind: "inline", prompt: image.prompt,
-            alt: image.alt, caption: image.caption, style: settings?.inlineImageStyle,
+            alt: image.alt, caption: image.caption, style: settings?.inlineImageStyle, references: inlineReferences,
           });
           inlineImages.push({ afterHeading: image.afterHeading, url, alt: image.alt, caption: image.caption });
         } catch (error) {

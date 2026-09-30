@@ -25,5 +25,26 @@ export const AUTOPILOT_VOICE_OPTIONS = [
   { id: "premium-editorial", title: "Premium editorial", example: "Polished, thoughtful and restrained.", value: "Polished, thoughtful and understated. Favor strong narrative flow, careful word choice and a calm premium feel." },
 ] as const;
 
+/** How the owner uses a blog; "manual" skips the Autopilot questions in onboarding. */
+export const CONTENT_MODE_OPTIONS = [
+  { id: "manual", title: "I’ll write posts myself", example: "Use Zenex as your editor and CMS." },
+  { id: "automatic", title: "Create posts automatically", example: "Autopilot finds topics, writes and publishes." },
+  { id: "both", title: "Both", example: "Write your own and let Autopilot fill the gaps." },
+] as const;
+
+export const THUMBNAIL_STYLE_OPTIONS = [
+  { id: "editorial-illustration", title: "Editorial illustration", example: "Flat shapes, calm colors, magazine feel.", value: "Clean editorial illustration with flat shapes, a calm limited palette and generous negative space." },
+  { id: "photographic", title: "Photographic", example: "Natural light, realistic scenes.", value: "Realistic editorial photography with natural light, shallow depth of field and an authentic, unstaged feel." },
+  { id: "3d-render", title: "Soft 3D", example: "Rounded objects, soft shadows.", value: "Soft 3D render with rounded objects, matte materials, gentle shadows and a pastel palette." },
+  { id: "bold-graphic", title: "Bold graphic", example: "Strong color blocks and contrast.", value: "Bold graphic poster style with strong color blocks, high contrast and simple geometric forms." },
+] as const;
+
+export const INLINE_IMAGE_STYLE_OPTIONS = [
+  { id: "diagram", title: "Simple diagrams", example: "Explain ideas with clear visuals.", value: "Simple explanatory diagram with clean lines, a few simple unlabeled shapes and a restrained palette." },
+  { id: "editorial-illustration", title: "Editorial illustration", example: "Match a magazine-like look.", value: "Clean editorial illustration with flat shapes, a calm limited palette and generous negative space." },
+  { id: "photographic", title: "Photographic", example: "Realistic scenes that show the topic.", value: "Realistic editorial photography with natural light and an authentic, unstaged feel." },
+  { id: "sketch", title: "Hand-drawn sketch", example: "Friendly, notebook-like drawings.", value: "Hand-drawn sketch style with loose ink lines, light watercolor accents and a friendly notebook feel." },
+] as const;
+
 export type AutopilotPace = typeof AUTOPILOT_PACE_OPTIONS[number]["value"];
 export type AutopilotPublishingMode = typeof AUTOPILOT_PUBLISHING_OPTIONS[number]["value"];

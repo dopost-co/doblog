@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { AUTOPILOT_AUDIENCE_OPTIONS, AUTOPILOT_VOICE_OPTIONS } from "@/lib/autopilot/options";
+import { AUTOPILOT_AUDIENCE_OPTIONS, AUTOPILOT_VOICE_OPTIONS, INLINE_IMAGE_STYLE_OPTIONS, THUMBNAIL_STYLE_OPTIONS } from "@/lib/autopilot/options";
 import type { OnboardingFlowId } from "@/lib/onboarding/steps";
 
 /**
@@ -16,7 +16,7 @@ export async function resolveUserFlow(userId: string, email: string | null | und
 
 /** Blog-related answers already saved, so a resumed onboarding shows them again. */
 export async function blogOnboardingValues(blogId: string) {
-  const blog = await prisma.blog.findUnique({ where: { id: blogId }, select: { name: true, languages: true, autoSyncTranslations: true, seoSettings: true } });
+  const blog = await prisma.blog.findUnique({ where: { id: blogId }, select: { name: true, languages: true, autoSyncTranslations: true, contentMode: true, seoSettings: true } });
   if (!blog) return {};
   const settings = blog.seoSettings;
   const audiencePreset = AUTOPILOT_AUDIENCE_OPTIONS.find((option) => option.value === settings?.audience);
@@ -36,7 +36,26 @@ export async function blogOnboardingValues(blogId: string) {
       brandVoiceCustom: voicePreset ? "" : settings.brandVoice,
     } : {}),
     ...(settings?.draftsPerWeek ? { draftsPerWeek: String(settings.draftsPerWeek) } : {}),
+    ...(blog.contentMode ? { contentMode: blog.contentMode } : {}),
+    ...(settings ? {
+      thumbnailEnabled: String(settings.thumbnailEnabled),
+      inlineImagesEnabled: String(settings.inlineImagesEnabled),
+      ...styleAnswer("thumbnail", THUMBNAIL_STYLE_OPTIONS, settings.thumbnailStyle, settings.thumbnailReferenceUrls),
+      ...styleAnswer("inline", INLINE_IMAGE_STYLE_OPTIONS, settings.inlineImageStyle, settings.inlineImageReferenceUrls),
+    } : {}),
     // Older blogs default to "draft", which is not one of the onboarding choices.
     ...(settings?.publishingMode === "review" || settings?.publishingMode === "auto_publish" ? { publishingMode: settings.publishingMode } : {}),
+  };
+}
+
+/** Saved image style as onboarding answers: a preset card, or "other" with the text. */
+function styleAnswer(prefix: "thumbnail" | "inline", presets: readonly { id: string; value: string }[], style: string | null, references: string[]) {
+  const preset = presets.find((option) => option.value === style);
+  return {
+    [`${prefix}References`]: references,
+    ...(style || references.length ? {
+      [`${prefix}StyleChoice`]: preset?.id ?? "other",
+      [`${prefix}StyleCustom`]: preset ? "" : style ?? "",
+    } : {}),
   };
 }

@@ -23,7 +23,7 @@ export default async function NewBlogOnboardingPage({ searchParams }: { searchPa
     <main className="flex min-h-svh items-center justify-center bg-background px-4">
       <OnboardingFlow
         flow="new-blog"
-        initialStep={blog ? "autopilot-website" : null}
+        initialStep={blog ? "blog-languages" : null}
         initialValues={blog ? await blogOnboardingValues(blog.id) : {}}
         initialBlogId={blog?.id ?? null}
       />

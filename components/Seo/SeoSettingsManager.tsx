@@ -11,12 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StyleReferencesPicker } from "@/components/Growth/StyleReferencesPicker";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
   credentialId: string | null; enabled: boolean; targetDomain: string | null; locationCode: number; languageCode: string;
   timezone: string; competitorDomains: string[]; audience: string | null; brandVoice: string | null; publishingMode: string;
   thumbnailEnabled: boolean; inlineImagesEnabled: boolean;
+  thumbnailReferenceUrls: string[]; inlineImageReferenceUrls: string[];
   thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
   articleUrlPrefix: string;
   perRunBudgetUsdMicros: number; dailyBudgetUsdMicros: number; monthlyBudgetUsdMicros: number;
@@ -73,6 +75,8 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
   const [enabled, setEnabled] = useState(settings?.enabled ?? false);
   const [thumbnailEnabled, setThumbnailEnabled] = useState(settings?.thumbnailEnabled ?? true);
   const [inlineImagesEnabled, setInlineImagesEnabled] = useState(settings?.inlineImagesEnabled ?? true);
+  const [thumbnailReferences, setThumbnailReferences] = useState(settings?.thumbnailReferenceUrls ?? []);
+  const [inlineReferences, setInlineReferences] = useState(settings?.inlineImageReferenceUrls ?? []);
   const [credentialId, setCredentialId] = useState(settings?.credentialId || credentials[0]?.id || "");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
@@ -92,6 +96,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
         audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
         thumbnailEnabled, inlineImagesEnabled,
+        thumbnailReferenceUrls: thumbnailReferences, inlineImageReferenceUrls: inlineReferences,
         thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
         articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
         maxInlineImages: Number(form.get("maxInlineImages") ?? settings?.maxInlineImages ?? 3),
@@ -140,6 +145,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
           <div className={thumbnailEnabled ? "grid" : "hidden"}>
             <Area label="Style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
           </div>
+          {thumbnailEnabled && <StyleReferencesPicker blogId={blogId} value={thumbnailReferences} onChange={setThumbnailReferences} disabled={pending} />}
         </Section>
 
         <Section title="Post images">
@@ -148,6 +154,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
             <Area label="Style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
             <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
           </div>
+          {inlineImagesEnabled && <StyleReferencesPicker blogId={blogId} value={inlineReferences} onChange={setInlineReferences} disabled={pending} />}
         </Section>
 
         <details className="group py-2">

@@ -43,6 +43,8 @@ model Blog {
   languages   String[] @default(["en"])
   // Keeps every translation group in step with the post that was last written.
   autoSyncTranslations Boolean @default(false)
+  // How the owner uses this blog: "manual" (writes posts), "automatic" (Autopilot) or "both".
+  contentMode String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -105,8 +107,11 @@ model BlogSeoSettings {
   publishingMode         String   @default("draft")
   thumbnailEnabled       Boolean  @default(true)
   thumbnailStyle         String?
+  // Up to two uploaded images whose style generated images follow.
+  thumbnailReferenceUrls String[] @default([])
   inlineImagesEnabled    Boolean  @default(true)
   inlineImageStyle       String?
+  inlineImageReferenceUrls String[] @default([])
   maxInlineImages        Int      @default(3)
   articleUrlPrefix       String   @default("/blog")
   sitemapUrl             String?

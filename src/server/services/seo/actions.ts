@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
+import { normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 
 const settingsSchema = z.object({
   credentialId: z.string().min(1).nullable(), enabled: z.boolean(),
@@ -15,6 +16,7 @@ const settingsSchema = z.object({
   audience: z.string().trim().max(2000).nullable(), brandVoice: z.string().trim().max(2000).nullable(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]),
   thumbnailEnabled: z.boolean(), inlineImagesEnabled: z.boolean(),
+  thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2), inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2),
   thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
   articleUrlPrefix: z.string().trim().startsWith("/", "Start the article path with /").max(200),
   maxInlineImages: z.number().int().min(0).max(8), perRunBudgetUsd: z.number().min(0.001).max(100),
@@ -74,6 +76,8 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       competitorDomains: data.competitorDomains.filter(Boolean), audience: data.audience || null,
       brandVoice: data.brandVoice || null, publishingMode: data.publishingMode,
       thumbnailEnabled: data.thumbnailEnabled, inlineImagesEnabled: data.inlineImagesEnabled,
+      thumbnailReferenceUrls: normalizeStyleReferences(blogId, data.thumbnailReferenceUrls),
+      inlineImageReferenceUrls: normalizeStyleReferences(blogId, data.inlineImageReferenceUrls),
       thumbnailStyle: data.thumbnailStyle || null, inlineImageStyle: data.inlineImageStyle || null,
       articleUrlPrefix: `/${data.articleUrlPrefix.split("/").filter(Boolean).join("/")}`,
       maxInlineImages: data.maxInlineImages, perRunBudgetUsdMicros: micros(data.perRunBudgetUsd),

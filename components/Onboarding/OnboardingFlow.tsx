@@ -10,15 +10,32 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { BlogLanguagesPicker } from "@/components/BlogLanguages/BlogLanguagesPicker";
+import { StyleReferencesPicker } from "@/components/Growth/StyleReferencesPicker";
 import { cn } from "@/lib/utils";
 import {
+  CONTENT_MODE_OPTIONS,
+  INLINE_IMAGE_STYLE_OPTIONS,
+  THUMBNAIL_STYLE_OPTIONS,
   AUTOPILOT_AUDIENCE_OPTIONS,
   AUTOPILOT_PACE_OPTIONS,
   AUTOPILOT_PUBLISHING_OPTIONS,
   AUTOPILOT_VOICE_OPTIONS,
 } from "@/lib/autopilot/options";
-import { flowSteps, ONBOARDING_STEPS, stepIndex, type OnboardingField, type OnboardingFlowId, type OnboardingValues } from "@/lib/onboarding/steps";
+import { ONBOARDING_STEPS, resolveVisibleStep, visibleSteps, type OnboardingField, type OnboardingFlowId, type OnboardingValues } from "@/lib/onboarding/steps";
 import { completeOnboardingStep } from "@/src/server/services/onboarding/actions";
+
+/** Starting answer for choice fields, so every card question has a selection. */
+const FIELD_DEFAULTS: Record<string, string> = {
+  draftsPerWeek: "2",
+  publishingMode: "auto_publish",
+  audienceChoice: "founders",
+  voiceChoice: "clear-expert",
+  contentMode: "both",
+  thumbnailEnabled: "true",
+  thumbnailStyleChoice: "editorial-illustration",
+  inlineImagesEnabled: "true",
+  inlineStyleChoice: "diagram",
+};
 
 function celebrate() {
   const defaults = { spread: 70, ticks: 200, gravity: 0.9, scalar: 0.9, disableForReducedMotion: true };
@@ -76,6 +93,45 @@ function FieldInput({ field, value, onChange, disabled }: {
   );
 }
 
+const THUMBNAIL_CHOICES = [
+  { id: "true", title: "Yes, create thumbnails", example: "A cover image for every article." },
+  { id: "false", title: "No thumbnails", example: "You’ll add covers yourself." },
+];
+const INLINE_IMAGE_CHOICES = [
+  { id: "true", title: "Yes, add images", example: "Up to two, where they help." },
+  { id: "false", title: "No images", example: "Articles are text only." },
+];
+
+/** One answer out of a few, shown as selectable cards. */
+function ChoiceCards({ options, value, onChange, disabled }: {
+  options: readonly { id: string; title: string; example: string }[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {options.map((option) => {
+        const selected = value === option.id;
+        return <button
+          key={option.id}
+          type="button"
+          aria-pressed={selected}
+          disabled={disabled}
+          onClick={() => onChange(option.id)}
+          className={cn(
+            "rounded-xl border bg-card p-4 text-left transition-all hover:border-primary/60 hover:bg-primary/[0.03]",
+            selected && "border-primary bg-primary/[0.05] ring-1 ring-primary",
+          )}
+        >
+          <span className="block text-sm font-medium">{option.title}</span>
+          <span className="mt-1 block text-xs text-muted-foreground">{option.example}</span>
+        </button>;
+      })}
+    </div>
+  );
+}
+
 export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId = null }: {
   flow: OnboardingFlowId;
   initialStep: string | null;
@@ -84,24 +140,24 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
   initialBlogId?: string | null;
 }) {
   const router = useRouter();
-  const steps = flowSteps(flow);
-  const [index, setIndex] = useState(stepIndex(flow, initialStep));
   const [blogId, setBlogId] = useState(initialBlogId);
   const [values, setValues] = useState<OnboardingValues>(() => Object.fromEntries(
     ONBOARDING_STEPS.flatMap((step) => step.fields.map((field): [string, string | string[]] => {
       const multiple = "multiple" in field && field.multiple;
-      const fallback = field.name === "draftsPerWeek" ? "2"
-        : field.name === "publishingMode" ? "auto_publish"
-          : field.name === "audienceChoice" ? "founders"
-            : field.name === "voiceChoice" ? "clear-expert"
-              : "";
+      const fallback = FIELD_DEFAULTS[field.name] ?? "";
       if (field.name === "languages") return [field.name, initialValues.languages ?? ["en"]];
+      // Reference lists start empty; other multi-value fields start with one input.
+      if (field.name.endsWith("References")) return [field.name, initialValues[field.name] ?? []];
       return [field.name, initialValues[field.name] ?? (multiple ? [""] : fallback)];
     })),
   ));
   const [error, setError] = useState("");
   const [finished, setFinished] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Which steps apply depends on the answers (e.g. writing by hand skips Autopilot).
+  const steps = visibleSteps(flow, values);
+  const [stepId, setStepId] = useState(() => resolveVisibleStep(flow, initialStep, values)?.id ?? steps[0]?.id);
+  const index = Math.max(0, steps.findIndex((item) => item.id === stepId));
   const step = steps[index];
 
   function submit(event: React.FormEvent) {
@@ -125,7 +181,7 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
         setTimeout(() => router.replace(destination), 1600);
         return;
       }
-      setIndex((current) => current + 1);
+      if (result.nextStep) setStepId(result.nextStep);
     });
   }
 
@@ -160,7 +216,47 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
               />
             </label>}
           </div>
-        ) : step.id === "autopilot-audience" ? (
+        ) : step.id === "content-mode" ? (
+          <ChoiceCards options={CONTENT_MODE_OPTIONS} value={values.contentMode as string} onChange={(contentMode) => setValues((current) => ({ ...current, contentMode }))} disabled={pending} />
+        ) : step.id === "autopilot-thumbnails" ? (
+          <ChoiceCards options={THUMBNAIL_CHOICES} value={values.thumbnailEnabled as string} onChange={(thumbnailEnabled) => setValues((current) => ({ ...current, thumbnailEnabled }))} disabled={pending} />
+        ) : step.id === "autopilot-inline-images" ? (
+          <ChoiceCards options={INLINE_IMAGE_CHOICES} value={values.inlineImagesEnabled as string} onChange={(inlineImagesEnabled) => setValues((current) => ({ ...current, inlineImagesEnabled }))} disabled={pending} />
+        ) : step.id === "autopilot-thumbnail-style" || step.id === "autopilot-inline-style" ? (() => {
+          const prefix = step.id === "autopilot-thumbnail-style" ? "thumbnail" : "inline";
+          const choiceField = `${prefix}StyleChoice`;
+          const customField = `${prefix}StyleCustom`;
+          const referencesField = `${prefix}References`;
+          const presets = prefix === "thumbnail" ? THUMBNAIL_STYLE_OPTIONS : INLINE_IMAGE_STYLE_OPTIONS;
+          return (
+            <div className="space-y-6">
+              <ChoiceCards
+                options={[...presets, { id: "other", title: "Other", example: "Describe the style you want." }]}
+                value={values[choiceField] as string}
+                onChange={(choice) => setValues((current) => ({ ...current, [choiceField]: choice }))}
+                disabled={pending}
+              />
+              {values[choiceField] === "other" && <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
+                <Label htmlFor={customField}>Describe the style</Label>
+                <Textarea
+                  id={customField}
+                  value={values[customField] as string}
+                  onChange={(event) => setValues((current) => ({ ...current, [customField]: event.target.value }))}
+                  placeholder="For example: muted pastel illustrations with soft grain, lots of white space…"
+                  maxLength={1000}
+                  disabled={pending}
+                  autoFocus
+                />
+              </div>}
+              <StyleReferencesPicker
+                blogId={blogId}
+                value={values[referencesField] as string[]}
+                onChange={(references) => setValues((current) => ({ ...current, [referencesField]: references }))}
+                disabled={pending}
+              />
+            </div>
+          );
+        })() : step.id === "autopilot-audience" ? (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {[...AUTOPILOT_AUDIENCE_OPTIONS, { id: "other", title: "Other", example: "Describe your exact audience." }].map((option) => {
@@ -301,7 +397,7 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
 
       <div className="flex items-center justify-between">
         {index > 0 ? (
-          <Button type="button" variant="ghost" disabled={pending} onClick={() => setIndex((current) => current - 1)}>
+          <Button type="button" variant="ghost" disabled={pending} onClick={() => setStepId(steps[index - 1].id)}>
             <ArrowLeft /> Back
           </Button>
         ) : flow === "new-blog" ? (
