@@ -47,6 +47,7 @@ model Blog {
   contentMode String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
 
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   posts      Post[]
@@ -68,6 +69,7 @@ model Blog {
   postSeoTargets          PostSeoTarget[]
 
   @@index([userId])
+  @@index([userId, deletedAt])
   @@index([blogId])
 }
 

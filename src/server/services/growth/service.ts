@@ -48,8 +48,8 @@ function json(value: unknown): Prisma.InputJsonValue {
 
 export async function getGrowthDashboard(blogId: string) {
   const [blog, settings, items, coveredTopics, lastDiscoveryRun] = await Promise.all([
-    prisma.blog.findUnique({
-      where: { id: blogId },
+    prisma.blog.findFirst({
+      where: { id: blogId, deletedAt: null },
       select: { id: true, name: true, user: { select: { plan: true, openaiApiKeyEncrypted: true } } },
     }),
     prisma.blogSeoSettings.findUnique({ where: { blogId } }),
@@ -288,7 +288,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
   let postId: string | null = null;
   try {
     const [blog, settings, apiKey] = await Promise.all([
-      prisma.blog.findUnique({ where: { id: blogId }, select: { blogId: true, name: true, description: true } }),
+      prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { blogId: true, name: true, description: true } }),
       prisma.blogSeoSettings.findUnique({ where: { blogId } }),
       resolveBlogOpenAiKey(blogId),
     ]);

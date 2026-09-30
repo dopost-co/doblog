@@ -270,7 +270,7 @@ export async function discoverContentOpportunities(blogId: string, trigger = "da
   const warnings: string[] = [];
   try {
     const [blog, posts, planItems, targets, apiKey] = await Promise.all([
-      prisma.blog.findUnique({ where: { id: blogId }, select: { name: true, description: true } }),
+      prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { name: true, description: true } }),
       prisma.post.findMany({ where: { blogId, language: settings.languageCode }, orderBy: { updatedAt: "desc" }, take: 300, select: { title: true, slug: true, excerpt: true } }),
       prisma.contentPlanItem.findMany({ where: { blogId, language: settings.languageCode }, select: { primaryKeyword: true, title: true } }),
       prisma.postSeoTarget.findMany({ where: { blogId, language: settings.languageCode }, select: { primaryKeyword: true } }),
@@ -371,7 +371,7 @@ export async function discoverContentOpportunities(blogId: string, trigger = "da
 
 export async function runDueContentDiscoveries(limit = 3) {
   const due = await prisma.blogSeoSettings.findMany({
-    where: { discoveryEnabled: true, targetDomain: { not: null }, nextDiscoveryAt: { lte: new Date() } },
+    where: { discoveryEnabled: true, targetDomain: { not: null }, nextDiscoveryAt: { lte: new Date() }, blog: { deletedAt: null } },
     orderBy: { nextDiscoveryAt: "asc" }, take: Math.max(1, Math.min(limit, 5)), select: { blogId: true },
   });
   const settled = await Promise.allSettled(due.map(item => discoverContentOpportunities(item.blogId, "scheduler")));

@@ -32,8 +32,8 @@ export async function getBlogMembers(blogId: string): Promise<{
 
   try {
     // Get blog to verify access and get owner email
-    const blog = await prisma.blog.findUnique({
-      where: { id: blogId },
+    const blog = await prisma.blog.findFirst({
+      where: { id: blogId, deletedAt: null },
       include: {
         user: {
           select: {

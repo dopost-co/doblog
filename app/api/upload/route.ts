@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const blogId = formData.get("blogId");
     if (!(file instanceof File) || typeof blogId !== "string") throw new ApiError(400, "Image and blogId required");
     const email = session.user.email?.trim().toLowerCase();
-    const blog = await prisma.blog.findFirst({ where: { id: blogId, OR: [
+    const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null, OR: [
       { userId: session.user.id }, ...(email ? [{ members: { some: { userEmail: email } } }] : []),
     ] }, select: { id: true } });
     if (!blog) throw new ApiError(403, "No access to this blog");

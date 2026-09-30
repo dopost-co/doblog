@@ -10,7 +10,7 @@ export async function runDueDraftGenerations(limit = 10) {
   const due = await prisma.contentPlanItem.findMany({
     where: {
       status: "planned", postId: null, scheduledFor: { lte: new Date() },
-      blog: { seoSettings: { draftAutomationEnabled: true } },
+      blog: { deletedAt: null, seoSettings: { draftAutomationEnabled: true } },
     },
     orderBy: { scheduledFor: "asc" }, take: Math.max(1, Math.min(limit, 25)),
     select: { id: true, blogId: true },

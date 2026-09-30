@@ -15,7 +15,7 @@ import { queueContentPlanDraft } from "./draft-queue";
 async function requireOwner(blogId: string) {
   const session = await getSession();
   if (!session?.user?.id) throw new ApiError(401, "Sign in to manage the content plan");
-  const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id }, select: { id: true } });
+  const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id, deletedAt: null }, select: { id: true } });
   if (!blog) throw new ApiError(403, "Only the blog owner can run AI generation");
   return blog;
 }

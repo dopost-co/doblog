@@ -34,7 +34,7 @@ export async function listMcpConnections(blogId: string) {
     },
   });
   const blogIds = [...new Set(grants.flatMap(grant => grant.blogIds))];
-  const blogs = await prisma.blog.findMany({ where: { id: { in: blogIds } }, select: { id: true, name: true } });
+  const blogs = await prisma.blog.findMany({ where: { id: { in: blogIds }, deletedAt: null }, select: { id: true, name: true } });
   const names = new Map(blogs.map(blog => [blog.id, blog.name]));
   return grants.map(grant => ({
     id: grant.id,

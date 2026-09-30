@@ -38,9 +38,9 @@ export async function authenticateApiKey(request: Request, publicBlogId?: string
   if (!match) throw new ApiError(401, "A valid Bearer API key is required");
   const key = await prisma.apiKey.findUnique({
     where: { tokenHash: hashApiKey(match[1]) },
-    include: { blog: { select: { blogId: true } } },
+    include: { blog: { select: { blogId: true, deletedAt: true } } },
   });
-  if (!key || key.revokedAt || (!key.neverExpires && (!key.expiresAt || key.expiresAt <= new Date()))) throw new ApiError(401, "Invalid or expired API key");
+  if (!key || key.blog.deletedAt || key.revokedAt || (!key.neverExpires && (!key.expiresAt || key.expiresAt <= new Date()))) throw new ApiError(401, "Invalid or expired API key");
   if (publicBlogId && key.blog.blogId !== publicBlogId) throw new ApiError(403, "API key does not grant access to this blog");
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     UPDATE "ApiKey" SET

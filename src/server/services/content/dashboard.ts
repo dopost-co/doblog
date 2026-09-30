@@ -12,6 +12,7 @@ export async function dashboardOperation(blogId: string, name: OperationName, in
   const email = session.user.email?.trim().toLowerCase();
   const blog = await prisma.blog.findFirst({ where: {
     id: blogId,
+    deletedAt: null,
     OR: [{ userId: session.user.id }, ...(email && name !== "update_blog" ? [{ members: { some: { userEmail: email } } }] : [])],
   } });
   if (!blog) throw new ApiError(403, "Unauthorized");

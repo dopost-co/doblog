@@ -17,7 +17,7 @@ export default async function NewBlogOnboardingPage({ searchParams }: { searchPa
 
   const { blog: blogParam } = await searchParams;
   const blogId = typeof blogParam === "string" ? blogParam : null;
-  const blog = blogId ? await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id }, select: { id: true } }) : null;
+  const blog = blogId ? await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id, deletedAt: null }, select: { id: true } }) : null;
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-4">

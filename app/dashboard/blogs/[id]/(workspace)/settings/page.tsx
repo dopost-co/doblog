@@ -8,6 +8,7 @@ import { BlogNameSettings } from "@/components/BlogNameSettings/BlogNameSettings
 import { BlogLanguagesSettings } from "@/components/BlogLanguages/BlogLanguagesSettings";
 import { SettingsSectionHeader } from "@/components/SettingsNav/SettingsNav";
 import { Label } from "@/components/ui/label";
+import { DeleteBlog } from "@/components/DeleteBlog/DeleteBlog";
 
 export default async function BlogSettingsPage({
   params,
@@ -54,6 +55,7 @@ export default async function BlogSettingsPage({
         </div>
         <ImportPostsDialog blogId={id} />
       </div>
+      {isOwner && <DeleteBlog blogId={id} blogName={blog.name} />}
     </div>
   );
 }

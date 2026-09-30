@@ -48,8 +48,8 @@ export async function importPostsInBulk(data: {
 
   try {
     // Verify blog access
-    const blog = await prisma.blog.findUnique({
-      where: { id: data.blogId },
+    const blog = await prisma.blog.findFirst({
+      where: { id: data.blogId, deletedAt: null },
     });
 
     if (!blog) {

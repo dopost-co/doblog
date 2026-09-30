@@ -36,7 +36,7 @@ export async function resolveOpenAiKey(ownerUserId: string): Promise<string> {
 }
 
 export async function resolveBlogOpenAiKey(blogId: string): Promise<string> {
-  const blog = await prisma.blog.findUnique({ where: { id: blogId }, select: { userId: true } });
+  const blog = await prisma.blog.findUnique({ where: { id: blogId, deletedAt: null }, select: { userId: true } });
   if (!blog) throw new ApiError(404, "Blog not found");
   return resolveOpenAiKey(blog.userId);
 }
@@ -49,7 +49,7 @@ export type DataForSeoAccess = { credentialId: string | null; login: string; pas
  */
 export async function resolveDataForSeoAccess(blogId: string): Promise<DataForSeoAccess> {
   const blog = await prisma.blog.findUnique({
-    where: { id: blogId },
+    where: { id: blogId, deletedAt: null },
     select: { user: { select: { plan: true } }, seoSettings: { include: { credential: true } } },
   });
   if (!blog) throw new ApiError(404, "Blog not found");

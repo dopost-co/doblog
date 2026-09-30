@@ -17,8 +17,8 @@ export async function userHasAccessToBlog(
 ): Promise<boolean> {
   try {
     const normalizedEmail = userEmail.toLowerCase().trim();
-    const blog = await prisma.blog.findUnique({
-      where: { id: blogId },
+    const blog = await prisma.blog.findFirst({
+      where: { id: blogId, deletedAt: null },
     });
 
     if (!blog) {
@@ -59,8 +59,8 @@ export async function addBlogMember(blogId: string, email: string) {
     const validatedEmail = emailSchema.parse(email.toLowerCase().trim());
 
     // Get blog and verify ownership
-    const blog = await prisma.blog.findUnique({
-      where: { id: blogId },
+    const blog = await prisma.blog.findFirst({
+      where: { id: blogId, deletedAt: null },
       include: {
         user: {
           select: {
@@ -131,8 +131,8 @@ export async function removeBlogMember(blogId: string, memberId: string) {
 
   try {
     // Get blog and verify ownership
-    const blog = await prisma.blog.findUnique({
-      where: { id: blogId },
+    const blog = await prisma.blog.findFirst({
+      where: { id: blogId, deletedAt: null },
     });
 
     if (!blog) {
@@ -169,5 +169,4 @@ export async function removeBlogMember(blogId: string, memberId: string) {
     return { error: "Failed to remove blog member" };
   }
 }
-
 

@@ -57,7 +57,7 @@ async function usageSince(blogId: string, since: Date) {
 export async function getSeoSettingsSummary(blogId: string) {
   const [settings, blog] = await Promise.all([
     prisma.blogSeoSettings.findUnique({ where: { blogId }, include: { credential: { select: { label: true, loginHint: true, verifiedAt: true } } } }),
-    prisma.blog.findUnique({ where: { id: blogId }, select: { user: { select: { plan: true } } } }),
+    prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { user: { select: { plan: true } } } }),
   ]);
   const managed = isManagedPlan(blog?.user.plan);
   if (!settings) return { configured: managed, enabled: false };

@@ -90,6 +90,7 @@ export async function publishDueScheduledPosts(options: { blogId?: string; now?:
     where: {
       status: "scheduled",
       publishedAt: { lte: new Date(now.getTime() + DUE_SKEW_MS) },
+      blog: { deletedAt: null },
       ...(options.blogId ? { blogId: options.blogId } : {}),
     },
     select: { id: true, blogId: true, publishedAt: true, blog: { select: { blogId: true } } },
@@ -122,6 +123,7 @@ export async function rearmScheduledPosts(options: { blogId?: string; now?: Date
       status: "scheduled",
       scheduleMessageId: null,
       publishedAt: { gt: now },
+      blog: { deletedAt: null },
       ...(options.blogId ? { blogId: options.blogId } : {}),
     },
     select: { id: true },

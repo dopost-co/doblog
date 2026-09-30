@@ -188,6 +188,7 @@ export async function assertBlogsAccessible(userId: string, userEmail: string, b
   const blogs = await prisma.blog.findMany({
     where: {
       id: { in: uniqueIds },
+      deletedAt: null,
       OR: [{ userId }, { members: { some: { userEmail: userEmail.toLowerCase().trim() } } }],
     },
     select: { id: true, blogId: true, name: true, slug: true, userId: true },

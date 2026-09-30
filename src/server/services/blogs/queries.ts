@@ -6,6 +6,7 @@ export async function getBlogsByUserId(userId: string, userEmail?: string) {
   const ownedBlogs = await prisma.blog.findMany({
     where: {
       userId,
+      deletedAt: null,
     },
     orderBy: {
       createdAt: "desc",
@@ -25,6 +26,7 @@ export async function getBlogsByUserId(userId: string, userEmail?: string) {
     const memberRecords = await prisma.blogMember.findMany({
       where: {
         userEmail: userEmail.toLowerCase().trim(),
+        blog: { deletedAt: null },
       },
       include: {
         blog: {
@@ -60,8 +62,8 @@ export async function getBlogsByUserId(userId: string, userEmail?: string) {
 }
 
 export async function getBlogById(id: string) {
-  return prisma.blog.findUnique({
-    where: { id },
+  return prisma.blog.findFirst({
+    where: { id, deletedAt: null },
     include: {
       _count: {
         select: {
@@ -75,8 +77,8 @@ export async function getBlogById(id: string) {
 export async function getBlogByBlogId(blogId: string) {
   return unstable_cache(
     async () => {
-      return prisma.blog.findUnique({
-        where: { blogId },
+      return prisma.blog.findFirst({
+        where: { blogId, deletedAt: null },
       });
     },
     [`blog-${blogId}`],
@@ -86,4 +88,3 @@ export async function getBlogByBlogId(blogId: string) {
     }
   )();
 }
-

@@ -14,7 +14,7 @@ const SYNC_DELAY_MS = 10_000;
  */
 export async function queueTranslationSync(blogId: string, previous: Post | null, post: Post) {
   try {
-    const blog = await prisma.blog.findUnique({ where: { id: blogId }, select: { autoSyncTranslations: true } });
+    const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { autoSyncTranslations: true } });
     if (!blog?.autoSyncTranslations) return;
 
     const current = !previous || translatableTextChanged(previous, post)

@@ -32,7 +32,7 @@ async function requireOwner(blogId: string) {
   const session = await getSession();
   if (!session?.user?.id) throw new ApiError(401, "Sign in to manage SEO settings");
   const blog = await prisma.blog.findFirst({
-    where: { id: blogId, userId: session.user.id },
+    where: { id: blogId, userId: session.user.id, deletedAt: null },
     select: { id: true, userId: true, user: { select: { plan: true } } },
   });
   if (!blog) throw new ApiError(403, "Only the blog owner can manage SEO settings");

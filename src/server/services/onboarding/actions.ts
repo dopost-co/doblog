@@ -24,7 +24,7 @@ const list = (value: string | string[] | undefined) => (Array.isArray(value) ? v
 /** The blog the Autopilot steps configure; it must belong to the user. */
 async function onboardingBlog({ userId, blogId }: Context) {
   if (!blogId) throw new ApiError(409, "Create your blog before configuring Autopilot");
-  const blog = await prisma.blog.findFirst({ where: { id: blogId, userId }, select: { id: true } });
+  const blog = await prisma.blog.findFirst({ where: { id: blogId, userId, deletedAt: null }, select: { id: true } });
   if (!blog) throw new ApiError(404, "Blog not found");
   return blog;
 }
@@ -54,7 +54,7 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
       await prisma.blog.update({ where: { id: blog.id }, data: { name } });
       return blog.id;
     }
-    const existing = await prisma.blog.findMany({ where: { userId: context.userId }, select: { slug: true } });
+    const existing = await prisma.blog.findMany({ where: { userId: context.userId, deletedAt: null }, select: { slug: true } });
     const slugs = new Set(existing.map((blog) => blog.slug));
     const base = slugify(name) || "blog";
     let slug = base;

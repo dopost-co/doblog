@@ -7,7 +7,7 @@ export async function integrationBlog(id: string) {
   const session = await getSession();
   if (!session?.user?.id) redirect("/");
   const email = session.user.email?.trim().toLowerCase();
-  const blog = await prisma.blog.findFirst({ where: { id, OR: [
+  const blog = await prisma.blog.findFirst({ where: { id, deletedAt: null, OR: [
     { userId: session.user.id }, ...(email ? [{ members: { some: { userEmail: email } } }] : []),
   ] } });
   if (!blog) redirect("/dashboard");

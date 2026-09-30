@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
 import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
 
 const createBlogSchema = z.object({
@@ -36,6 +36,7 @@ export async function createBlog(data: {
       where: {
         userId: session.user.id,
         slug: validated.slug,
+        deletedAt: null,
       },
     });
 
@@ -77,8 +78,8 @@ export async function updateBlog(
     const validated = updateBlogSchema.partial().parse(data);
 
     // Check ownership (only owner can update blog)
-    const blog = await prisma.blog.findUnique({
-      where: { id },
+    const blog = await prisma.blog.findFirst({
+      where: { id, deletedAt: null },
     });
 
     if (!blog) {
@@ -96,6 +97,7 @@ export async function updateBlog(
           userId: session.user.id,
           slug: validated.slug,
           id: { not: id },
+          deletedAt: null,
         },
       });
 
@@ -134,7 +136,7 @@ export async function updateBlogLanguages(id: string, data: { languages: string[
     return { error: error instanceof Error ? error.message : "Choose the blog languages" };
   }
 
-  const blog = await prisma.blog.findUnique({ where: { id }, select: { userId: true, languages: true } });
+  const blog = await prisma.blog.findFirst({ where: { id, deletedAt: null }, select: { userId: true, languages: true } });
   if (!blog) return { error: "Blog not found" };
   if (blog.userId !== session.user.id) return { error: "Only the blog owner can change its languages" };
 
@@ -148,15 +150,15 @@ export async function updateBlogLanguages(id: string, data: { languages: string[
   return { success: true, languages, autoSyncTranslations };
 }
 
-export async function deleteBlog(id: string) {
+export async function deleteBlog(id: string, confirmationName: string) {
   const session = await getSession();
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
   }
 
   try {
-    const blog = await prisma.blog.findUnique({
-      where: { id },
+    const blog = await prisma.blog.findFirst({
+      where: { id, deletedAt: null },
     });
 
     if (!blog) {
@@ -168,13 +170,19 @@ export async function deleteBlog(id: string) {
       return { error: "Unauthorized: Only the blog owner can delete the blog" };
     }
 
-    await prisma.blog.delete({
+    if (confirmationName !== blog.name) {
+      return { error: "Enter the blog name exactly as shown" };
+    }
+
+    await prisma.blog.update({
       where: { id },
+      data: { deletedAt: new Date() },
     });
 
+    updateTag(`blog-${blog.blogId}`);
     revalidatePath("/dashboard");
     return { success: true };
-  } catch (error) {
+  } catch {
     return { error: "Failed to delete blog" };
   }
 }

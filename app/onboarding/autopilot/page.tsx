@@ -19,7 +19,7 @@ export default async function AutopilotOnboardingPage({ searchParams }: { search
   const { blog: blogParam } = await searchParams;
   const blog = typeof blogParam === "string"
     ? await prisma.blog.findFirst({
-        where: { id: blogParam, userId: session.user.id },
+        where: { id: blogParam, userId: session.user.id, deletedAt: null },
         select: { id: true, seoSettings: { select: { targetDomain: true, audience: true, brandVoice: true } } },
       })
     : null;

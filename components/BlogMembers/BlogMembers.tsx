@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addBlogMember, removeBlogMember } from "@/src/server/services/blogs/members/mutations";
-import { Loader2, Trash2, UserPlus } from "lucide-react";
+import { Check, Copy, Loader2, Trash2, UserPlus } from "lucide-react";
 
 interface BlogMember {
   id: string;
@@ -37,6 +37,8 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [recentlyInvitedEmail, setRecentlyInvitedEmail] = useState("");
+  const [copiedEmail, setCopiedEmail] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
@@ -44,6 +46,7 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
     e.preventDefault();
     setError("");
     setSuccessMessage("");
+    setRecentlyInvitedEmail("");
     setIsAdding(true);
 
     try {
@@ -58,13 +61,32 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
           setMembers((current) => [...current, result.member]);
         }
         setEmail("");
-        setSuccessMessage(`Successfully added ${addedEmail} as a member`);
+        setRecentlyInvitedEmail(addedEmail);
+        setSuccessMessage(`${addedEmail} can now access this blog`);
         setIsAdding(false);
         router.refresh();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add member");
       setIsAdding(false);
+    }
+  }
+
+  function invitationUrl(invitedEmail: string) {
+    const url = new URL("/", window.location.origin);
+    url.searchParams.set("callbackUrl", `/dashboard/blogs/${blogId}`);
+    url.searchParams.set("email", invitedEmail);
+    return url.toString();
+  }
+
+  async function copyInvitation(invitedEmail: string) {
+    setError("");
+    try {
+      await navigator.clipboard.writeText(invitationUrl(invitedEmail));
+      setCopiedEmail(invitedEmail);
+      window.setTimeout(() => setCopiedEmail((current) => current === invitedEmail ? "" : current), 2000);
+    } catch {
+      setError("Could not copy the invitation link");
     }
   }
 
@@ -150,7 +172,17 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
             ) : !member.user ? (
               <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground">Pending</span>
             ) : null}
-            {isOwner && !member.isOwner && (
+            {isOwner && !member.isOwner && <div className="flex shrink-0 items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Copy invitation link for ${member.userEmail}`}
+                onClick={() => copyInvitation(member.userEmail)}
+              >
+                {copiedEmail === member.userEmail ? <Check /> : <Copy />}
+                <span className="hidden sm:inline">{copiedEmail === member.userEmail ? "Copied" : "Copy invite"}</span>
+              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -161,7 +193,7 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
               >
                 {removingId === member.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
               </Button>
-            )}
+            </div>}
           </div>
         ))}
       </div>
@@ -172,8 +204,12 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
         </div>
       )}
       {successMessage && (
-        <div className="rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20">
+        <div className="flex flex-col gap-3 rounded-md border border-green-200 bg-green-50 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-green-800 dark:bg-green-900/20">
           <p className="text-sm text-green-800 dark:text-green-200">{successMessage}</p>
+          {recentlyInvitedEmail && <Button type="button" variant="outline" size="sm" onClick={() => copyInvitation(recentlyInvitedEmail)}>
+            {copiedEmail === recentlyInvitedEmail ? <Check /> : <Copy />}
+            {copiedEmail === recentlyInvitedEmail ? "Copied" : "Copy invite link"}
+          </Button>}
         </div>
       )}
     </div>

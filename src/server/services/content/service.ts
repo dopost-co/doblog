@@ -143,14 +143,15 @@ export async function executeOperation(principal: ApiPrincipal, name: OperationN
     return { data: await uploadBlogImage(blogId, Buffer.from(data.base64, "base64"), data.mimeType, 700 * 1024) };
   }
   if (name === "get_blog") {
-    const blog = await prisma.blog.findUnique({ where: { id: blogId }, select: blogSelect });
+    const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: blogSelect });
     if (!blog) throw new ApiError(404, "Blog not found");
     return { data: blog };
   }
   if (name === "update_blog") {
     const data = schemas.blogUpdateSchema.parse(input);
-    const blog = await prisma.blog.findUniqueOrThrow({ where: { id: blogId } });
-    if (data.slug && await prisma.blog.findFirst({ where: { userId: blog.userId, slug: data.slug, id: { not: blogId } }, select: { id: true } })) throw new ApiError(409, "Blog slug already exists");
+    const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null } });
+    if (!blog) throw new ApiError(404, "Blog not found");
+    if (data.slug && await prisma.blog.findFirst({ where: { userId: blog.userId, slug: data.slug, id: { not: blogId }, deletedAt: null }, select: { id: true } })) throw new ApiError(409, "Blog slug already exists");
     return { data: await prisma.blog.update({ where: { id: blogId }, data, select: blogSelect }) };
   }
   if (name === "translate_posts") {

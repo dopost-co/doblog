@@ -8,15 +8,18 @@ import type { OnboardingFlowId } from "@/lib/onboarding/steps";
  * sets up their profile and first blog.
  */
 export async function resolveUserFlow(userId: string, email: string | null | undefined): Promise<OnboardingFlowId> {
-  const ownsBlog = await prisma.blog.count({ where: { userId } });
+  const ownsBlog = await prisma.blog.count({ where: { userId, deletedAt: null } });
   if (ownsBlog || !email) return "new-user";
-  const invite = await prisma.blogMember.findFirst({ where: { userEmail: email.toLowerCase().trim() }, select: { id: true } });
+  const invite = await prisma.blogMember.findFirst({
+    where: { userEmail: email.toLowerCase().trim(), blog: { deletedAt: null } },
+    select: { id: true },
+  });
   return invite ? "invited-user" : "new-user";
 }
 
 /** Blog-related answers already saved, so a resumed onboarding shows them again. */
 export async function blogOnboardingValues(blogId: string) {
-  const blog = await prisma.blog.findUnique({ where: { id: blogId }, select: { name: true, languages: true, autoSyncTranslations: true, contentMode: true, seoSettings: true } });
+  const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { name: true, languages: true, autoSyncTranslations: true, contentMode: true, seoSettings: true } });
   if (!blog) return {};
   const settings = blog.seoSettings;
   const audiencePreset = AUTOPILOT_AUDIENCE_OPTIONS.find((option) => option.value === settings?.audience);

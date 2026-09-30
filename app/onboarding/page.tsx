@@ -18,7 +18,7 @@ export default async function OnboardingPage() {
       name: true,
       onboardingCompleted: true,
       onboardingStep: true,
-      blogs: { orderBy: { createdAt: "asc" }, take: 1, select: { id: true } },
+      blogs: { where: { deletedAt: null }, orderBy: { createdAt: "asc" }, take: 1, select: { id: true } },
     },
   });
   if (!user) redirect("/api/auth/signout");

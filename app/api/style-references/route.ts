@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const file = formData.get("image");
     const blogId = formData.get("blogId");
     if (!(file instanceof File) || typeof blogId !== "string") throw new ApiError(400, "Image and blogId required");
-    const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id }, select: { id: true } });
+    const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id, deletedAt: null }, select: { id: true } });
     if (!blog) throw new ApiError(403, "Only the blog owner can add style references");
     const url = await uploadStyleReference(blog.id, Buffer.from(await file.arrayBuffer()), file.type);
     return privateJson({ url });

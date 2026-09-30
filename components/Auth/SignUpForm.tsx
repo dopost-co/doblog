@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { signUp } from "@/src/server/services/users/mutations";
 
-export function SignUpForm({ callbackUrl }: { callbackUrl: string }) {
+export function SignUpForm({ callbackUrl, initialEmail = "" }: { callbackUrl: string; initialEmail?: string }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -49,7 +49,7 @@ export function SignUpForm({ callbackUrl }: { callbackUrl: string }) {
         router.push(callbackUrl);
         router.refresh();
       }
-    } catch (error) {
+    } catch {
       setError("Something went wrong");
       setIsLoading(false);
     }
@@ -131,4 +131,3 @@ export function SignUpForm({ callbackUrl }: { callbackUrl: string }) {
     </Card>
   );
 }
-

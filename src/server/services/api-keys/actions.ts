@@ -11,7 +11,7 @@ async function requireOwner(blogId: string) {
   idSchema.parse(blogId);
   const session = await getSession();
   if (!session?.user?.id) throw new ApiError(401, "Sign in to manage API keys");
-  const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id }, select: { id: true } });
+  const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id, deletedAt: null }, select: { id: true } });
   if (!blog) throw new ApiError(403, "Only the blog owner can manage API keys");
 }
 
