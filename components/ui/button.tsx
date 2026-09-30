@@ -9,7 +9,17 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // Soft, slightly glossy surface: a light top edge and a shaded bottom inside the button, pressed in on click.
+        // White in light mode (a stronger border than outline keeps it primary); a raised dark surface in dark mode.
+        default: [
+          "border border-neutral-300 bg-linear-to-b from-white to-neutral-100 text-foreground",
+          "shadow-[inset_0_1px_0_rgb(255_255_255),inset_0_-2px_1px_rgb(0_0_0/0.06),0_1px_2px_rgb(0_0_0/0.08)]",
+          "hover:from-neutral-50 hover:to-neutral-200/70",
+          "active:shadow-[inset_0_2px_3px_rgb(0_0_0/0.1)] active:from-neutral-100 active:to-neutral-100",
+          "dark:border-white/10 dark:from-neutral-700 dark:to-neutral-800 dark:text-foreground",
+          "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.12),inset_0_-2px_1px_rgb(0_0_0/0.3),0_1px_2px_rgb(0_0_0/0.4)]",
+          "dark:hover:from-neutral-600 dark:hover:to-neutral-700 dark:active:shadow-[inset_0_2px_3px_rgb(0_0_0/0.4)] dark:active:from-neutral-800 dark:active:to-neutral-800",
+        ].join(" "),
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:

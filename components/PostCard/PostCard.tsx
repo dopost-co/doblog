@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Languages, MoreHorizontal, Star, Trash2, Undo2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -169,9 +169,10 @@ export function PostCard({
                   {currentStatus === "scheduled" ? "Unschedule" : "Move to draft"}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuCheckboxItem checked={isFeatured} onCheckedChange={toggleFeatured}>
+              <DropdownMenuItem role="menuitemcheckbox" aria-checked={isFeatured} onSelect={() => toggleFeatured(!isFeatured)}>
+                <Star className={cn(isFeatured && "fill-amber-400 text-amber-500")} />
                 Featured
-              </DropdownMenuCheckboxItem>
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setTranslateOpen(true)}>
                 <Languages /> Translate to…
               </DropdownMenuItem>

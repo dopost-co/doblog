@@ -127,7 +127,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {message ? <p role={message.tone === "error" ? "alert" : "status"} className={cn("text-sm", message.tone === "error" ? "text-destructive" : "text-muted-foreground")}>{message.text}</p> : <span />}
-          <Button variant="outline" size="sm" onClick={() => setAdding(true)} disabled={pending}><Plus />Add idea</Button>
+          <Button size="sm" onClick={() => setAdding(true)} disabled={pending}><Plus />Add idea</Button>
         </div>
         {items.length === 0 ? (
           <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">No ideas yet. New ones appear after the next refresh.</p>
