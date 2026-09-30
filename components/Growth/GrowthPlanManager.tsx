@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Check, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarClock, Check, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { languages } from "@/lib/languages";
 import { addPlanItemAction, generatePlanItemAction, removePlanItemAction } from "@/src/server/services/growth/actions";
 import { Button } from "@/components/ui/button";
@@ -169,7 +169,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                       <Button asChild variant="outline"><Link href={`/dashboard/blogs/${blogId}/posts/${item.post.id}/edit`}><Check />{item.post.status === "published" ? "View article" : "Review draft"}</Link></Button>
                     ) : (
                       <Button onClick={() => generate(item.id)} disabled={pending || !aiReady} variant={item.scheduledFor ? "outline" : "default"}>
-                        {working ? <LoaderCircle className="animate-spin" /> : <Sparkles />}
+                        {working && <LoaderCircle className="animate-spin" />}
                         {item.status === "failed" ? "Try again" : "Write now"}
                       </Button>
                     )}
