@@ -6,11 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import {
   addContentPlanItem,
-  generateContentPlanDraft,
   planItemInputSchema,
   removeContentPlanItem,
 } from "./service";
 import { discoverContentOpportunities, saveDiscoverySettings, setAutopilotActive } from "./discovery";
+import { queueContentPlanDraft } from "./draft-queue";
 
 async function requireOwner(blogId: string) {
   const session = await getSession();
@@ -42,13 +42,13 @@ export async function removePlanItemAction(blogId: string, itemId: string) {
   }
 }
 
+/** Queues writing; the Ideas list shows the progress until the draft is ready. */
 export async function generatePlanItemAction(blogId: string, itemId: string) {
   try {
     await requireOwner(blogId);
-    const result = await generateContentPlanDraft(blogId, itemId, "dashboard");
+    await queueContentPlanDraft(blogId, itemId, "dashboard");
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
-    revalidatePath(`/dashboard/blogs/${blogId}`);
-    return { success: true, ...result };
+    return { success: true };
   } catch (error) {
     return { error: apiError(error).error };
   }

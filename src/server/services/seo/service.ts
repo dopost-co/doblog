@@ -66,7 +66,9 @@ export async function getSeoSettingsSummary(blogId: string) {
     locationCode: settings.locationCode, languageCode: settings.languageCode, timezone: settings.timezone,
     competitorDomains: settings.competitorDomains, audience: settings.audience, brandVoice: settings.brandVoice,
     publishingMode: settings.publishingMode,
+    thumbnailEnabled: settings.thumbnailEnabled,
     thumbnailStyle: settings.thumbnailStyle,
+    inlineImagesEnabled: settings.inlineImagesEnabled,
     inlineImageStyle: settings.inlineImageStyle,
     maxInlineImages: settings.maxInlineImages,
     articleUrlPrefix: settings.articleUrlPrefix,
@@ -78,7 +80,12 @@ export async function getSeoSettingsSummary(blogId: string) {
     draftsPerWeek: settings.draftsPerWeek,
     nextDiscoveryAt: settings.nextDiscoveryAt?.toISOString() || null,
     lastDiscoveryAt: settings.lastDiscoveryAt?.toISOString() || null,
-    imagePolicy: "Create one distinct thumbnail when authoring a complete article. Add zero to maxInlineImages images inside the content only when each one explains something useful; the thumbnail does not count toward this maximum and must not be reused as an inline image.",
+    imagePolicy: [
+      settings.thumbnailEnabled ? "Create one distinct thumbnail when authoring a complete article." : "Do not create a thumbnail.",
+      settings.inlineImagesEnabled
+        ? "Add zero to maxInlineImages images inside the content only when each one explains something useful; the thumbnail does not count toward this maximum and must not be reused as an inline image."
+        : "Do not add images inside the content.",
+    ].join(" "),
     budgetsUsd: { perRun: microsToUsd(settings.perRunBudgetUsdMicros), daily: microsToUsd(settings.dailyBudgetUsdMicros), monthly: microsToUsd(settings.monthlyBudgetUsdMicros) },
     credential: settings.credential ? { label: settings.credential.label, loginHint: settings.credential.loginHint, verified: !!settings.credential.verifiedAt } : null,
   };
@@ -93,7 +100,9 @@ export const seoEditorialSettingsFields = {
   audience: z.string().trim().max(2000).nullable().optional(),
   brandVoice: z.string().trim().max(2000).nullable().optional(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]).optional(),
+  thumbnailEnabled: z.boolean().optional(),
   thumbnailStyle: z.string().trim().max(1000).nullable().optional(),
+  inlineImagesEnabled: z.boolean().optional(),
   inlineImageStyle: z.string().trim().max(1000).nullable().optional(),
   maxInlineImages: z.number().int().min(0).max(8).optional(),
   articleUrlPrefix: z.string().trim().startsWith("/").max(200).optional(),

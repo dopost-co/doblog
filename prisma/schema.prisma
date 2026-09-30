@@ -103,7 +103,9 @@ model BlogSeoSettings {
   audience               String?
   brandVoice             String?
   publishingMode         String   @default("draft")
+  thumbnailEnabled       Boolean  @default(true)
   thumbnailStyle         String?
+  inlineImagesEnabled    Boolean  @default(true)
   inlineImageStyle       String?
   maxInlineImages        Int      @default(3)
   articleUrlPrefix       String   @default("/blog")

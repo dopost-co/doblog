@@ -16,6 +16,7 @@ type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
   credentialId: string | null; enabled: boolean; targetDomain: string | null; locationCode: number; languageCode: string;
   timezone: string; competitorDomains: string[]; audience: string | null; brandVoice: string | null; publishingMode: string;
+  thumbnailEnabled: boolean; inlineImagesEnabled: boolean;
   thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
   articleUrlPrefix: string;
   perRunBudgetUsdMicros: number; dailyBudgetUsdMicros: number; monthlyBudgetUsdMicros: number;
@@ -50,6 +51,17 @@ function Area({ label, name, ...props }: { label: string; name: string } & React
   );
 }
 
+function ImageToggle({ id, label, checked, onChange, disabled }: {
+  id: string; label: string; checked: boolean; onChange: (checked: boolean) => void; disabled: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-6">
+      <Label htmlFor={id} className="font-normal">{label}</Label>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
+    </div>
+  );
+}
+
 export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
   blogId: string;
   plan: "lifetime" | "subscription";
@@ -59,6 +71,8 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [enabled, setEnabled] = useState(settings?.enabled ?? false);
+  const [thumbnailEnabled, setThumbnailEnabled] = useState(settings?.thumbnailEnabled ?? true);
+  const [inlineImagesEnabled, setInlineImagesEnabled] = useState(settings?.inlineImagesEnabled ?? true);
   const [credentialId, setCredentialId] = useState(settings?.credentialId || credentials[0]?.id || "");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
@@ -77,9 +91,10 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
         competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
         audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
+        thumbnailEnabled, inlineImagesEnabled,
         thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
         articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
-        maxInlineImages: Number(form.get("maxInlineImages")),
+        maxInlineImages: Number(form.get("maxInlineImages") ?? settings?.maxInlineImages ?? 3),
         perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
       });
       setMessage(result.error ? { tone: "error", text: result.error } : { tone: "success", text: "Saved" });
@@ -119,12 +134,20 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
           <Area label="Voice" name="brandVoice" defaultValue={settings?.brandVoice || ""} placeholder="Tone, words to use or avoid" />
         </Section>
 
-        <Section title="Images">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Area label="Thumbnail style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
-            <Area label="Inline image style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
+        <Section title="Thumbnail">
+          <ImageToggle id="thumbnail-enabled" label="Generate a thumbnail" checked={thumbnailEnabled} onChange={setThumbnailEnabled} disabled={pending} />
+          {/* Kept mounted while off so its value is saved unchanged. */}
+          <div className={thumbnailEnabled ? "grid" : "hidden"}>
+            <Area label="Style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
           </div>
-          <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
+        </Section>
+
+        <Section title="Post images">
+          <ImageToggle id="inline-images-enabled" label="Add images inside the article" checked={inlineImagesEnabled} onChange={setInlineImagesEnabled} disabled={pending} />
+          <div className={inlineImagesEnabled ? "grid gap-4" : "hidden"}>
+            <Area label="Style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
+            <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
+          </div>
         </Section>
 
         <details className="group py-2">
@@ -140,9 +163,9 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
               <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Per run (USD)" name="perRunBudgetUsd" type="number" step="0.001" min="0.001" defaultValue={usd(settings?.perRunBudgetUsdMicros, 0.25)} />
-              <Field label="Per day (USD)" name="dailyBudgetUsd" type="number" step="0.01" min="0.001" defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />
-              <Field label="Per month (USD)" name="monthlyBudgetUsd" type="number" step="0.01" min="0.001" defaultValue={usd(settings?.monthlyBudgetUsdMicros, 20)} />
+              <Field label="Per run (USD)" name="perRunBudgetUsd" type="number" step="any" min="0.001" defaultValue={usd(settings?.perRunBudgetUsdMicros, 0.25)} />
+              <Field label="Per day (USD)" name="dailyBudgetUsd" type="number" step="any" min="0.001" defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />
+              <Field label="Per month (USD)" name="monthlyBudgetUsd" type="number" step="any" min="0.001" defaultValue={usd(settings?.monthlyBudgetUsdMicros, 20)} />
             </div>
           </div>
         </details>

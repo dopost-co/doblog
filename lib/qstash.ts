@@ -3,6 +3,7 @@ import { Client, Receiver } from "@upstash/qstash";
 export const PUBLISH_SCHEDULED_PATH = "/api/qstash/publish-scheduled";
 export const CONTENT_DISCOVERY_PATH = "/api/qstash/content-discovery";
 export const GROWTH_DRAFTS_PATH = "/api/qstash/growth-drafts";
+export const GENERATE_DRAFT_PATH = "/api/qstash/generate-draft";
 
 export function isQStashConfigured() {
   return Boolean(process.env.QSTASH_TOKEN?.trim());

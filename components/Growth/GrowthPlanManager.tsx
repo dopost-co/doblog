@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Check, LoaderCircle, Plus, Trash2 } from "lucide-react";
@@ -37,6 +37,18 @@ const STATUS_STYLE = {
   ready: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   failed: "bg-destructive/10 text-destructive",
 } as const;
+
+/** The draft is saved before its images, so the run, not the post, says when it is done. */
+function isInProgress(item: PlanItem) {
+  return item.status === "generating" || item.runs[0]?.status === "queued" || item.runs[0]?.status === "running";
+}
+
+/** What a run in progress is doing, from its stage. */
+function progressLabel(stage: string | undefined) {
+  if (!stage || stage === "queued") return "Queued…";
+  if (stage === "images") return "Creating images…";
+  return "Writing text…";
+}
 
 const scheduledLabel = (value: string) => new Intl.DateTimeFormat(undefined, {
   weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
@@ -83,13 +95,17 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
       const result = await generatePlanItemAction(blogId, itemId);
       setActiveItem(null);
       if (result.error) setMessage({ tone: "error", text: result.error });
-      else if ("title" in result) setMessage({
-        tone: "success",
-        text: result.published ? `“${result.title}” is now live.` : `“${result.title}” is ready to review.`,
-      });
       router.refresh();
     });
   }
+
+  // Drafts are written in the background; refresh until none is in progress.
+  const writing = items.some(isInProgress);
+  useEffect(() => {
+    if (!writing) return;
+    const timer = setInterval(() => router.refresh(), 4000);
+    return () => clearInterval(timer);
+  }, [writing, router]);
 
   function remove(itemId: string) {
     setActiveItem(itemId);
@@ -119,9 +135,10 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
           <div className="divide-y overflow-hidden rounded-lg border bg-card">
             {items.map(item => {
               const working = pending && activeItem === item.id;
-              const style = STATUS_STYLE[item.status as keyof typeof STATUS_STYLE] || STATUS_STYLE.planned;
-              const stateLabel = working || item.status === "generating"
-                ? "Writing now…"
+              const inProgress = working || isInProgress(item);
+              const style = inProgress ? STATUS_STYLE.generating : STATUS_STYLE[item.status as keyof typeof STATUS_STYLE] || STATUS_STYLE.planned;
+              const stateLabel = inProgress
+                ? progressLabel(working ? "queued" : item.runs[0]?.stage)
                 : item.post
                   ? item.post.status === "published" ? "Published automatically" : "Draft ready"
                   : item.status === "failed"
@@ -129,7 +146,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                     : item.scheduledFor
                       ? "Scheduled"
                       : "Ready when you are";
-              const generationText = item.post
+              const generationText = inProgress ? "now" : item.post
                 ? item.runs[0]?.completedAt ? `Completed ${scheduledLabel(item.runs[0].completedAt)}` : "Completed"
                 : item.scheduledFor ? scheduledLabel(item.scheduledFor) : "When you click Write now";
               const publicationText = item.post?.status === "published"
@@ -144,6 +161,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium", style)}>
+                        {inProgress && <LoaderCircle className="size-3 animate-spin" />}
                         {item.scheduledFor && !item.post && item.status === "planned" && <CalendarClock className="size-3" />}
                         {stateLabel}
                       </span>
@@ -165,15 +183,14 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                     {(item.lastError || item.runs[0]?.error) && <p className="max-w-2xl text-sm text-destructive">{item.lastError || item.runs[0]?.error}</p>}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    {item.post ? (
+                    {inProgress ? null : item.post ? (
                       <Button asChild variant="outline"><Link href={`/dashboard/blogs/${blogId}/posts/${item.post.id}/edit`}><Check />{item.post.status === "published" ? "View article" : "Review draft"}</Link></Button>
                     ) : (
                       <Button onClick={() => generate(item.id)} disabled={pending || !aiReady} variant={item.scheduledFor ? "outline" : "default"}>
-                        {working && <LoaderCircle className="animate-spin" />}
                         {item.status === "failed" ? "Try again" : "Write now"}
                       </Button>
                     )}
-                    {!item.post && item.status !== "generating" && (
+                    {!item.post && !inProgress && (
                       <Button variant="ghost" size="icon" onClick={() => remove(item.id)} disabled={pending} aria-label={`Remove ${item.primaryKeyword}`}>
                         <Trash2 />
                       </Button>

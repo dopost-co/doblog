@@ -200,8 +200,30 @@ async function generateImage(openai: OpenAI, args: {
   return uploaded.url;
 }
 
-export async function generateContentPlanDraft(blogId: string, itemId: string, trigger = "dashboard") {
-  const claimed = await prisma.$transaction(async tx => {
+/** A run that failed in a way worth retrying; the queue delivers it again. */
+export class RetryableDraftError extends Error {}
+
+/** Missing keys, bad input or missing records will not fix themselves on a retry. */
+export function isRetryable(error: unknown) {
+  if (error instanceof ApiError) return error.status === 429 || error.status >= 500;
+  if (error instanceof OpenAI.APIError) return error.status === undefined || error.status === 429 || error.status >= 500;
+  return true;
+}
+
+/** How long a run may stay "running" before a new delivery may take it over (after a crash). */
+const STALE_RUN_MS = 10 * 60_000;
+
+type ClaimedDraft = {
+  item: Prisma.ContentPlanItemGetPayload<object>;
+  run: { id: string };
+};
+
+/**
+ * Reserves a plan item for writing and records the run. Queued runs are picked
+ * up by processDraftRun; immediate runs are written by the caller.
+ */
+export async function claimContentPlanDraft(blogId: string, itemId: string, trigger: string, { queued }: { queued: boolean }): Promise<ClaimedDraft> {
+  return prisma.$transaction(async tx => {
     const item = await tx.contentPlanItem.findFirst({ where: { id: itemId, blogId } });
     if (!item) throw new ApiError(404, "Plan item not found");
     if (item.postId) throw new ApiError(409, "This item already has a draft");
@@ -212,11 +234,43 @@ export async function generateContentPlanDraft(blogId: string, itemId: string, t
     });
     if (updated.count !== 1) throw new ApiError(409, "This item is not ready to generate");
     const run = await tx.generationRun.create({ data: {
-      blogId, planItemId: item.id, trigger, status: "running", stage: "research", startedAt: new Date(), model: CONTENT_MODEL, promptVersion: PROMPT_VERSION,
-    } });
+      blogId, planItemId: item.id, trigger, model: CONTENT_MODEL, promptVersion: PROMPT_VERSION,
+      ...(queued ? { status: "queued", stage: "queued" } : { status: "running", stage: "research", startedAt: new Date() }),
+    }, select: { id: true } });
     return { item, run };
   });
+}
 
+/** Writes a draft right away, within the caller's request (MCP). */
+export async function generateContentPlanDraft(blogId: string, itemId: string, trigger = "dashboard") {
+  const claimed = await claimContentPlanDraft(blogId, itemId, trigger, { queued: false });
+  return writeDraft(claimed, { finalAttempt: true });
+}
+
+/**
+ * Writes the draft for a queued run. Safe to deliver more than once: a run that
+ * is completed, failed or being written by another delivery is skipped.
+ */
+export async function processDraftRun(runId: string, { finalAttempt }: { finalAttempt: boolean }) {
+  const taken = await prisma.generationRun.updateMany({
+    where: { id: runId, OR: [{ status: "queued" }, { status: "running", startedAt: { lt: new Date(Date.now() - STALE_RUN_MS) } }] },
+    data: { status: "running", stage: "research", startedAt: new Date(), error: null },
+  });
+  if (!taken.count) return { skipped: true as const };
+  const run = await prisma.generationRun.findUnique({ where: { id: runId }, select: { id: true, planItem: true } });
+  if (!run?.planItem) {
+    await prisma.generationRun.update({ where: { id: runId }, data: { status: "failed", stage: "failed", error: "The idea was removed", completedAt: new Date() } });
+    return { skipped: true as const };
+  }
+  if (run.planItem.postId) {
+    await prisma.generationRun.update({ where: { id: runId }, data: { status: "completed", stage: "completed", postId: run.planItem.postId, completedAt: new Date() } });
+    return { skipped: true as const };
+  }
+  return writeDraft({ item: run.planItem, run }, { finalAttempt });
+}
+
+async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttempt: boolean }) {
+  const blogId = claimed.item.blogId;
   let postId: string | null = null;
   try {
     const [blog, settings, apiKey] = await Promise.all([
@@ -225,6 +279,10 @@ export async function generateContentPlanDraft(blogId: string, itemId: string, t
       resolveBlogOpenAiKey(blogId),
     ]);
     if (!blog) throw new ApiError(404, "Blog not found");
+    const thumbnailEnabled = settings?.thumbnailEnabled ?? true;
+    const inlineImageLimit = settings?.inlineImagesEnabled === false ? 0 : Math.min(settings?.maxInlineImages ?? 2, 2);
+    const mediaReady = Boolean(R2_BUCKET_NAME && R2_PUBLIC_URL && process.env.R2_ENDPOINT);
+    const makesImages = mediaReady && (thumbnailEnabled || inlineImageLimit > 0);
     const internalLinks = await articleContext(blogId, claimed.item.language, claimed.item.primaryKeyword, settings?.articleUrlPrefix || "/blog");
     const warnings: string[] = [];
     let serpBrief: unknown = null;
@@ -248,7 +306,7 @@ export async function generateContentPlanDraft(blogId: string, itemId: string, t
       competitors: settings?.competitorDomains || [],
       internalLinks,
       serpBrief,
-      maxInlineImages: Math.min(settings?.maxInlineImages ?? 2, 2),
+      maxInlineImages: inlineImageLimit,
       imageDirection: {
         cover: settings?.thumbnailStyle || "Clean editorial cover art",
         inline: settings?.inlineImageStyle || "Simple explanatory editorial visual",
@@ -279,26 +337,27 @@ export async function generateContentPlanDraft(blogId: string, itemId: string, t
         postId: post.id, status: "ready", title: article.title, intent: article.intent,
         cluster: article.cluster, secondaryKeywords: article.secondaryKeywords, lastError: null,
       } });
-      await tx.generationRun.update({ where: { id: claimed.run.id }, data: { postId: post.id, stage: "images" } });
+      await tx.generationRun.update({ where: { id: claimed.run.id }, data: { postId: post.id, stage: makesImages ? "images" : "saving" } });
       return post;
     });
     postId = saved.id;
 
     let coverImage: string | null = null;
     const inlineImages: GeneratedInlineImage[] = [];
-    const mediaReady = Boolean(R2_BUCKET_NAME && R2_PUBLIC_URL && process.env.R2_ENDPOINT);
-    if (!mediaReady) {
+    if (!mediaReady && (thumbnailEnabled || inlineImageLimit > 0)) {
       warnings.push("Media storage is not configured, so the draft was created without generated images.");
-    } else {
-      try {
-        coverImage = await generateImage(openai, {
-          blogId, postId, runId: claimed.run.id, kind: "cover", prompt: article.coverImage.prompt,
-          alt: article.coverImage.alt, style: settings?.thumbnailStyle,
-        });
-      } catch (error) {
-        warnings.push(`The cover image could not be generated: ${error instanceof Error ? error.message : "unknown error"}`);
+    } else if (makesImages) {
+      if (thumbnailEnabled) {
+        try {
+          coverImage = await generateImage(openai, {
+            blogId, postId, runId: claimed.run.id, kind: "cover", prompt: article.coverImage.prompt,
+            alt: article.coverImage.alt, style: settings?.thumbnailStyle,
+          });
+        } catch (error) {
+          warnings.push(`The cover image could not be generated: ${error instanceof Error ? error.message : "unknown error"}`);
+        }
       }
-      for (const image of article.inlineImages.slice(0, Math.min(settings?.maxInlineImages ?? 2, 2))) {
+      for (const image of article.inlineImages.slice(0, inlineImageLimit)) {
         try {
           const url = await generateImage(openai, {
             blogId, postId, runId: claimed.run.id, kind: "inline", prompt: image.prompt,
@@ -331,6 +390,11 @@ export async function generateContentPlanDraft(blogId: string, itemId: string, t
     return { postId, title: article.title, warnings, published: autoPublish };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Draft generation failed";
+    // Nothing was saved yet: hand the run back to the queue so it is delivered again.
+    if (!finalAttempt && !postId && isRetryable(error)) {
+      await prisma.generationRun.update({ where: { id: claimed.run.id }, data: { status: "queued", stage: "queued", error: message.slice(0, 2000) } }).catch(() => undefined);
+      throw new RetryableDraftError(message);
+    }
     await prisma.$transaction([
       prisma.generationRun.update({ where: { id: claimed.run.id }, data: { status: "failed", stage: "failed", error: message.slice(0, 2000), completedAt: new Date(), ...(postId ? { postId } : {}) } }),
       prisma.contentPlanItem.update({ where: { id: claimed.item.id }, data: { status: postId ? "ready" : "failed", lastError: message.slice(0, 1000), ...(postId ? { postId } : {}) } }),

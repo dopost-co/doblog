@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
   try {
-    return NextResponse.json({ handled: true, ...await runDueDraftGenerations(2) });
+    return NextResponse.json({ handled: true, ...await runDueDraftGenerations() });
   } catch (error) {
     console.error("[Growth] draft-sweep-failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Scheduled draft generation failed" }, { status: 500 });
