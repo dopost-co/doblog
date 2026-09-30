@@ -6,6 +6,7 @@ import {
   isQStashConfigured,
 } from "@/lib/qstash";
 import { invalidateContent } from "@/src/server/services/content/cache";
+import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
 
 /** Scheduling can race a callback that fires in the same second, so allow a small skew. */
 const DUE_SKEW_MS = 5_000;
@@ -103,7 +104,10 @@ export async function publishDueScheduledPosts(options: { blogId?: string; now?:
       where: { id: post.id, status: "scheduled", publishedAt: post.publishedAt },
       data: { status: "published", scheduleMessageId: null },
     });
-    if (updated.count === 1) published.push(post);
+    if (updated.count === 1) {
+      published.push(post);
+      queueRelatedArticleLinks(post.id);
+    }
   }
 
   const blogs = new Map(published.map((post) => [post.blogId, post.blog.blogId]));

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StyleReferencesPicker } from "@/components/Growth/StyleReferencesPicker";
 import { toast } from "sonner";
+import { getLanguageName } from "@/lib/languages";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
@@ -20,8 +21,10 @@ type Settings = {
   timezone: string; competitorDomains: string[]; audience: string | null; brandVoice: string | null; publishingMode: string;
   thumbnailEnabled: boolean; inlineImagesEnabled: boolean;
   thumbnailReferenceUrls: string[]; inlineImageReferenceUrls: string[];
+  internalLinksEnabled: boolean; backlinksEnabled: boolean;
   thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
   articleUrlPrefix: string;
+  articlePaths: unknown;
   perRunBudgetUsdMicros: number; dailyBudgetUsdMicros: number; monthlyBudgetUsdMicros: number;
 } | null;
 
@@ -54,7 +57,7 @@ function Area({ label, name, ...props }: { label: string; name: string } & React
   );
 }
 
-function ImageToggle({ id, label, checked, onChange, disabled }: {
+function SettingToggle({ id, label, checked, onChange, disabled }: {
   id: string; label: string; checked: boolean; onChange: (checked: boolean) => void; disabled: boolean;
 }) {
   return (
@@ -65,8 +68,10 @@ function ImageToggle({ id, label, checked, onChange, disabled }: {
   );
 }
 
-export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
+export function SeoSettingsManager({ blogId, plan, credentials, settings, languages = [] }: {
   blogId: string;
+  /** The blog's languages; each can have its own article path. */
+  languages?: string[];
   plan: "lifetime" | "subscription";
   credentials: Credential[];
   settings: Settings;
@@ -76,11 +81,14 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
   const [enabled, setEnabled] = useState(settings?.enabled ?? false);
   const [thumbnailEnabled, setThumbnailEnabled] = useState(settings?.thumbnailEnabled ?? true);
   const [inlineImagesEnabled, setInlineImagesEnabled] = useState(settings?.inlineImagesEnabled ?? true);
+  const [internalLinksEnabled, setInternalLinksEnabled] = useState(settings?.internalLinksEnabled ?? true);
+  const [backlinksEnabled, setBacklinksEnabled] = useState(settings?.backlinksEnabled ?? true);
   const [thumbnailReferences, setThumbnailReferences] = useState(settings?.thumbnailReferenceUrls ?? []);
   const [inlineReferences, setInlineReferences] = useState(settings?.inlineImageReferenceUrls ?? []);
   const [credentialId, setCredentialId] = useState(settings?.credentialId || credentials[0]?.id || "");
 
   const managed = plan === "subscription";
+  const savedArticlePaths = settings?.articlePaths && typeof settings.articlePaths === "object" ? settings.articlePaths as Record<string, string> : {};
   const connected = managed || credentials.length > 0;
   const activeCredential = credentials.find((item) => item.id === credentialId);
 
@@ -94,10 +102,11 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
         competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
         audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
-        thumbnailEnabled, inlineImagesEnabled,
+        thumbnailEnabled, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled,
         thumbnailReferenceUrls: thumbnailReferences, inlineImageReferenceUrls: inlineReferences,
         thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
         articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
+        articlePaths: Object.fromEntries(languages.map((code) => [code, String(form.get(`articlePath:${code}`) || "")])),
         maxInlineImages: Number(form.get("maxInlineImages") ?? settings?.maxInlineImages ?? 3),
         perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
       });
@@ -140,7 +149,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         </Section>
 
         <Section title="Thumbnail">
-          <ImageToggle id="thumbnail-enabled" label="Generate a thumbnail" checked={thumbnailEnabled} onChange={setThumbnailEnabled} disabled={pending} />
+          <SettingToggle id="thumbnail-enabled" label="Generate a thumbnail" checked={thumbnailEnabled} onChange={setThumbnailEnabled} disabled={pending} />
           {/* Kept mounted while off so its value is saved unchanged. */}
           <div className={thumbnailEnabled ? "grid" : "hidden"}>
             <Area label="Style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
@@ -149,12 +158,19 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
         </Section>
 
         <Section title="Post images">
-          <ImageToggle id="inline-images-enabled" label="Add images inside the article" checked={inlineImagesEnabled} onChange={setInlineImagesEnabled} disabled={pending} />
+          <SettingToggle id="inline-images-enabled" label="Add images inside the article" checked={inlineImagesEnabled} onChange={setInlineImagesEnabled} disabled={pending} />
           <div className={inlineImagesEnabled ? "grid gap-4" : "hidden"}>
             <Area label="Style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
             <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
           </div>
           {inlineImagesEnabled && <StyleReferencesPicker blogId={blogId} value={inlineReferences} onChange={setInlineReferences} disabled={pending} />}
+        </Section>
+
+        <Section title="Links">
+          <SettingToggle id="internal-links-enabled" label="Link to related articles" checked={internalLinksEnabled} onChange={setInternalLinksEnabled} disabled={pending} />
+          <p className="-mt-2 text-xs text-muted-foreground">Autopilot articles link to 2-4 related published articles where it reads naturally.</p>
+          <SettingToggle id="backlinks-enabled" label="Add links from existing articles" checked={backlinksEnabled} onChange={setBacklinksEnabled} disabled={pending} />
+          <p className="-mt-2 text-xs text-muted-foreground">When an Autopilot article is published, up to 3 published articles that already mention its topic link to it. This edits those articles.</p>
         </Section>
 
         <details className="group py-2">
@@ -165,6 +181,25 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings }: {
           <div className="grid gap-4 pb-6 md:pl-[13rem]">
             <Area label="Competitors" name="competitors" defaultValue={settings?.competitorDomains.join("\n") || ""} placeholder={"competitor-one.com\ncompetitor-two.com"} />
             <Field label="Article URL path" name="articleUrlPrefix" defaultValue={settings?.articleUrlPrefix ?? "/blog"} placeholder="/blog" hint="Used for internal links, for example /blog/article-slug." />
+            {languages.length > 1 && (
+              <div className="grid gap-3">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Article path per language</p>
+                  <p className="text-xs text-muted-foreground">Only if your site serves languages apart, like /es/blog or https://es.example.com/blog. Empty uses the path above.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {languages.map((code) => (
+                    <Field
+                      key={code}
+                      label={getLanguageName(code) ?? code}
+                      name={`articlePath:${code}`}
+                      defaultValue={savedArticlePaths[code] ?? ""}
+                      placeholder={settings?.articleUrlPrefix ?? "/blog"}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Location code" name="locationCode" type="number" defaultValue={String(settings?.locationCode ?? 2840)} hint="DataForSEO location, e.g. 2724 for Spain." />
               <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />

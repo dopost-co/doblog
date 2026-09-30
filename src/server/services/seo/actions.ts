@@ -7,6 +7,7 @@ import { getSession } from "@/lib/get-session";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
 import { normalizeStyleReferences } from "@/src/server/services/growth/image-references";
+import { articlePathsSchema } from "./service";
 
 const settingsSchema = z.object({
   credentialId: z.string().min(1).nullable(), enabled: z.boolean(),
@@ -16,9 +17,11 @@ const settingsSchema = z.object({
   audience: z.string().trim().max(2000).nullable(), brandVoice: z.string().trim().max(2000).nullable(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]),
   thumbnailEnabled: z.boolean(), inlineImagesEnabled: z.boolean(),
+  internalLinksEnabled: z.boolean(), backlinksEnabled: z.boolean(),
   thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2), inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2),
   thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
   articleUrlPrefix: z.string().trim().startsWith("/", "Start the article path with /").max(200),
+  articlePaths: articlePathsSchema,
   maxInlineImages: z.number().int().min(0).max(8), perRunBudgetUsd: z.number().min(0.001).max(100),
   dailyBudgetUsd: z.number().min(0.001).max(1000), monthlyBudgetUsd: z.number().min(0.001).max(10000),
 }).strict().superRefine((value, ctx) => {
@@ -33,7 +36,7 @@ async function requireOwner(blogId: string) {
   if (!session?.user?.id) throw new ApiError(401, "Sign in to manage SEO settings");
   const blog = await prisma.blog.findFirst({
     where: { id: blogId, userId: session.user.id, deletedAt: null },
-    select: { id: true, userId: true, user: { select: { plan: true } } },
+    select: { id: true, userId: true, languages: true, user: { select: { plan: true } } },
   });
   if (!blog) throw new ApiError(403, "Only the blog owner can manage SEO settings");
   return { ...blog, managed: isManagedPlan(blog.user.plan) };
@@ -49,13 +52,16 @@ export async function getSeoDashboardData(blogId: string) {
     }),
     prisma.blogSeoSettings.findUnique({ where: { blogId } }),
   ]);
-  return { plan: blog.managed ? "subscription" as const : "lifetime" as const, credentials, settings };
+  return { plan: blog.managed ? "subscription" as const : "lifetime" as const, credentials, settings, languages: blog.languages };
 }
 
 export async function saveBlogSeoSettings(blogId: string, input: unknown) {
   try {
     const blog = await requireOwner(blogId);
-    const data = settingsSchema.parse(input);
+    // The form shows one plain message; field paths are for API clients.
+    const parsed = settingsSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the settings and try again" };
+    const data = parsed.data;
     let credentialId: string | null = null;
     if (!blog.managed) {
       const credentials = await prisma.seoProviderCredential.findMany({
@@ -76,10 +82,12 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       competitorDomains: data.competitorDomains.filter(Boolean), audience: data.audience || null,
       brandVoice: data.brandVoice || null, publishingMode: data.publishingMode,
       thumbnailEnabled: data.thumbnailEnabled, inlineImagesEnabled: data.inlineImagesEnabled,
+      internalLinksEnabled: data.internalLinksEnabled, backlinksEnabled: data.backlinksEnabled,
       thumbnailReferenceUrls: normalizeStyleReferences(blogId, data.thumbnailReferenceUrls),
       inlineImageReferenceUrls: normalizeStyleReferences(blogId, data.inlineImageReferenceUrls),
       thumbnailStyle: data.thumbnailStyle || null, inlineImageStyle: data.inlineImageStyle || null,
       articleUrlPrefix: `/${data.articleUrlPrefix.split("/").filter(Boolean).join("/")}`,
+      articlePaths: data.articlePaths,
       maxInlineImages: data.maxInlineImages, perRunBudgetUsdMicros: micros(data.perRunBudgetUsd),
       dailyBudgetUsdMicros: micros(data.dailyBudgetUsd), monthlyBudgetUsdMicros: micros(data.monthlyBudgetUsd),
     };

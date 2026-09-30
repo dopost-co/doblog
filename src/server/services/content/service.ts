@@ -10,6 +10,7 @@ import { uploadBlogImage } from "@/src/server/services/media/upload";
 import { cancelPostSchedule, syncPostSchedule } from "@/src/server/services/scheduling/service";
 import { translatePostInto } from "@/src/server/services/translations/post-translation";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
+import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
 
 const itemInput = z.object({ id: schemas.idSchema }).strict();
 export const operationSchemas: Record<OperationName, z.ZodType> = {
@@ -100,6 +101,7 @@ async function writePost(principal: ApiPrincipal, input: unknown, id?: string) {
     await syncPostSchedule(post.id, previous?.scheduleMessageId ?? null);
   }
   await queueTranslationSync(principal.blogId, previous, post);
+  if (post.status === "published" && previous?.status !== "published") queueRelatedArticleLinks(post.id);
   return post;
 }
 

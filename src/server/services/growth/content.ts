@@ -38,12 +38,6 @@ export const articleDraftSchema = z.object({
 
 export type ArticleDraft = z.infer<typeof articleDraftSchema>;
 
-export type InternalLinkCandidate = {
-  id: string;
-  title: string;
-  href: string;
-  summary: string;
-};
 
 const stripHtml = (value: string) => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -68,19 +62,7 @@ export function contentText(content: unknown): string {
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
-const tokens = (value: string) => new Set(normalizeKeyword(value).split(" ").filter(token => token.length > 2));
 
-export function rankInternalLinks(keyword: string, posts: InternalLinkCandidate[], limit = 6) {
-  const target = tokens(keyword);
-  return posts.map(post => {
-    const haystack = tokens(`${post.title} ${post.summary}`);
-    let score = 0;
-    for (const token of target) if (haystack.has(token)) score += post.title.toLowerCase().includes(token) ? 3 : 1;
-    return { ...post, score };
-  }).filter(post => post.score > 0)
-    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, limit)
-    .map(post => ({ id: post.id, title: post.title, href: post.href, summary: post.summary }));
-}
 
 function safeInlineHtml(value: string) {
   return sanitizeHtml(value, {

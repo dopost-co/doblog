@@ -184,7 +184,6 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                         {item.scheduledFor && !item.post && item.status === "planned" && <CalendarClock className="size-3" />}
                         {stateLabel}
                       </span>
-                      {item.source === "discovery" && <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-300">Chosen by Zenex</span>}
                       <span className="text-xs uppercase text-muted-foreground">{item.language}</span>
                       {item.intent && <span className="text-xs capitalize text-muted-foreground">{item.intent}</span>}
                     </div>

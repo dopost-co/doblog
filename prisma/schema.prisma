@@ -116,6 +116,13 @@ model BlogSeoSettings {
   inlineImageReferenceUrls String[] @default([])
   maxInlineImages        Int      @default(3)
   articleUrlPrefix       String   @default("/blog")
+  // Article path per language when the public site serves languages apart,
+  // e.g. { "es": "/es/blog" } or a full URL for subdomains. Missing languages use articleUrlPrefix.
+  articlePaths           Json     @default("{}")
+  // Autopilot articles link to related published articles of the blog.
+  internalLinksEnabled   Boolean  @default(true)
+  // Published articles that mention a new Autopilot article's topic link to it (edits live posts).
+  backlinksEnabled       Boolean  @default(true)
   sitemapUrl             String?
   discoveryEnabled       Boolean  @default(false)
   discoveryFrequency     String   @default("weekly") // weekly | monthly

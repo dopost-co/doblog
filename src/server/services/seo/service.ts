@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isManagedPlan, resolveDataForSeoAccess } from "@/src/server/services/providers/credentials";
 import { dataForSeoRequest, responseCostMicros } from "./dataforseo";
+import { normalizeArticlePath } from "@/src/server/services/growth/internal-links";
+import { getLanguageName } from "@/lib/languages";
 
 export type SeoOperation = "keyword_ideas" | "search_intent" | "serp_brief";
 const POLICY: Record<SeoOperation, { endpoint: string; ttlMs: number; estimateMicros: number }> = {
@@ -74,6 +76,9 @@ export async function getSeoSettingsSummary(blogId: string) {
     inlineImageReferenceUrls: settings.inlineImageReferenceUrls,
     maxInlineImages: settings.maxInlineImages,
     articleUrlPrefix: settings.articleUrlPrefix,
+    articlePaths: settings.articlePaths,
+    internalLinksEnabled: settings.internalLinksEnabled,
+    backlinksEnabled: settings.backlinksEnabled,
     sitemapUrl: settings.sitemapUrl,
     discoveryEnabled: settings.discoveryEnabled,
     discoveryFrequency: settings.discoveryFrequency,
@@ -93,6 +98,21 @@ export async function getSeoSettingsSummary(blogId: string) {
   };
 }
 
+/** Article path per language ({ "es": "/es/blog" }); empty values fall back to articleUrlPrefix. */
+export const articlePathsSchema = z.record(z.string().regex(/^[a-z]{2}$/, "Use two-letter language codes"), z.string().max(300))
+  .refine(paths => Object.keys(paths).length <= 20, "Too many languages")
+  .transform((paths, ctx) => {
+    const normalized: Record<string, string> = {};
+    for (const [language, value] of Object.entries(paths)) {
+      if (!value.trim()) continue;
+      try { normalized[language] = normalizeArticlePath(value); } catch (error) {
+        ctx.addIssue({ code: "custom", message: `${getLanguageName(language) ?? language} article path: ${error instanceof Error ? error.message : "invalid"}` });
+        return z.NEVER;
+      }
+    }
+    return normalized;
+  });
+
 export const seoEditorialSettingsFields = {
   targetDomain: z.string().trim().toLowerCase().max(253).regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/).nullable().optional(),
   locationCode: z.number().int().positive().optional(),
@@ -108,6 +128,11 @@ export const seoEditorialSettingsFields = {
   inlineImageStyle: z.string().trim().max(1000).nullable().optional(),
   maxInlineImages: z.number().int().min(0).max(8).optional(),
   articleUrlPrefix: z.string().trim().startsWith("/").max(200).optional(),
+  articlePaths: articlePathsSchema.optional(),
+  /** Autopilot articles link to related published articles. */
+  internalLinksEnabled: z.boolean().optional(),
+  /** Published articles that mention a new Autopilot article's topic link to it (edits live posts). */
+  backlinksEnabled: z.boolean().optional(),
 } satisfies z.ZodRawShape;
 
 export const seoEditorialSettingsSchema = z.object(seoEditorialSettingsFields).strict().refine(value => Object.keys(value).length > 0, "Provide at least one setting").superRefine((value, ctx) => {

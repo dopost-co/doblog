@@ -14,14 +14,14 @@ import { invalidateContent } from "@/src/server/services/content/cache";
 import {
   articleDraftSchema,
   buildEditorContent,
-  contentText,
   normalizeKeyword,
-  rankInternalLinks,
   type ArticleDraft,
   type GeneratedInlineImage,
 } from "./content";
 import { schedulePendingDrafts } from "./planning";
 import { loadStyleReferences } from "./image-references";
+import { articleHref, articlePrefixFor, enforceArticleLinks, rankLinkTargets, urlsIn } from "./internal-links";
+import { queueRelatedArticleLinks } from "./backlinks";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 import { daysForPace } from "@/lib/autopilot/writing-days";
 
@@ -136,18 +136,36 @@ async function uniqueSlug(blogId: string, language: string, suggestion: string) 
   return `${base}-${randomUUID().slice(0, 8)}`;
 }
 
-async function articleContext(blogId: string, language: string, keyword: string, articleUrlPrefix: string) {
+/** Hosts that count as this site: the blog's website and any absolute canonical URLs. */
+function siteHosts(targetDomain: string | null | undefined, hrefs: string[]) {
+  const urls = [targetDomain ? `https://${targetDomain}` : null, ...hrefs.filter((href) => /^https?:\/\//.test(href))];
+  return new Set(urls.flatMap((url) => {
+    if (!url) return [];
+    try { return [new URL(url).host.replace(/^www\./, "")]; } catch { return []; }
+  }));
+}
+
+/**
+ * Published articles the new one may link to, most related first. Reads only
+ * what the model needs (never full content) from the latest published posts.
+ */
+async function linkTargets(blogId: string, item: { language: string; primaryKeyword: string; secondaryKeywords: string[]; cluster: string | null }, articleUrlPrefix: string) {
   const posts = await prisma.post.findMany({
-    where: { blogId, language }, orderBy: { updatedAt: "desc" }, take: 150,
-    select: { id: true, title: true, slug: true, excerpt: true, canonicalUrl: true, content: true },
+    where: { blogId, language: item.language, status: "published" },
+    orderBy: { publishedAt: "desc" }, take: 300,
+    select: { id: true, title: true, slug: true, excerpt: true, metaDescription: true, canonicalUrl: true, seoTarget: { select: { cluster: true, primaryKeyword: true } } },
   });
-  const prefix = `/${articleUrlPrefix.split("/").filter(Boolean).join("/")}`.replace(/\/$/, "");
-  return rankInternalLinks(keyword, posts.map(post => ({
-    id: post.id,
-    title: post.title,
-    href: post.canonicalUrl || `${prefix || ""}/${post.slug}`,
-    summary: post.excerpt || contentText(post.content).slice(0, 420),
-  })), 8);
+  return rankLinkTargets(
+    { keyword: item.primaryKeyword, secondaryKeywords: item.secondaryKeywords, cluster: item.cluster },
+    posts.map((post) => ({
+      id: post.id,
+      title: post.title,
+      href: articleHref(articleUrlPrefix, post.slug, post.canonicalUrl),
+      summary: (post.excerpt || post.metaDescription || "").slice(0, 160),
+      cluster: post.seoTarget?.cluster ?? null,
+      keyword: post.seoTarget?.primaryKeyword ?? null,
+    })),
+  );
 }
 
 async function generateArticle(openai: OpenAI, input: Record<string, unknown>) {
@@ -159,7 +177,7 @@ Write entirely in the requested language. Match the supplied audience and brand 
 Answer the search intent directly, use concrete explanations and avoid generic AI filler.
 Do not invent statistics, quotes, product capabilities or first-hand experiences. If evidence is absent, explain without fabricating specifics.
 Use only <strong>, <em>, <code>, <br> and <a href="..."> inside paragraph strings.
-Use 2-4 relevant links from internalLinks when useful, preserving their href exactly. Never invent an internal URL.
+internalLinks lists published articles of this blog (title, topic, summary). Link 2-4 of them where a sentence naturally touches their topic and the reader would want to go deeper: short descriptive anchor text taken from that sentence (never "click here" or a bare keyword), spread across the body, each article at most once, never in headings. Skip any that do not fit; fewer good links beat forced ones. Preserve each href exactly. If internalLinks is empty, add no internal links. Never invent an internal URL.
 External links may only use URLs supplied in serpBrief. Do not mention SEO, keywords, prompts or this workflow in the article.
 Inline images are optional and must explain a particular section. Request no more than maxInlineImages. The cover must be visually distinct from inline images and contain no text or logos.`,
     input: JSON.stringify(input),
@@ -298,7 +316,9 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
     const inlineImageLimit = settings?.inlineImagesEnabled === false ? 0 : Math.min(settings?.maxInlineImages ?? 2, 2);
     const mediaReady = Boolean(R2_BUCKET_NAME && R2_PUBLIC_URL && process.env.R2_ENDPOINT);
     const makesImages = mediaReady && (thumbnailEnabled || inlineImageLimit > 0);
-    const internalLinks = await articleContext(blogId, claimed.item.language, claimed.item.primaryKeyword, settings?.articleUrlPrefix || "/blog");
+    const targets = settings?.internalLinksEnabled === false ? [] : await linkTargets(blogId, claimed.item, articlePrefixFor(settings, claimed.item.language));
+    // Compact on purpose: what each article is about is all the model needs to place a link well.
+    const internalLinks = targets.map(({ title, href, summary, keyword }) => ({ title, href, topic: keyword ?? undefined, summary }));
     const warnings: string[] = [];
     let serpBrief: unknown = null;
     if (settings?.enabled) {
@@ -330,7 +350,12 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
     await prisma.generationRun.update({ where: { id: claimed.run.id }, data: { stage: "writing", inputSnapshot: json(input) } });
     const openai = new OpenAI({ apiKey, timeout: 180_000, maxRetries: 2 });
     const generated = await generateArticle(openai, input);
-    const article = generated.article as ArticleDraft;
+    // Only the offered articles and researched sources may be linked; anything else loses its link.
+    const article = enforceArticleLinks(generated.article as ArticleDraft, {
+      internal: new Set(targets.map((target) => target.href)),
+      external: urlsIn(serpBrief),
+      siteHosts: siteHosts(settings?.targetDomain, targets.map((target) => target.href)),
+    });
     const slug = await uniqueSlug(blogId, claimed.item.language, article.suggestedSlug || article.title);
     await prisma.generationRun.update({ where: { id: claimed.run.id }, data: { stage: "saving" } });
 
@@ -406,6 +431,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
     invalidateContent({ blogId, publicBlogId: blog.blogId });
     const finished = await prisma.post.findUnique({ where: { id: postId } });
     if (finished) await queueTranslationSync(blogId, null, finished);
+    if (autoPublish) queueRelatedArticleLinks(postId);
     return { postId, title: article.title, warnings, published: autoPublish };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Draft generation failed";

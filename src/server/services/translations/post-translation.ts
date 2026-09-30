@@ -7,6 +7,8 @@ import { isValidLanguageCode } from "@/lib/languages";
 import { missingLanguages } from "@/lib/blog-languages";
 import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
 import { TranslationService } from "./TranslationService";
+import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
+import { localizeArticleLinks } from "./translated-links";
 
 const include = {
   categories: { include: { category: true } },
@@ -81,7 +83,11 @@ export async function createPostTranslation(blogId: string, postId: string, targ
   const translator = new TranslationService(await resolveBlogOpenAiKey(blogId));
   const { content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords } = await translatePostText(translator, source, targetLanguage);
 
-  return prisma.$transaction(async (tx) => {
+  // Callers that map paths themselves (MCP `paths`) keep that; otherwise links follow translated articles.
+  const linkedContent = linkRewrites
+    ? rewriteLinks(content, linkRewrites)
+    : await localizeArticleLinks(blogId, content, source.language, targetLanguage);
+  const created = await prisma.$transaction(async (tx) => {
     if (!source.translationGroupId) {
       await tx.post.update({ where: { id: source.id }, data: { translationGroupId } });
     }
@@ -92,7 +98,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
         language: targetLanguage,
         slug: source.slug,
         title,
-        content: rewriteLinks(content, linkRewrites) as unknown as Prisma.InputJsonValue,
+        content: linkedContent as unknown as Prisma.InputJsonValue,
         excerpt,
         metaTitle,
         metaDescription,
@@ -112,6 +118,9 @@ export async function createPostTranslation(blogId: string, postId: string, targ
       include,
     });
   });
+  // A translation that goes live straight away gets links from related articles too.
+  if (created.status === "published") queueRelatedArticleLinks(created.id);
+  return created;
 }
 
 /**
@@ -168,7 +177,7 @@ export async function syncTranslationGroup(postId: string, version?: string) {
 
   const translations = await prisma.post.findMany({
     where: { blogId: source.blogId, translationGroupId: source.translationGroupId, id: { not: source.id } },
-    select: { id: true, language: true },
+    select: { id: true, language: true, status: true },
   });
   const retranslate = source.translationSyncPending;
   let translator: TranslationService | null = null;
@@ -187,7 +196,8 @@ export async function syncTranslationGroup(postId: string, version?: string) {
   const failed: { language: string; error: string }[] = [];
   for (const translation of translations) {
     try {
-      const text = retranslate ? await translatePostText(await getTranslator(), source, translation.language) : null;
+      const translated = retranslate ? await translatePostText(await getTranslator(), source, translation.language) : null;
+      const text = translated && { ...translated, content: await localizeArticleLinks(source.blogId, translated.content, source.language, translation.language) };
       await prisma.post.update({
         where: { id: translation.id },
         data: {
@@ -199,6 +209,7 @@ export async function syncTranslationGroup(postId: string, version?: string) {
         },
       });
       updated.push(translation.language);
+      if (shared.status === "published" && translation.status !== "published") queueRelatedArticleLinks(translation.id);
     } catch (error) {
       failed.push({ language: translation.language, error: error instanceof Error ? error.message : String(error) });
     }

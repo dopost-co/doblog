@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildEditorContent, contentText, normalizeKeyword, rankInternalLinks, type ArticleDraft } from "@/src/server/services/growth/content";
+import { buildEditorContent, contentText, normalizeKeyword, type ArticleDraft } from "@/src/server/services/growth/content";
+import { rankLinkTargets } from "@/src/server/services/growth/internal-links";
 
 describe("growth content memory", () => {
   it("normalizes equivalent keywords for duplicate protection", () => {
@@ -15,9 +16,9 @@ describe("growth content memory", () => {
   });
 
   it("only suggests genuinely related internal links", () => {
-    const ranked = rankInternalLinks("CRM for freelancers", [
-      { id: "1", title: "A CRM guide for freelancers", href: "/crm", summary: "Manage client work" },
-      { id: "2", title: "Bread recipes", href: "/bread", summary: "Bake sourdough" },
+    const ranked = rankLinkTargets({ keyword: "CRM for freelancers" }, [
+      { id: "1", title: "A CRM guide for freelancers", href: "/crm", summary: "Manage client work", cluster: null, keyword: null },
+      { id: "2", title: "Bread recipes", href: "/bread", summary: "Bake sourdough", cluster: null, keyword: null },
     ]);
     expect(ranked.map(item => item.id)).toEqual(["1"]);
   });
