@@ -374,7 +374,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
             prompt: article.coverImage.prompt, style: settings?.thumbnailStyle, references: thumbnailReferences, runId: claimed.run.id,
             format: isThumbnailFormat(settings?.thumbnailFormat) ? settings.thumbnailFormat : "generated",
             colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),
-            title: storedCoverTitle(article.coverTitle) ?? article.title, blogName: blog.name, warnings,
+            title: storedCoverTitle(article.coverTitle) ?? article.title, warnings,
             logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
           });
           coverImage = await saveImage({ blogId, postId, runId: claimed.run.id, alt: article.coverImage.alt, kind: "cover" }, cover);

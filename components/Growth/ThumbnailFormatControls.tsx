@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { AlignCenter, AlignLeft, Plus, X } from "lucide-react";
 import { COVER_FONTS, MAX_GRADIENT_COLORS, THUMBNAIL_FORMATS, type CoverFont, type CoverTypography, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { LogoPositionPicker } from "@/components/Growth/LogoControls";
 import { cn } from "@/lib/utils";
+import type { LogoPosition } from "@/lib/autopilot/logo";
 
 /** Which kind of thumbnail Autopilot makes: an AI image, a brand card, or both. */
 export function ThumbnailFormatPicker({ value, onChange, disabled }: {
@@ -87,13 +88,17 @@ function Control({ label, children }: { label: string; children: React.ReactNode
 }
 
 /** The brand card's look: gradient (two or three colors) and text, with a live preview. */
-export function BrandCardEditor({ format, colors, onChange, typography, onTypographyChange, blogName, disabled }: {
+export function BrandCardEditor({ format, colors, onChange, typography, onTypographyChange, blogId, logoUrl, logoPosition, onLogoPositionChange, disabled }: {
   format: ThumbnailFormat;
   colors: string[];
   onChange: (colors: string[]) => void;
   typography: CoverTypography;
   onTypographyChange: (typography: CoverTypography) => void;
-  blogName: string;
+  blogId: string;
+  /** When set, the preview draws the logo and its position is edited here. */
+  logoUrl: string | null;
+  logoPosition: LogoPosition;
+  onLogoPositionChange: (position: LogoPosition) => void;
   disabled?: boolean;
 }) {
   const [sample, setSample] = useState<keyof typeof SAMPLE_TITLES>("short");
@@ -101,9 +106,11 @@ export function BrandCardEditor({ format, colors, onChange, typography, onTypogr
 
   // The preview follows the settings after a short pause, not on every drag step.
   const query = new URLSearchParams({
-    format, colors: colors.join(","), blog: blogName, title: SAMPLE_TITLES[sample],
+    format, colors: colors.join(","), title: SAMPLE_TITLES[sample],
     font: typography.font, size: typography.size, bold: typography.bold ? "1" : "0",
-    align: typography.align, name: typography.showBlogName ? "1" : "0",
+    align: typography.align,
+    // The preview draws the logo so its placement is seen before generating.
+    blogId, logoUrl: logoUrl ?? "", logoPosition: logoUrl ? logoPosition : "none",
   }).toString();
   const [previewQuery, setPreviewQuery] = useState(query);
   useEffect(() => {
@@ -160,10 +167,11 @@ export function BrandCardEditor({ format, colors, onChange, typography, onTypogr
           <Segmented label="Text alignment" value={typography.align} onChange={(value) => set("align", value)} disabled={disabled}
             options={[{ id: "left", name: <AlignLeft className="size-3.5" />, title: "Left" }, { id: "center", name: <AlignCenter className="size-3.5" />, title: "Center" }]} />
         </Control>
-        <label className="flex h-8 items-center gap-2 text-sm">
-          <Switch checked={typography.showBlogName} onCheckedChange={(checked) => set("showBlogName", checked)} disabled={disabled} />
-          Blog name
-        </label>
+        {logoUrl && (
+          <Control label="Logo">
+            <LogoPositionPicker value={logoPosition} onChange={onLogoPositionChange} disabled={disabled} />
+          </Control>
+        )}
       </div>
 
       <div className="grid max-w-md gap-2">

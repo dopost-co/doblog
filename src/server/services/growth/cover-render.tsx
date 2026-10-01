@@ -3,7 +3,7 @@ import { COVER_SIZE, type CoverTypography } from "@/lib/autopilot/thumbnail-temp
 import { COVER_FONT_FAMILY, CoverTemplate, coverTitleBox, type CoverTemplateProps } from "@/components/Growth/CoverTemplate";
 import { FONT_TRACKING, fitTitle, fontFile } from "./cover-fonts";
 
-export type CoverInput = Pick<CoverTemplateProps, "blogName" | "colors" | "illustration"> & {
+export type CoverInput = Pick<CoverTemplateProps, "colors" | "illustration"> & {
   title: string;
   typography: CoverTypography;
 };

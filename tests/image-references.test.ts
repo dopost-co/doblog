@@ -74,7 +74,7 @@ describe("Image generation with references", () => {
     const cover = vi.fn().mockResolvedValue(image);
     const made = await makeCover({ images: { edit: vi.fn(), generate: cover } } as never, {
       format: "generated", prompt: "A cover", style: "Like a kid draw black and white with bg transparent", references: [], runId: "run-1",
-      colors: [], typography: {} as never, title: "T", blogName: "B", warnings: [],
+      colors: [], typography: {} as never, title: "T", warnings: [],
     });
     expect(cover).toHaveBeenCalledWith(expect.objectContaining({ background: "transparent", output_format: "webp", prompt: expect.stringContaining("Never draw a checkerboard") }));
     expect(made.mimeType).toBe("image/webp");
@@ -82,7 +82,7 @@ describe("Image generation with references", () => {
     const plain = vi.fn().mockResolvedValue(image);
     await makeCover({ images: { edit: vi.fn(), generate: plain } } as never, {
       format: "generated", prompt: "A cover", style: "Warm watercolor", references: [], runId: "run-1",
-      colors: [], typography: {} as never, title: "T", blogName: "B", warnings: [],
+      colors: [], typography: {} as never, title: "T", warnings: [],
     });
     expect(plain.mock.calls[0][0]).not.toHaveProperty("background");
   });

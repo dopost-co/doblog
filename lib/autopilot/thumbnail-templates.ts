@@ -37,10 +37,9 @@ export type CoverTypography = {
   size: typeof COVER_TEXT_SIZES[number];
   bold: boolean;
   align: typeof COVER_TEXT_ALIGNS[number];
-  showBlogName: boolean;
 };
 
-export const DEFAULT_COVER_TYPOGRAPHY: CoverTypography = { font: "inter", size: "medium", bold: true, align: "left", showBlogName: false };
+export const DEFAULT_COVER_TYPOGRAPHY: CoverTypography = { font: "inter", size: "medium", bold: true, align: "left" };
 
 /** Saved typography (any shape) with every missing or unknown value set to the default. */
 export function coverTypography(value: unknown): CoverTypography {
@@ -51,7 +50,6 @@ export function coverTypography(value: unknown): CoverTypography {
     size: pick(COVER_TEXT_SIZES, raw.size, DEFAULT_COVER_TYPOGRAPHY.size),
     bold: typeof raw.bold === "boolean" ? raw.bold : DEFAULT_COVER_TYPOGRAPHY.bold,
     align: pick(COVER_TEXT_ALIGNS, raw.align, DEFAULT_COVER_TYPOGRAPHY.align),
-    showBlogName: typeof raw.showBlogName === "boolean" ? raw.showBlogName : DEFAULT_COVER_TYPOGRAPHY.showBlogName,
   };
 }
 

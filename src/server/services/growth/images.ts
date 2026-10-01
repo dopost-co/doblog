@@ -116,7 +116,7 @@ export async function withLogo(image: MadeImage, logo: Logo): Promise<MadeImage>
  * fails, the brand card is still made with the title alone.
  */
 export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
-  format: ThumbnailFormat; colors: string[]; typography: CoverTypography; title: string; blogName: string; warnings: string[];
+  format: ThumbnailFormat; colors: string[]; typography: CoverTypography; title: string; warnings: string[];
 }): Promise<MadeImage> {
   if (request.format === "generated") {
     if (!openai) throw new ApiError(412, "Add an OpenAI API key in Settings → Providers to use AI features");
@@ -132,7 +132,7 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
     }
   }
   const png = await renderCoverPng({
-    title: request.title, blogName: request.blogName, colors: request.colors, typography: request.typography,
+    title: request.title, colors: request.colors, typography: request.typography,
     illustration: illustration ? `data:${illustration.mimeType};base64,${illustration.bytes.toString("base64")}` : null,
   });
   return withLogo({

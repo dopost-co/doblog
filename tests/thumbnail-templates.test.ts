@@ -87,17 +87,17 @@ describe("Brand card text", () => {
 
 describe("Rendering brand thumbnails", () => {
   it("draws a 1200×675 PNG with the title, with or without an illustration", async () => {
-    const card = await renderCoverPng({ title: "How to plan a month of articles", blogName: "Zenex", colors: [...DEFAULT_THUMBNAIL_COLORS], typography: DEFAULT_COVER_TYPOGRAPHY });
+    const card = await renderCoverPng({ title: "How to plan a month of articles", colors: [...DEFAULT_THUMBNAIL_COLORS], typography: DEFAULT_COVER_TYPOGRAPHY });
     expect(card.subarray(1, 4).toString("ascii")).toBe("PNG");
     expect(pngSize(card)).toEqual({ width: 1200, height: 675 });
 
     // A 1×1 PNG stands in for the AI illustration.
     const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-    const withIllustration = await renderCoverPng({ title: "A very long title ".repeat(10), blogName: "Zenex", colors: ["#f5f3ff", "#c4b5fd"], illustration: `data:image/png;base64,${pixel}`, typography: { ...DEFAULT_COVER_TYPOGRAPHY, font: "playfair-display", align: "center" } });
+    const withIllustration = await renderCoverPng({ title: "A very long title ".repeat(10), colors: ["#f5f3ff", "#c4b5fd"], illustration: `data:image/png;base64,${pixel}`, typography: { ...DEFAULT_COVER_TYPOGRAPHY, font: "playfair-display", align: "center" } });
     expect(pngSize(withIllustration)).toEqual({ width: 1200, height: 675 });
 
     for (const font of COVER_FONTS) {
-      const card = await renderCoverPng({ title: "Ñandú, café y acentos", blogName: "Zenex", colors: [...DEFAULT_THUMBNAIL_COLORS], typography: { ...DEFAULT_COVER_TYPOGRAPHY, font: font.id, bold: false } });
+      const card = await renderCoverPng({ title: "Ñandú, café y acentos", colors: [...DEFAULT_THUMBNAIL_COLORS], typography: { ...DEFAULT_COVER_TYPOGRAPHY, font: font.id, bold: false } });
       expect(pngSize(card)).toEqual({ width: 1200, height: 675 });
     }
   }, 20_000);

@@ -106,7 +106,7 @@ export async function refreshPostCover(blogId: string, postId: string) {
   const image = await makeCover(openai, {
     prompt: imageSubject("cover", post), style: settings?.thumbnailStyle, references, runId: "cover-refresh",
     format, colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),
-    title: cover.title, blogName: blog.name, warnings,
+    title: cover.title, warnings,
     logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
   });
 

@@ -48,7 +48,7 @@ describe("Brand assets over MCP", () => {
     db.blog.findFirst.mockResolvedValue({ user: { plan: "free" } });
     await updateSeoEditorialSettings("blog-1", { thumbnailTypography: { bold: false } });
     expect(db.blogSeoSettings.upsert.mock.calls[0][0].update.thumbnailTypography).toEqual({
-      font: "playfair-display", size: "large", bold: false, align: "left", showBlogName: false,
+      font: "playfair-display", size: "large", bold: false, align: "left",
     });
     await expect(updateSeoEditorialSettings("blog-1", { thumbnailTypography: { font: "comic-sans" } })).rejects.toThrow();
   });

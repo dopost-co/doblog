@@ -11,7 +11,6 @@ export type CoverTemplateProps = {
   titleSize: number;
   /** Tracking in em for the chosen font. */
   tracking: number;
-  blogName: string;
   /** Two or three gradient colors. */
   colors: string[];
   typography: CoverTypography;
@@ -50,7 +49,7 @@ export function coverTitleBox(withIllustration: boolean, size: CoverTypography["
   return { width, maxLines: withIllustration ? 4 : 3, maxSize, minSize };
 }
 
-export function CoverTemplate({ title, titleSize, tracking, blogName, colors, typography, illustration }: CoverTemplateProps) {
+export function CoverTemplate({ title, titleSize, tracking, colors, typography, illustration }: CoverTemplateProps) {
   const color = textColorFor(colors);
   const withIllustration = Boolean(illustration);
   const centered = typography.align === "center";
@@ -72,16 +71,11 @@ export function CoverTemplate({ title, titleSize, tracking, blogName, colors, ty
       <div
         style={{
           display: "flex", flexDirection: "column", flex: 1, gap: 28,
-          justifyContent: centered ? "center" : typography.showBlogName ? "space-between" : "flex-end",
+          justifyContent: centered ? "center" : "flex-end",
           alignItems: centered ? "center" : "flex-start",
           textAlign: centered ? "center" : "left",
         }}
       >
-        {typography.showBlogName && (
-          <div style={{ display: "block", fontSize: withIllustration ? 22 : 26, fontWeight: 700, opacity: 0.8, lineClamp: 1, textOverflow: "ellipsis", overflow: "hidden" } as React.CSSProperties}>
-            {blogName}
-          </div>
-        )}
         <div
           style={{
             display: "block", fontSize: titleSize, fontWeight: typography.bold ? 700 : 400, lineHeight: LINE_HEIGHT,

@@ -110,13 +110,12 @@ export async function getSeoSettingsSummary(blogId: string) {
 export const thumbnailFormatSchema = z.enum(THUMBNAIL_FORMATS.map((format) => format.id) as [ThumbnailFormat, ...ThumbnailFormat[]]);
 export const logoPositionSchema = z.enum(["none", ...LOGO_POSITIONS]);
 /** Brand gradient for template thumbnails: two or three #rrggbb colors (empty uses the default). */
-/** Brand card text: font, largest size, weight, alignment and whether the blog name shows. */
+/** Brand card text: font, largest size, weight and alignment. */
 export const thumbnailTypographySchema = z.object({
   font: z.enum(COVER_FONTS.map((font) => font.id) as [CoverFont, ...CoverFont[]]),
   size: z.enum(COVER_TEXT_SIZES),
   bold: z.boolean(),
   align: z.enum(COVER_TEXT_ALIGNS),
-  showBlogName: z.boolean(),
 }).strict();
 export const thumbnailColorsSchema = z.array(z.string().trim().toLowerCase().regex(/^#[0-9a-f]{6}$/, "Use colors like #6d28d9")).max(MAX_GRADIENT_COLORS);
 

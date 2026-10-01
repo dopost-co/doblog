@@ -53,7 +53,7 @@ export async function previewImage(blogId: string, raw: unknown) {
    */
   const cover = input.kind === "cover" ? await resolveCoverTitle(openai, post) : null;
   const image = input.kind === "cover"
-    ? await makeCover(openai, { ...request, format: input.format, colors: thumbnailColors(input.colors), typography: coverTypography(input.typography), title: cover!.title, blogName: post.blog.name, warnings })
+    ? await makeCover(openai, { ...request, format: input.format, colors: thumbnailColors(input.colors), typography: coverTypography(input.typography), title: cover!.title, warnings })
     : await makeInlineImage(openai!, request);
   return { image: `data:${image.mimeType};base64,${image.bytes.toString("base64")}`, warnings };
 }

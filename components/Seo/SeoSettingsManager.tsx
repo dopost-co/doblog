@@ -77,12 +77,11 @@ function SettingToggle({ id, label, checked, onChange, disabled }: {
   );
 }
 
-export function SeoSettingsManager({ blogId, plan, credentials, settings, languages = [], blogName = "", posts = [] }: {
+export function SeoSettingsManager({ blogId, plan, credentials, settings, languages = [], posts = [] }: {
   blogId: string;
   /** Recent articles to try image settings on. */
   posts?: { id: string; title: string }[];
   /** Shown on the brand thumbnail preview. */
-  blogName?: string;
   /** The blog's languages; each can have its own article path. */
   languages?: string[];
   plan: "lifetime" | "subscription";
@@ -194,14 +193,20 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
           <SettingToggle id="thumbnail-enabled" label="Generate a thumbnail" checked={thumbnailEnabled} onChange={setThumbnailEnabled} disabled={pending} />
           {thumbnailEnabled && <ThumbnailFormatPicker value={thumbnailFormat} onChange={setThumbnailFormat} disabled={pending} />}
           {thumbnailEnabled && thumbnailFormat !== "generated" && (
-            <BrandCardEditor format={thumbnailFormat} colors={coverColors} onChange={setCoverColors} typography={typography} onTypographyChange={setTypography} blogName={blogName} disabled={pending} />
+            <BrandCardEditor
+              format={thumbnailFormat} colors={coverColors} onChange={setCoverColors}
+              typography={typography} onTypographyChange={setTypography}
+              blogId={blogId} logoUrl={logoUrl} logoPosition={thumbnailLogoPosition}
+              onLogoPositionChange={setThumbnailLogoPosition} disabled={pending}
+            />
           )}
           {/* Kept mounted while hidden so its value is saved unchanged. */}
           <div className={thumbnailEnabled && thumbnailFormat !== "template" ? "grid" : "hidden"}>
             <Area label={thumbnailFormat === "generated" ? "Style" : "Illustration style"} name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
           </div>
           {thumbnailEnabled && thumbnailFormat !== "template" && <StyleReferencesPicker blogId={blogId} value={thumbnailReferences} onChange={setThumbnailReferences} disabled={pending} />}
-          {thumbnailEnabled && logoUrl && (
+          {/* The brand-card editor shows this beside its preview; "generated" has no editor. */}
+          {thumbnailEnabled && logoUrl && thumbnailFormat === "generated" && (
             <div className="grid gap-2">
               <Label>Logo position</Label>
               <LogoPositionPicker value={thumbnailLogoPosition} onChange={setThumbnailLogoPosition} disabled={pending} />
