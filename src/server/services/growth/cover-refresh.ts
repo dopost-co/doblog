@@ -21,13 +21,24 @@ export const COVER_REFRESH_RETRIES = 2;
  */
 export const COVER_REFRESH_LIMIT = 200;
 
+export type CoverRefreshScope = {
+  /** Also draw a first cover for articles that have no image at all. */
+  includeMissing?: boolean;
+  limit?: number;
+};
+
 /**
- * Articles whose cover this blog generated, newest first.
+ * The articles a redraw would cover, newest first.
  *
- * A cover uploaded by hand or set to an outside URL is never touched: only a
- * post whose current `coverImage` is a media asset we made for it is refreshed.
+ * A cover uploaded by hand or pointed at an outside URL is never touched: only
+ * an article whose current `coverImage` is a media asset we made for it is
+ * redrawn. With `includeMissing`, articles with no cover at all are added,
+ * which is how a blog that has never generated one gets its first.
  */
-export async function refreshableCoverPostIds(blogId: string, limit = COVER_REFRESH_LIMIT) {
+export async function refreshableCoverPostIds(
+  blogId: string,
+  { includeMissing = false, limit = COVER_REFRESH_LIMIT }: CoverRefreshScope = {},
+) {
   const assets = await prisma.mediaAsset.findMany({
     where: { blogId, kind: "cover", post: { blogId, coverImage: { not: null } } },
     orderBy: { createdAt: "desc" },
@@ -41,14 +52,27 @@ export async function refreshableCoverPostIds(blogId: string, limit = COVER_REFR
     if (asset.post?.coverImage !== asset.url) continue;
     seen.add(asset.postId);
     ids.push(asset.postId);
-    if (ids.length >= limit) break;
+    if (ids.length >= limit) return ids;
+  }
+
+  if (!includeMissing) return ids;
+  const uncovered = await prisma.post.findMany({
+    where: { blogId, coverImage: null },
+    orderBy: { createdAt: "desc" },
+    take: limit - ids.length,
+    select: { id: true },
+  });
+  for (const post of uncovered) {
+    if (seen.has(post.id)) continue;
+    seen.add(post.id);
+    ids.push(post.id);
   }
   return ids;
 }
 
-/** How many covers a refresh would redraw right now, for the confirmation. */
-export async function countRefreshableCovers(blogId: string) {
-  return (await refreshableCoverPostIds(blogId)).length;
+/** How many covers a redraw would draw right now, for the confirmation. */
+export async function countRefreshableCovers(blogId: string, scope: CoverRefreshScope = {}) {
+  return (await refreshableCoverPostIds(blogId, scope)).length;
 }
 
 /**
@@ -129,8 +153,8 @@ async function dispatchCoverRefresh(blogId: string, postId: string) {
  * Queues a redraw of every refreshable cover of a blog and returns at once;
  * each article's cover changes as its own message is delivered.
  */
-export async function queueCoverRefresh(blogId: string) {
-  const postIds = await refreshableCoverPostIds(blogId);
+export async function queueCoverRefresh(blogId: string, scope: CoverRefreshScope = {}) {
+  const postIds = await refreshableCoverPostIds(blogId, scope);
   if (!postIds.length) return { queued: 0, failed: 0, delivery: "none" as const };
 
   let queued = 0;

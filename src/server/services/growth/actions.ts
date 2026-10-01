@@ -90,10 +90,10 @@ export async function previewImageAction(blogId: string, input: unknown) {
 }
 
 /** How many covers a refresh would redraw, so the confirmation can name a number. */
-export async function countRefreshableCoversAction(blogId: string) {
+export async function countRefreshableCoversAction(blogId: string, includeMissing = false) {
   try {
     await requireOwner(blogId);
-    return { success: true as const, count: await countRefreshableCovers(blogId) };
+    return { success: true as const, count: await countRefreshableCovers(blogId, { includeMissing }) };
   } catch (error) {
     return { error: apiError(error).error };
   }
@@ -103,10 +103,10 @@ export async function countRefreshableCoversAction(blogId: string) {
  * Redraws every cover this blog generated with the saved thumbnail settings.
  * Queued one article at a time, so the request returns at once.
  */
-export async function refreshCoversAction(blogId: string) {
+export async function refreshCoversAction(blogId: string, includeMissing = false) {
   try {
     await requireOwner(blogId);
-    const result = await queueCoverRefresh(blogId);
+    const result = await queueCoverRefresh(blogId, { includeMissing });
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
     return { success: true as const, ...result };
   } catch (error) {
