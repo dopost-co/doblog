@@ -26,10 +26,15 @@ const PADDING = { plain: 72, illustrated: 56 };
 const ILLUSTRATION_WIDTH = 540;
 const GAP = 48;
 const LINE_HEIGHT = 1.15;
-/** Largest and smallest title size per setting; long titles shrink between them. */
+/**
+ * Largest and smallest title size per setting. The ranges are narrow and do not
+ * overlap, so S, M and L stay visibly different: headlines are a few words
+ * (see lib/autopilot/cover-title.ts), so there is no need to shrink far to fit,
+ * and a wide range used to collapse every setting onto the same small size.
+ */
 const SIZES = {
-  plain: { small: [56, 36], medium: [72, 44], large: [88, 52] },
-  illustrated: { small: [40, 28], medium: [50, 32], large: [60, 36] },
+  plain: { small: [56, 48], medium: [72, 62], large: [88, 76] },
+  illustrated: { small: [40, 34], medium: [52, 44], large: [64, 54] },
 } as const;
 
 /** Where the title must fit: the text column's width, its line limit and the size range. */
@@ -39,7 +44,10 @@ export function coverTitleBox(withIllustration: boolean, size: CoverTypography["
     ? COVER_SIZE.width - PADDING.illustrated * 2 - GAP - ILLUSTRATION_WIDTH
     : COVER_SIZE.width - PADDING.plain * 2;
   const [maxSize, minSize] = SIZES[layout][size];
-  return { width, maxLines: withIllustration ? 5 : 3, maxSize, minSize };
+  // A headline is a few words; the narrow column beside an illustration needs
+  // one more line for the same text. Five lines only ever fitted a full article
+  // title, and shrinking type to reach it is what made S, M and L look alike.
+  return { width, maxLines: withIllustration ? 4 : 3, maxSize, minSize };
 }
 
 export function CoverTemplate({ title, titleSize, tracking, blogName, colors, typography, illustration }: CoverTemplateProps) {

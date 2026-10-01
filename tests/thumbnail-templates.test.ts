@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COVER_FONTS, DEFAULT_COVER_TYPOGRAPHY, DEFAULT_THUMBNAIL_COLORS, coverTypography, isThumbnailFormat, textColorFor, thumbnailColors } from "@/lib/autopilot/thumbnail-templates";
+import { COVER_FONTS, COVER_TEXT_SIZES, DEFAULT_COVER_TYPOGRAPHY, DEFAULT_THUMBNAIL_COLORS, coverTypography, isThumbnailFormat, textColorFor, thumbnailColors } from "@/lib/autopilot/thumbnail-templates";
 import { coverTitleBox } from "@/components/Growth/CoverTemplate";
 import { fitTitle } from "@/src/server/services/growth/cover-fonts";
 import { renderCoverPng } from "@/src/server/services/growth/cover-render";
@@ -64,6 +64,24 @@ describe("Brand card text", () => {
 
   it("allows more lines beside the illustration", () => {
     expect(coverTitleBox(true, "medium").maxLines).toBeGreaterThan(plain.maxLines);
+  });
+
+  it("keeps S, M and L apart instead of collapsing onto one size", () => {
+    // The ranges used to overlap, so any title long enough to shrink ended at
+    // nearly the same size whichever setting was chosen.
+    for (const withIllustration of [false, true]) {
+      const [small, medium, large] = COVER_TEXT_SIZES.map((size) => coverTitleBox(withIllustration, size));
+      expect(small.maxSize).toBeLessThan(medium.minSize);
+      expect(medium.maxSize).toBeLessThan(large.minSize);
+    }
+  });
+
+  it("draws a headline at the chosen size without shrinking it", () => {
+    // Headlines are a few words, so every setting keeps its largest size.
+    for (const size of COVER_TEXT_SIZES) {
+      const box = coverTitleBox(false, size);
+      expect(fitTitle("Content batching for teams", "inter", 700, box).size).toBe(box.maxSize);
+    }
   });
 });
 

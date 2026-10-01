@@ -3,6 +3,8 @@ import { z } from "zod";
 
 export const articleDraftSchema = z.object({
   title: z.string().min(8).max(180),
+  /** Drawn on the brand thumbnail; see lib/autopilot/cover-title.ts. */
+  coverTitle: z.string().min(3).max(60),
   suggestedSlug: z.string().min(3).max(180),
   excerpt: z.string().min(40).max(320),
   metaTitle: z.string().min(8).max(70),

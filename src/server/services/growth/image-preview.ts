@@ -6,6 +6,7 @@ import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
 import { THUMBNAIL_FORMATS, coverTypography, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
 import { loadLogo, loadStyleReferences, normalizeLogoUrl, normalizeStyleReferences } from "./image-references";
+import { resolveCoverTitle } from "./cover-title";
 import { makeCover, makeInlineImage } from "./images";
 
 export const imagePreviewSchema = z.object({
@@ -41,7 +42,7 @@ export async function previewImage(blogId: string, raw: unknown) {
   const input = imagePreviewSchema.parse(raw);
   const post = await prisma.post.findFirst({
     where: { id: input.postId, blogId },
-    select: { title: true, excerpt: true, content: true, blog: { select: { name: true } } },
+    select: { title: true, coverTitle: true, excerpt: true, content: true, blog: { select: { name: true } } },
   });
   if (!post) throw new ApiError(404, "Article not found");
 
@@ -56,8 +57,14 @@ export async function previewImage(blogId: string, raw: unknown) {
     logo: logo ? { bytes: logo, position: input.logoPosition } : null,
   };
   const warnings: string[] = [];
+  /**
+   * The preview stores nothing, so an article with no headline gets one written
+   * for this sample only; generation writes and keeps its own. A plain brand
+   * card stays entirely AI-free, so there it falls back to the article title.
+   */
+  const cover = input.kind === "cover" ? await resolveCoverTitle(openai, post) : null;
   const image = input.kind === "cover"
-    ? await makeCover(openai, { ...request, format: input.format, colors: thumbnailColors(input.colors), typography: coverTypography(input.typography), title: post.title, blogName: post.blog.name, warnings })
+    ? await makeCover(openai, { ...request, format: input.format, colors: thumbnailColors(input.colors), typography: coverTypography(input.typography), title: cover!.title, blogName: post.blog.name, warnings })
     : await makeInlineImage(openai!, request);
   return { image: `data:${image.mimeType};base64,${image.bytes.toString("base64")}`, warnings };
 }

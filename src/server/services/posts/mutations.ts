@@ -25,6 +25,7 @@ export async function createPost(data: {
   publishedAt?: Date;
   authorId?: string;
   language: string;
+  coverTitle?: string;
   metaTitle?: string;
   metaDescription?: string;
   ogImage?: string;
@@ -59,6 +60,7 @@ export async function updatePost(
     publishedAt?: Date;
     authorId?: string;
     language?: string;
+    coverTitle?: string;
     metaTitle?: string;
     metaDescription?: string;
     ogImage?: string;

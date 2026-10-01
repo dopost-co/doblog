@@ -34,6 +34,8 @@ export const postCreateSchema = z.object({
   publishedAt: z.iso.datetime({ offset: true }).nullable().optional()
     .describe("ISO 8601 date-time. For status scheduled, the future instant the post is published."),
   translationGroupId: z.uuid().optional(),
+  coverTitle: z.string().max(60).nullable().optional()
+    .describe("Short headline drawn on the generated thumbnail, a few words. The title is drawn when this is unset."),
   metaTitle: text, metaDescription: text, ogImage: url, ogTitle: text,
   ogDescription: text, canonicalUrl: url, keywords: text,
   categoryIds: ids, tagIds: ids,

@@ -28,6 +28,7 @@ describe("generated Editor.js content", () => {
   it("places a useful image after its target section and sanitizes unsafe HTML", () => {
     const article: ArticleDraft = {
       title: "A complete CRM guide for freelancers",
+      coverTitle: "CRM for freelancers",
       suggestedSlug: "crm-guide-freelancers",
       excerpt: "A practical guide to choosing and using a CRM as an independent professional.",
       metaTitle: "CRM guide for freelancers",

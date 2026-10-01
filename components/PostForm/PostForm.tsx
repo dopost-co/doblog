@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { COVER_TITLE_MAX_CHARS, COVER_TITLE_MAX_WORDS, COVER_TITLE_MIN_WORDS } from "@/lib/autopilot/cover-title";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,7 @@ interface PostFormProps {
     featured?: boolean | null;
     publishedAt?: Date | null;
     authorId?: string | null;
+    coverTitle?: string | null;
     metaTitle?: string | null;
     metaDescription?: string | null;
     ogImage?: string | null;
@@ -87,6 +89,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
   const [publishedAt, setPublishedAt] = useState(() =>
     toLocalInput(post?.publishedAt ? new Date(post.publishedAt) : initialScheduleAt ? new Date(initialScheduleAt) : new Date())
   );
+  const [coverTitle, setCoverTitle] = useState(post?.coverTitle || "");
   const [metaTitle, setMetaTitle] = useState(post?.metaTitle || "");
   const [metaDescription, setMetaDescription] = useState(post?.metaDescription || "");
   const [ogImage, setOgImage] = useState(post?.ogImage || "");
@@ -152,7 +155,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
     save: () => persist({ navigate: false }),
     value: {
       title, slug: computedSlug, blocks: content.blocks, excerpt, coverImage, status, featured, publishedAt, authorId, language,
-      metaTitle, metaDescription, ogImage, ogTitle, ogDescription, canonicalUrl, keywords, selectedCategories, selectedTags,
+      coverTitle, metaTitle, metaDescription, ogImage, ogTitle, ogDescription, canonicalUrl, keywords, selectedCategories, selectedTags,
     },
   });
 
@@ -182,6 +185,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
       publishedAt: publishedAt ? new Date(publishedAt) : undefined,
       authorId: authorId || undefined,
       language: language || "en",
+      coverTitle: coverTitle.trim() || undefined,
       metaTitle: computedMetaTitle || undefined,
       metaDescription: computedMetaDescription || undefined,
       ogImage: computedOgImage || undefined,
@@ -549,6 +553,22 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                   checked={featured}
                   onCheckedChange={(checked) => setFeatured(checked === true)}
                 />
+              </div>
+
+              <div className="flex items-start gap-4">
+                <Label className="text-muted-foreground w-[120px] shrink-0 pt-2">Cover Headline</Label>
+                <div className="flex-1 space-y-1">
+                  <Input
+                    value={coverTitle}
+                    onChange={(e) => setCoverTitle(e.target.value.slice(0, COVER_TITLE_MAX_CHARS))}
+                    placeholder={title || "A few words for the thumbnail"}
+                    className={fieldClass}
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    Drawn on the generated thumbnail. {COVER_TITLE_MIN_WORDS}–{COVER_TITLE_MAX_WORDS} words read best; the
+                    article title is used when this is empty.
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center gap-4">

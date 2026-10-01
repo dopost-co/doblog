@@ -218,6 +218,8 @@ model Post {
   id                 String    @id @default(cuid())
   blogId             String
   title              String
+  /// Short headline drawn on the brand thumbnail; the title is used when unset.
+  coverTitle         String?
   slug               String
   content            Json // Editor.js JSON format
   excerpt            String?

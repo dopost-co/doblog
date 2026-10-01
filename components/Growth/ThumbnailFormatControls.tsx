@@ -39,9 +39,10 @@ export function ThumbnailFormatPicker({ value, onChange, disabled }: {
   );
 }
 
+/** Cover headlines, not article titles: what the thumbnail actually draws. */
 const SAMPLE_TITLES = {
-  short: "How to plan a month of articles in one afternoon",
-  long: "How to plan a whole month of blog articles in a single afternoon without losing quality or your brand's voice, with real examples and templates",
+  short: "Content batching",
+  long: "Content batching for small teams",
 };
 
 /** A compact segmented control for one setting. */
@@ -167,8 +168,8 @@ export function BrandCardEditor({ format, colors, onChange, typography, onTypogr
 
       <div className="grid max-w-md gap-2">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">Long titles shrink to fit and end in “…” if needed.</span>
-          <Segmented label="Sample title" value={sample} onChange={setSample}
+          <span className="text-xs text-muted-foreground">Covers draw a short headline written for each article, not its full title.</span>
+          <Segmented label="Sample headline" value={sample} onChange={setSample}
             options={[{ id: "short", name: "Short" }, { id: "long", name: "Long" }]} />
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element -- server-rendered preview PNG */}

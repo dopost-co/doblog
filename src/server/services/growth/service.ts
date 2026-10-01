@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 import { R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/r2";
 import { ApiError } from "@/lib/integrations/errors";
+import { COVER_TITLE_MAX_WORDS, COVER_TITLE_MIN_WORDS, storedCoverTitle } from "@/lib/autopilot/cover-title";
 import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
 import { runSeoOperation } from "@/src/server/services/seo/service";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
@@ -181,7 +182,8 @@ Do not invent statistics, quotes, product capabilities or first-hand experiences
 Use only <strong>, <em>, <code>, <br> and <a href="..."> inside paragraph strings.
 internalLinks lists published articles of this blog (title, topic, summary). Link 2-4 of them where a sentence naturally touches their topic and the reader would want to go deeper: short descriptive anchor text taken from that sentence (never "click here" or a bare keyword), spread across the body, each article at most once, never in headings. Skip any that do not fit; fewer good links beat forced ones. Preserve each href exactly. If internalLinks is empty, add no internal links. Never invent an internal URL.
 External links may only use URLs supplied in serpBrief. Do not mention SEO, keywords, prompts or this workflow in the article.
-Inline images are optional and must explain a particular section. Request no more than maxInlineImages. The cover must be visually distinct from inline images and contain no text or logos.`,
+Inline images are optional and must explain a particular section. Request no more than maxInlineImages. The cover must be visually distinct from inline images and contain no text or logos.
+coverTitle is drawn on the thumbnail, not read in a list: ${COVER_TITLE_MIN_WORDS} to ${COVER_TITLE_MAX_WORDS} words naming the subject, in the article's language. It is not the title shortened and it never ends mid-thought or in an ellipsis. Prefer the plain subject ("Content batching for teams") over a clipped title ("The Complete Guide to").`,
     input: JSON.stringify(input),
     text: { format: zodTextFormat(articleDraftSchema, "article_draft") },
     max_output_tokens: 14_000,
@@ -334,7 +336,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
 
     const saved = await prisma.$transaction(async tx => {
       const post = await tx.post.create({ data: {
-        blogId, title: article.title, slug, excerpt: article.excerpt,
+        blogId, title: article.title, coverTitle: storedCoverTitle(article.coverTitle), slug, excerpt: article.excerpt,
         content: json(buildEditorContent(article)), status: "draft", language: claimed.item.language,
         translationGroupId: randomUUID(), metaTitle: article.metaTitle, metaDescription: article.metaDescription,
         ogTitle: article.metaTitle, ogDescription: article.metaDescription,
@@ -371,7 +373,8 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
           const cover = await makeCover(openai, {
             prompt: article.coverImage.prompt, style: settings?.thumbnailStyle, references: thumbnailReferences, runId: claimed.run.id,
             format: isThumbnailFormat(settings?.thumbnailFormat) ? settings.thumbnailFormat : "generated",
-            colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography), title: article.title, blogName: blog.name, warnings,
+            colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),
+            title: storedCoverTitle(article.coverTitle) ?? article.title, blogName: blog.name, warnings,
             logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
           });
           coverImage = await saveImage({ blogId, postId, runId: claimed.run.id, alt: article.coverImage.alt, kind: "cover" }, cover);

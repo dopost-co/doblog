@@ -31,7 +31,7 @@ describe("Choosing articles to link", () => {
 
 describe("Links in generated articles", () => {
   const article = (paragraph: string, heading = "Getting started"): ArticleDraft => ({
-    title: "A guide", suggestedSlug: "guide", excerpt: "x".repeat(40), metaTitle: "A guide", metaDescription: "x".repeat(40),
+    title: "A guide", coverTitle: "A short guide", suggestedSlug: "guide", excerpt: "x".repeat(40), metaTitle: "A guide", metaDescription: "x".repeat(40),
     intent: "informational", cluster: "Guides", secondaryKeywords: [],
     introduction: [paragraph],
     sections: [{ heading, level: 2, paragraphs: [paragraph], bullets: [] }],
