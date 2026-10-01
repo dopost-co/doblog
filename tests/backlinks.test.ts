@@ -54,6 +54,28 @@ describe("Links from existing articles to a new one", () => {
     expect(db.$queryRaw.mock.calls[0]).toContainEqual(["%marketing por email%", "%listas de correo%"]);
   });
 
+  it("links a translation from articles in its own language, at that language's path, without retranslating them", async () => {
+    db.post.findUnique.mockResolvedValue(newPost(true, {
+      seoTarget: null, language: "es", slug: "guia-email-marketing", keywords: "marketing por email",
+      blog: { blogId: "public", deletedAt: null, seoSettings: { backlinksEnabled: true, articleUrlPrefix: "/blog", articlePaths: { es: "/es/blog" } } },
+    }));
+    db.postSeoTarget.findFirst.mockResolvedValue({ primaryKeyword: "email marketing", secondaryKeywords: [], cluster: "Marketing" });
+    db.$queryRaw.mockResolvedValue([{ id: "old-es" }]);
+    db.post.findMany
+      .mockResolvedValueOnce([{ id: "old-es", title: "Boletines", slug: "boletines", excerpt: "", metaDescription: null, canonicalUrl: null, publishedAt: updatedAt, seoTarget: null }])
+      .mockResolvedValueOnce([{ id: "old-es", content: paragraph("Empieza hoy con el marketing por email."), updatedAt }]);
+    db.post.updateMany.mockResolvedValue({ count: 1 });
+
+    expect(await linkFromRelatedArticles("new")).toEqual({ linked: ["old-es"] });
+    // Only Spanish articles are searched; other languages get links from their own translation.
+    expect(db.$queryRaw.mock.calls[0]).toContain("es");
+    const { where, data } = db.post.updateMany.mock.calls[0][0];
+    expect(where).toEqual({ id: "old-es", updatedAt });
+    expect(JSON.stringify(data.content)).toContain('href=\\"/es/blog/guia-email-marketing\\"');
+    // A plain content edit: it does not queue the article for automatic retranslation.
+    expect(Object.keys(data)).toEqual(["content"]);
+  });
+
   it("does nothing when the blog turned it off", async () => {
     db.post.findUnique.mockResolvedValue(newPost(false));
     expect(await linkFromRelatedArticles("new")).toEqual({ linked: [] });

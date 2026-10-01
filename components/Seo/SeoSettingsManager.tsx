@@ -248,10 +248,10 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
         </Section>
 
         <Section title="Links">
-          <SettingToggle id="internal-links-enabled" label="Link to related articles" checked={internalLinksEnabled} onChange={setInternalLinksEnabled} disabled={pending} />
-          <p className="-mt-2 text-xs text-muted-foreground">Autopilot articles link to 2-4 related published articles where it reads naturally.</p>
-          <SettingToggle id="backlinks-enabled" label="Add links from existing articles" checked={backlinksEnabled} onChange={setBacklinksEnabled} disabled={pending} />
-          <p className="-mt-2 text-xs text-muted-foreground">When an Autopilot article is published, up to 3 published articles that already mention its topic link to it. This edits those articles.</p>
+          <SettingToggle id="internal-links-enabled" label="New articles link to your older ones" checked={internalLinksEnabled} onChange={setInternalLinksEnabled} disabled={pending} />
+          <p className="-mt-2 text-xs text-muted-foreground">Each new Autopilot article links to 2–4 related articles you already published.</p>
+          <SettingToggle id="backlinks-enabled" label="Older articles link to new ones" checked={backlinksEnabled} onChange={setBacklinksEnabled} disabled={pending} />
+          <p className="-mt-2 text-xs text-muted-foreground">When a new Autopilot article goes live, up to 3 of your published articles that mention its topic get a link to it. Only a few words are turned into a link; nothing else changes.</p>
         </Section>
 
         <details className="group py-2">
