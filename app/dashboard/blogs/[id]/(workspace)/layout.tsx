@@ -46,9 +46,13 @@ export default async function BlogWorkspaceLayout({
         user={{ name: session?.user?.name, email: session?.user?.email }}
       />
       <div className="flex min-w-0 flex-1 flex-col transition-[padding] duration-200 ease-linear md:p-2 md:pl-64 md:group-data-[sidebar-open=false]/shell:pl-2">
-        <div className="flex h-svh flex-col overflow-hidden bg-background text-foreground md:h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:shadow-xs md:dark:shadow-none">
+        {/* `relative` on the card and on <main> makes them the containing block of
+            absolutely positioned descendants (sr-only text, the hidden inputs Radix
+            renders for switches and checkboxes inside a form). Without it those escape
+            the clipping, stretch the document and scroll the whole page. */}
+        <div className="relative flex h-svh flex-col overflow-hidden bg-background text-foreground md:h-[calc(100svh-1rem)] md:rounded-xl md:border md:border-border/80 md:shadow-xs md:dark:shadow-none">
           <SiteHeader blogId={blog.id} blogName={blog.name} />
-          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+          <main className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">{children}</main>
         </div>
       </div>
     </SidebarProvider>
