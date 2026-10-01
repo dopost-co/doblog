@@ -118,8 +118,9 @@ model BlogSeoSettings {
   // "linear" (diagonal) or "radial" (circular from the top-left corner).
   // Brand logo placed on generated images; a position per kind ("none" or top-left … bottom-right).
   logoUrl                String?
-  thumbnailLogoPosition  String   @default("none")
-  inlineLogoPosition     String   @default("none")
+  /// Where an uploaded logo goes; drawn only once a logo exists.
+  thumbnailLogoPosition  String   @default("top-left")
+  inlineLogoPosition     String   @default("top-left")
   thumbnailStyle         String?
   // Up to two uploaded images whose style generated images follow.
   thumbnailReferenceUrls String[] @default([])

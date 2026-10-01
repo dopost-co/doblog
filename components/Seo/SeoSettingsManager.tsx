@@ -96,6 +96,17 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   const [coverColors, setCoverColors] = useState(() => thumbnailColors(settings?.thumbnailColors));
   const [typography, setTypography] = useState(() => coverTypography(settings?.thumbnailTypography));
   const [logoUrl, setLogoUrl] = useState(settings?.logoUrl ?? null);
+  /**
+   * A logo left unplaced is never drawn, so a freshly uploaded one starts in
+   * the top-left corner. A position already chosen is kept, including an
+   * explicit "No logo".
+   */
+  function changeLogo(next: string | null) {
+    setLogoUrl(next);
+    if (!next || settings?.logoUrl) return;
+    setThumbnailLogoPosition((current) => (current === "none" ? "top-left" : current));
+    setInlineLogoPosition((current) => (current === "none" ? "top-left" : current));
+  }
   const [thumbnailLogoPosition, setThumbnailLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.thumbnailLogoPosition) ? settings.thumbnailLogoPosition : "none");
   const [inlineLogoPosition, setInlineLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.inlineLogoPosition) ? settings.inlineLogoPosition : "none");
   const formRef = useRef<HTMLFormElement>(null);
@@ -186,7 +197,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
         </Section>
 
         <Section title="Logo">
-          <LogoUploader blogId={blogId} value={logoUrl} onChange={setLogoUrl} disabled={pending} />
+          <LogoUploader blogId={blogId} value={logoUrl} onChange={changeLogo} disabled={pending} />
         </Section>
 
         <Section title="Thumbnail">
