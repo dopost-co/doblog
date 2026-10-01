@@ -23,6 +23,20 @@ export type MadeImage = {
 };
 
 type Logo = { bytes: Buffer; position: LogoPosition } | null;
+type ImageFormat = "webp" | "png" | "jpeg";
+
+/**
+ * Whether a style asks for a see-through background. Asked only in the prompt,
+ * the model paints a fake checkerboard; with this the API returns real alpha.
+ */
+export function wantsTransparentBackground(style: string | null | undefined) {
+  return !!style && /transpar(?:en|ê)|trasparen|sin fondo|sem fundo|no background|without (?:a )?background|cut-?out/i.test(style);
+}
+
+/** gpt-image-2 rejects transparent backgrounds; the 1.x models and later ones accept them. */
+function supportsTransparency(model: string) {
+  return !/^gpt-image-2(?:-\d{4}-\d{2}-\d{2})?$/.test(model);
+}
 
 type ImageRequest = {
   prompt: string;
@@ -41,9 +55,14 @@ type ImageRequest = {
  */
 export async function requestImage(
   openai: Pick<OpenAI, "images">, prompt: string, references: Uploadable[], runId: string,
-  { format = "webp", size = "1536x1024" }: { format?: "webp" | "jpeg"; size?: "1536x1024" | "1024x1024" } = {},
+  { format = "webp", size = "1536x1024", transparent = false }: { format?: ImageFormat; size?: "1536x1024" | "1024x1024"; transparent?: boolean } = {},
 ) {
-  const options = { model: IMAGE_MODEL, prompt, size, quality: "medium", output_format: format, n: 1 } as const;
+  const options = {
+    model: IMAGE_MODEL, prompt, size, quality: "medium", n: 1,
+    // Transparency needs a format with alpha: JPEG becomes PNG.
+    output_format: transparent && format === "jpeg" ? "png" : format,
+    ...(transparent ? { background: "transparent" as const } : {}),
+  } as const;
   if (!references.length) return openai.images.generate(options);
   try {
     return await openai.images.edit({ ...options, image: references, input_fidelity: "high" });
@@ -54,17 +73,20 @@ export async function requestImage(
 }
 
 /** Asks the image model for one illustration and returns its bytes. */
-async function illustrate(openai: OpenAI, request: ImageRequest, output: { format: "webp" | "jpeg"; size: "1536x1024" | "1024x1024"; shape: string }) {
+async function illustrate(openai: OpenAI, request: ImageRequest, output: { format: ImageFormat; size: "1536x1024" | "1024x1024"; shape: string }) {
+  const transparent = wantsTransparentBackground(request.style) && supportsTransparency(IMAGE_MODEL);
   const prompt = [
     request.prompt,
     request.style ? `Visual direction: ${request.style}` : "Polished editorial illustration with a restrained, modern visual language.",
     request.references.length ? "Match the visual style of the reference images: palette, rendering, texture and mood. Do not copy their subjects, text or layout." : null,
     `${output.shape} No words, letters, watermarks, brand marks or UI text.`,
+    transparent ? "Leave the background fully transparent around the subject. Never draw a checkerboard or any pattern to suggest transparency." : null,
   ].filter(Boolean).join("\n");
-  const result = await requestImage(openai, prompt, request.references, request.runId, output);
+  const format: ImageFormat = transparent && output.format === "jpeg" ? "png" : output.format;
+  const result = await requestImage(openai, prompt, request.references, request.runId, { ...output, format, transparent });
   const encoded = result.data?.[0]?.b64_json;
   if (!encoded) throw new ApiError(502, "The image provider returned no image");
-  return { bytes: Buffer.from(encoded, "base64"), prompt, revisedPrompt: result.data?.[0]?.revised_prompt || null };
+  return { bytes: Buffer.from(encoded, "base64"), mimeType: `image/${format}` as const, prompt, revisedPrompt: result.data?.[0]?.revised_prompt || null };
 }
 
 /**
@@ -99,7 +121,7 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
   if (request.format === "generated") {
     if (!openai) throw new ApiError(412, "Add an OpenAI API key in Settings → Providers to use AI features");
     const image = await illustrate(openai, request, { format: "webp", size: "1536x1024", shape: "Landscape composition for a blog article." });
-    return withLogo({ ...image, mimeType: "image/webp", origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
+    return withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
   }
   let illustration: Awaited<ReturnType<typeof illustrate>> | null = null;
   if (request.format === "template_illustration" && openai) {
@@ -111,7 +133,7 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
   }
   const png = await renderCoverPng({
     title: request.title, blogName: request.blogName, colors: request.colors, typography: request.typography,
-    illustration: illustration ? `data:image/jpeg;base64,${illustration.bytes.toString("base64")}` : null,
+    illustration: illustration ? `data:${illustration.mimeType};base64,${illustration.bytes.toString("base64")}` : null,
   });
   return withLogo({
     bytes: png, mimeType: "image/png", origin: "template",
@@ -122,5 +144,5 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
 /** An image inside the article: always an AI illustration. */
 export async function makeInlineImage(openai: OpenAI, request: ImageRequest): Promise<MadeImage> {
   const image = await illustrate(openai, request, { format: "webp", size: "1536x1024", shape: "Landscape composition for a blog article." });
-  return withLogo({ ...image, mimeType: "image/webp", origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
+  return withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
 }

@@ -42,6 +42,7 @@
 }
 
 @theme inline {
+  --animate-shimmer: shimmer 1.8s ease-in-out infinite;
   --color-background: rgb(var(--background));
   --color-foreground: rgb(var(--foreground));
   --font-sans: var(--font-geist-sans);
@@ -133,4 +134,10 @@
     transparent 0 7px,
     color-mix(in srgb, rgb(var(--foreground)) 7%, transparent) 7px 8px
   );
+}
+
+/* A soft light band sweeping across a placeholder while something loads. */
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
 }

@@ -57,4 +57,33 @@ describe("Image generation with references", () => {
     expect(await requestImage({ images: { edit: failingEdit, generate: fallback } } as never, "A cover", [reference], "run-1")).toBe(image);
     expect(fallback).toHaveBeenCalledTimes(1);
   });
+
+  it("asks for a real transparent background when the style wants one", async () => {
+    const { requestImage, wantsTransparentBackground, makeCover } = await import("@/src/server/services/growth/images");
+    expect(wantsTransparentBackground("Like a kid draw black and white with bg transparent")).toBe(true);
+    expect(wantsTransparentBackground("Ilustración con fondo transparente")).toBe(true);
+    expect(wantsTransparentBackground("Flat icon, no background")).toBe(true);
+    expect(wantsTransparentBackground("Editorial watercolor, warm palette")).toBe(false);
+    expect(wantsTransparentBackground(null)).toBe(false);
+
+    // JPEG has no alpha, so a transparent request becomes PNG.
+    const generate = vi.fn().mockResolvedValue(image);
+    await requestImage({ images: { edit: vi.fn(), generate } } as never, "A cover", [], "run-1", { format: "jpeg", size: "1024x1024", transparent: true });
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ background: "transparent", output_format: "png" }));
+
+    const cover = vi.fn().mockResolvedValue(image);
+    const made = await makeCover({ images: { edit: vi.fn(), generate: cover } } as never, {
+      format: "generated", prompt: "A cover", style: "Like a kid draw black and white with bg transparent", references: [], runId: "run-1",
+      colors: [], typography: {} as never, title: "T", blogName: "B", warnings: [],
+    });
+    expect(cover).toHaveBeenCalledWith(expect.objectContaining({ background: "transparent", output_format: "webp", prompt: expect.stringContaining("Never draw a checkerboard") }));
+    expect(made.mimeType).toBe("image/webp");
+
+    const plain = vi.fn().mockResolvedValue(image);
+    await makeCover({ images: { edit: vi.fn(), generate: plain } } as never, {
+      format: "generated", prompt: "A cover", style: "Warm watercolor", references: [], runId: "run-1",
+      colors: [], typography: {} as never, title: "T", blogName: "B", warnings: [],
+    });
+    expect(plain.mock.calls[0][0]).not.toHaveProperty("background");
+  });
 });
