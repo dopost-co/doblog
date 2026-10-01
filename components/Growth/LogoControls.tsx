@@ -63,11 +63,11 @@ export function LogoUploader({ blogId, value, onChange, disabled }: {
           {uploading ? "Uploading…" : "Upload logo"}
         </button>
       )}
-      <p className="text-xs text-muted-foreground">PNG or WebP, up to 2 MB. A transparent background works best.</p>
+      <p className="text-xs text-muted-foreground">PNG, SVG or WebP, up to 2 MB. A transparent background works best.</p>
       <input
         ref={input}
         type="file"
-        accept="image/png,image/webp,image/jpeg"
+        accept="image/png,image/svg+xml,image/webp,image/jpeg"
         className="hidden"
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}
       />

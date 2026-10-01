@@ -57,3 +57,36 @@ describe("Brand assets over MCP", () => {
     expect(discoverySettingsSchema.safeParse({ website: "https://example.com", frequency: "weekly", topicsPerRun: 8, writingDays: [1], active: false }).success).toBe(true);
   });
 });
+
+describe("Uploading brand assets as base64", () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 80"><rect width="400" height="80" rx="12" fill="#fff"/></svg>';
+  const base64 = Buffer.from(svg).toString("base64");
+  const withScopes = (scopes: string[]) => ({ blogId: "blog-1", publicBlogId: "public-1", scopes }) as never;
+  const brand = withScopes(["media:write", "seo:write"]);
+
+  it("stores an SVG logo as a transparent PNG in the blog's brand folder", async () => {
+    vi.stubEnv("R2_ENDPOINT", "https://r2.test");
+    const { r2Client } = await import("@/lib/r2");
+    const send = vi.mocked(r2Client.send).mockClear();
+    const { data } = await executeOperation(brand, "upload_image", { mimeType: "image/svg+xml", base64, purpose: "logo" }) as { data: { url: string; purpose: string } };
+    expect(data.purpose).toBe("logo");
+    expect(data.url).toMatch(/^https:\/\/media\.test\/blogs\/blog-1\/brand\/[\w-]+\.png$/);
+    const put = (send.mock.calls[0][0] as unknown as { input: { ContentType: string; Body: Buffer } }).input;
+    expect(put.ContentType).toBe("image/png");
+    expect(put.Body.subarray(1, 4).toString("ascii")).toBe("PNG");
+    vi.unstubAllEnvs();
+  });
+
+  it("needs seo:write for brand assets", async () => {
+    await expect(executeOperation(withScopes(["media:write"]), "upload_image", { mimeType: "image/svg+xml", base64, purpose: "logo" }))
+      .rejects.toMatchObject({ status: 403 });
+  });
+
+  it("refuses SVGs that point to other files", async () => {
+    const { rasterizeSvg } = await import("@/src/server/services/growth/image-references");
+    await expect(rasterizeSvg(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><image href="file:///etc/passwd"/></svg>'))).rejects.toThrow("links to other files");
+    await expect(rasterizeSvg(Buffer.from('<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg>&x;</svg>'))).rejects.toThrow("links to other files");
+    await expect(rasterizeSvg(Buffer.from("not an image"))).rejects.toThrow("not a valid SVG");
+  });
+});
+

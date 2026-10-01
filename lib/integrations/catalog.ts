@@ -5,7 +5,7 @@ export type ContentResource = typeof CONTENT_RESOURCES[number];
 export type OperationName = `${"list" | "get" | "create" | "update" | "delete"}_${ContentResource}` | "get_blog" | "update_blog" | "upload_image" | "translate_posts";
 export type Operation = { name: OperationName; method: string; path: string; scope: ApiScope; description: string };
 export const OPERATIONS: Operation[] = [
-  { name: "upload_image", method: "POST", path: "/media", scope: "media:write", description: "Upload a public JPEG, PNG, GIF or WebP image as base64 (maximum 700 KiB decoded). Returns a URL usable in coverImage or Editor.js. Do not upload confidential files; images are public even for drafts." },
+  { name: "upload_image", method: "POST", path: "/media", scope: "media:write", description: "Upload a public JPEG, PNG, GIF, WebP or SVG image as base64 (maximum 700 KiB decoded; SVG is stored as PNG). purpose \"content\" (default) returns a URL usable in coverImage or Editor.js. purpose \"logo\" or \"style_reference\" stores a brand asset for Autopilot images and needs seo:write; then set it with seo_update_settings (logoUrl, thumbnailReferenceUrls or inlineImageReferenceUrls). Do not upload confidential files; images are public even for drafts." },
   { name: "get_blog", method: "GET", path: "", scope: "content:read", description: "Read this blog’s public identifier and metadata." },
   { name: "update_blog", method: "PATCH", path: "", scope: "blog:write", description: "Update this blog’s name, slug, description, languages (the first is the main one) or automatic translation sync. Cannot change ownership." },
   ...CONTENT_RESOURCES.flatMap(resource => ([

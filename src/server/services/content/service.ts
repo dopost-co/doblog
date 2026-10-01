@@ -7,6 +7,7 @@ import { requireScope, type ApiPrincipal } from "@/lib/integrations/auth";
 import { OPERATIONS, type OperationName, type ContentResource } from "@/lib/integrations/catalog";
 import * as schemas from "@/lib/integrations/schemas";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
+import { rasterizeSvg, uploadBrandAsset } from "@/src/server/services/growth/image-references";
 import { cancelPostSchedule, syncPostSchedule } from "@/src/server/services/scheduling/service";
 import { translatePostInto } from "@/src/server/services/translations/post-translation";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
@@ -143,7 +144,16 @@ export async function executeOperation(principal: ApiPrincipal, name: OperationN
   const blogId = principal.blogId;
   if (name === "upload_image") {
     const data = schemas.imageUploadSchema.parse(input);
-    return { data: await uploadBlogImage(blogId, Buffer.from(data.base64, "base64"), data.mimeType, 700 * 1024) };
+    const bytes = Buffer.from(data.base64, "base64");
+    if (data.purpose !== "content") {
+      requireScope(principal, "seo:write");
+      const url = await uploadBrandAsset(blogId, data.purpose === "logo" ? "brand" : "references", bytes, data.mimeType);
+      return { data: { url, purpose: data.purpose } };
+    }
+    // SVGs are stored as PNG (see rasterizeSvg).
+    return data.mimeType === "image/svg+xml"
+      ? { data: await uploadBlogImage(blogId, await rasterizeSvg(bytes), "image/png", 700 * 1024) }
+      : { data: await uploadBlogImage(blogId, bytes, data.mimeType, 700 * 1024) };
   }
   if (name === "get_blog") {
     const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: blogSelect });

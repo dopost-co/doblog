@@ -93,6 +93,8 @@ export const createKeySchema = z.object({
 }).strict();
 
 export const imageUploadSchema = z.object({
-  mimeType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"]),
+  mimeType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"]),
   base64: z.string().min(4).max(956_000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, "Expected standard padded base64, without a data URL prefix"),
+  /** "logo" and "style_reference" store a brand asset for Autopilot images (needs seo:write). */
+  purpose: z.enum(["content", "logo", "style_reference"]).default("content"),
 }).strict();
