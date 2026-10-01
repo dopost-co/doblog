@@ -29,6 +29,7 @@ import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslateP
 import { getLanguageByCode } from "@/lib/languages";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useConfirmLeave, useUnsavedChanges } from "@/components/UnsavedChanges/UnsavedChangesProvider";
 
 interface PostFormProps {
   blogId: string;
@@ -146,12 +147,27 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
   const fieldClass = "h-9 min-w-0 flex-1 border-0 bg-muted/40 px-3 shadow-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-0 dark:bg-muted/40 dark:hover:bg-muted/60 dark:focus-visible:bg-muted/60";
   const textAreaClass = "min-w-0 flex-1 resize-none border-0 bg-muted/40 px-3 py-2 shadow-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-0 dark:bg-muted/40 dark:hover:bg-muted/60 dark:focus-visible:bg-muted/60";
 
+  const confirmLeave = useConfirmLeave();
+  const { markSaved } = useUnsavedChanges({
+    save: () => persist({ navigate: false }),
+    value: {
+      title, slug: computedSlug, blocks: content.blocks, excerpt, coverImage, status, featured, publishedAt, authorId, language,
+      metaTitle, metaDescription, ogImage, ogTitle, ogDescription, canonicalUrl, keywords, selectedCategories, selectedTags,
+    },
+  });
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    await persist({ navigate: true });
+  }
+
+  /** Saves the post; after a save from the form it goes back to the posts list. */
+  async function persist({ navigate }: { navigate: boolean }) {
     setError("");
     if (status === "scheduled" && (!publishedAt || new Date(publishedAt) <= new Date())) {
       setError("Pick a future date and time to schedule this post.");
-      return;
+      toast.error("Pick a future date and time to schedule this post.");
+      return false;
     }
     setIsLoading(true);
 
@@ -185,14 +201,18 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
       setError(result.error);
       toast.error(result.error);
       setIsLoading(false);
+      return false;
     } else {
+      markSaved();
       toast.success(
         status === "published" ? "Post published"
           : status === "scheduled" ? "Post scheduled"
             : isEditing ? "Post saved" : "Draft created",
       );
-      router.push(`/dashboard/blogs/${blogId}`);
+      if (navigate) router.push(`/dashboard/blogs/${blogId}`);
+      else setIsLoading(false);
       router.refresh();
+      return true;
     }
   }
 
@@ -249,7 +269,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 ml-auto">
-            <Button type="button" variant="outline" onClick={() => router.push(`/dashboard/blogs/${blogId}`)}>
+            <Button type="button" variant="outline" onClick={() => confirmLeave(() => router.push(`/dashboard/blogs/${blogId}`))}>
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading || isSyncing}>
@@ -415,7 +435,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                     <button
                       key={translation.id}
                       type="button"
-                      onClick={() => router.push(`/dashboard/blogs/${blogId}/posts/${translation.id}/edit`)}
+                      onClick={() => confirmLeave(() => router.push(`/dashboard/blogs/${blogId}/posts/${translation.id}/edit`))}
                       className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                     >
                       {lang?.name || translation.language}

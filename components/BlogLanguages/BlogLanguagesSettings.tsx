@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { updateBlogLanguages } from "@/src/server/services/blogs/mutations";
 import { BlogLanguagesPicker } from "./BlogLanguagesPicker";
 import { toast } from "sonner";
+import { useUnsavedChanges } from "@/components/UnsavedChanges/UnsavedChangesProvider";
 
 export function BlogLanguagesSettings({ blogId, initialLanguages, initialAutoSync, canEdit }: {
   blogId: string;
@@ -25,17 +26,24 @@ export function BlogLanguagesSettings({ blogId, initialLanguages, initialAutoSyn
   const effectiveAutoSync = multilingual && autoSync;
   const changed = languages.join() !== saved.languages.join() || effectiveAutoSync !== saved.autoSync;
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
+  const { markSaved } = useUnsavedChanges({ value: { languages, autoSync: effectiveAutoSync }, save: persist, enabled: canEdit });
+
+  async function persist() {
     setPending(true);
     const result = await updateBlogLanguages(blogId, { languages, autoSyncTranslations: effectiveAutoSync });
     setPending(false);
-    if ("error" in result && result.error) { toast.error(result.error); return; }
-    if (result.success) {
-      setSaved({ languages: result.languages, autoSync: result.autoSyncTranslations });
-      toast.success("Languages saved");
-      router.refresh();
-    }
+    if ("error" in result && result.error) { toast.error(result.error); return false; }
+    if (!result.success) return false;
+    markSaved();
+    setSaved({ languages: result.languages, autoSync: result.autoSyncTranslations });
+    toast.success("Languages saved");
+    router.refresh();
+    return true;
+  }
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    await persist();
   }
 
   return (

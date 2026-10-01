@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { AUTOPILOT_PUBLISHING_OPTIONS, type AutopilotPublishingMode } from "@/lib/autopilot/options";
 import { WritingDaysPicker } from "./WritingDaysPicker";
 import { cn } from "@/lib/utils";
+import { useUnsavedChanges } from "@/components/UnsavedChanges/UnsavedChangesProvider";
 import { toast } from "sonner";
 
 type Discovery = {
@@ -44,20 +45,26 @@ export function OpportunityRadar({ blogId, discovery, aiReady }: {
   const [writingDays, setWritingDays] = useState(discovery.writingDays);
   const [publishingMode, setPublishingMode] = useState<AutopilotPublishingMode>(discovery.publishingMode);
 
+  const { markSaved } = useUnsavedChanges({ value: { website, writingDays, publishingMode }, save: persist });
+
+  async function persist() {
+    const result = await saveDiscoverySettingsAction(blogId, {
+      website,
+      frequency: "weekly",
+      topicsPerRun: Math.max(8, writingDays.length * 4),
+      writingDays,
+      publishingMode,
+    });
+    if (result.error) { toast.error(result.error); return false; }
+    markSaved();
+    toast.success("Schedule saved");
+    router.refresh();
+    return true;
+  }
+
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    startTransition(async () => {
-      const result = await saveDiscoverySettingsAction(blogId, {
-        website,
-        frequency: "weekly",
-        topicsPerRun: Math.max(8, writingDays.length * 4),
-        writingDays,
-        publishingMode,
-      });
-      if (result.error) { toast.error(result.error); return; }
-      toast.success("Schedule saved");
-      router.refresh();
-    });
+    startTransition(async () => { await persist(); });
   }
 
   return <form onSubmit={submit} className="w-full max-w-4xl">

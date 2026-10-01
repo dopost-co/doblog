@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StyleReferencesPicker } from "@/components/Growth/StyleReferencesPicker";
 import { toast } from "sonner";
+import { useUnsavedChanges } from "@/components/UnsavedChanges/UnsavedChangesProvider";
 import { getLanguageName } from "@/lib/languages";
 import { BrandCardEditor, ThumbnailFormatPicker } from "@/components/Growth/ThumbnailFormatControls";
 import { coverTypography, isThumbnailFormat, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
@@ -112,30 +113,44 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   const connected = managed || credentials.length > 0;
   const activeCredential = credentials.find((item) => item.id === credentialId);
 
+  const { markSaved } = useUnsavedChanges({
+    formRef,
+    save: persist,
+    value: {
+      enabled, credentialId, thumbnailEnabled, thumbnailFormat, coverColors, typography, logoUrl, thumbnailLogoPosition, inlineLogoPosition,
+      inlineImagesEnabled, internalLinksEnabled, backlinksEnabled, thumbnailReferences, inlineReferences,
+    },
+  });
+
+  async function persist() {
+    if (!formRef.current) return false;
+    const form = new FormData(formRef.current);
+    const nullable = (name: string) => String(form.get(name) || "").trim() || null;
+    const result = await saveBlogSeoSettings(blogId, {
+      credentialId: managed ? null : credentialId || null, enabled, targetDomain: nullable("targetDomain"),
+      locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
+      competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
+      audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
+      thumbnailEnabled, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled,
+      thumbnailFormat, thumbnailColors: [...coverColors], thumbnailTypography: typography,
+      logoUrl, thumbnailLogoPosition, inlineLogoPosition,
+      thumbnailReferenceUrls: thumbnailReferences, inlineImageReferenceUrls: inlineReferences,
+      thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
+      articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
+      articlePaths: Object.fromEntries(languages.map((code) => [code, String(form.get(`articlePath:${code}`) || "")])),
+      maxInlineImages: Number(form.get("maxInlineImages") ?? settings?.maxInlineImages ?? 3),
+      perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
+    });
+    if (result.error) { toast.error(result.error); return false; }
+    markSaved();
+    toast.success("Autopilot settings saved");
+    router.refresh();
+    return true;
+  }
+
   function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const nullable = (name: string) => String(form.get(name) || "").trim() || null;
-    startTransition(async () => {
-      const result = await saveBlogSeoSettings(blogId, {
-        credentialId: managed ? null : credentialId || null, enabled, targetDomain: nullable("targetDomain"),
-        locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
-        competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
-        audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
-        thumbnailEnabled, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled,
-        thumbnailFormat, thumbnailColors: [...coverColors], thumbnailTypography: typography,
-        logoUrl, thumbnailLogoPosition, inlineLogoPosition,
-        thumbnailReferenceUrls: thumbnailReferences, inlineImageReferenceUrls: inlineReferences,
-        thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
-        articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
-        articlePaths: Object.fromEntries(languages.map((code) => [code, String(form.get(`articlePath:${code}`) || "")])),
-        maxInlineImages: Number(form.get("maxInlineImages") ?? settings?.maxInlineImages ?? 3),
-        perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
-      });
-      if (result.error) { toast.error(result.error); return; }
-      toast.success("Autopilot settings saved");
-      router.refresh();
-    });
+    startTransition(async () => { await persist(); });
   }
 
   return (

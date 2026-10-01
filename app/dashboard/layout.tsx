@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/get-session";
 import { prisma } from "@/lib/prisma";
+import { UnsavedChangesProvider } from "@/components/UnsavedChanges/UnsavedChangesProvider";
 
 export default async function DashboardLayout({
   children,
@@ -23,5 +24,5 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
-  return <>{children}</>;
+  return <UnsavedChangesProvider>{children}</UnsavedChangesProvider>;
 }

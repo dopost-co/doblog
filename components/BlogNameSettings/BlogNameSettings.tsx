@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateBlog } from "@/src/server/services/blogs/mutations";
 import { toast } from "sonner";
+import { useUnsavedChanges } from "@/components/UnsavedChanges/UnsavedChangesProvider";
 
 export function BlogNameSettings({
   blogId,
@@ -21,19 +22,27 @@ export function BlogNameSettings({
   const [name, setName] = useState(initialName);
   const [pending, setPending] = useState(false);
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+  const { markSaved } = useUnsavedChanges({ value: name.trim(), save: persist, enabled: canEdit });
+
+  async function persist() {
     const nextName = name.trim();
-    if (!nextName || nextName === initialName) return;
+    if (!nextName) { toast.error("Enter a blog name"); return false; }
     setPending(true);
     const result = await updateBlog(blogId, { name: nextName });
     setPending(false);
     if (result.error) {
       toast.error(result.error);
-      return;
+      return false;
     }
+    markSaved();
     toast.success("Blog name saved");
     router.refresh();
+    return true;
+  }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (name.trim() && name.trim() !== initialName) await persist();
   }
 
   return (
