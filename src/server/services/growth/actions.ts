@@ -12,6 +12,7 @@ import {
 import { discoverContentOpportunities, saveDiscoverySettings, setAutopilotActive } from "./discovery";
 import { queueContentPlanDraft } from "./draft-queue";
 import { previewImage } from "./image-preview";
+import { countRefreshableCovers, queueCoverRefresh } from "./cover-refresh";
 
 async function requireOwner(blogId: string) {
   const session = await getSession();
@@ -83,6 +84,31 @@ export async function previewImageAction(blogId: string, input: unknown) {
   try {
     await requireOwner(blogId);
     return { success: true as const, ...await previewImage(blogId, input) };
+  } catch (error) {
+    return { error: apiError(error).error };
+  }
+}
+
+/** How many covers a refresh would redraw, so the confirmation can name a number. */
+export async function countRefreshableCoversAction(blogId: string) {
+  try {
+    await requireOwner(blogId);
+    return { success: true as const, count: await countRefreshableCovers(blogId) };
+  } catch (error) {
+    return { error: apiError(error).error };
+  }
+}
+
+/**
+ * Redraws every cover this blog generated with the saved thumbnail settings.
+ * Queued one article at a time, so the request returns at once.
+ */
+export async function refreshCoversAction(blogId: string) {
+  try {
+    await requireOwner(blogId);
+    const result = await queueCoverRefresh(blogId);
+    revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
+    return { success: true as const, ...result };
   } catch (error) {
     return { error: apiError(error).error };
   }

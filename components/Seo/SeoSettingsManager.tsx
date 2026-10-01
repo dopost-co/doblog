@@ -19,6 +19,7 @@ import { BrandCardEditor, ThumbnailFormatPicker } from "@/components/Growth/Thum
 import { coverTypography, isThumbnailFormat, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { LogoPositionPicker, LogoUploader } from "@/components/Growth/LogoControls";
 import { ImagePreviewDialog } from "@/components/Growth/ImagePreviewDialog";
+import { RefreshCoversDialog } from "@/components/Growth/RefreshCoversDialog";
 import { isLogoPosition, type LogoPosition } from "@/lib/autopilot/logo";
 
 type Credential = { id: string; label: string; loginHint: string };
@@ -207,16 +208,19 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
             </div>
           )}
           {thumbnailEnabled && (
-            <ImagePreviewDialog
-              blogId={blogId}
-              kind="cover"
-              posts={posts}
-              usesAi={thumbnailFormat !== "template"}
-              settings={() => ({
-                format: thumbnailFormat, colors: [...coverColors], typography, style: fieldValue("thumbnailStyle"),
-                referenceUrls: thumbnailReferences, logoUrl, logoPosition: logoUrl ? thumbnailLogoPosition : "none",
-              })}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <ImagePreviewDialog
+                blogId={blogId}
+                kind="cover"
+                posts={posts}
+                usesAi={thumbnailFormat !== "template"}
+                settings={() => ({
+                  format: thumbnailFormat, colors: [...coverColors], typography, style: fieldValue("thumbnailStyle"),
+                  referenceUrls: thumbnailReferences, logoUrl, logoPosition: logoUrl ? thumbnailLogoPosition : "none",
+                })}
+              />
+              <RefreshCoversDialog blogId={blogId} usesAi={thumbnailFormat !== "template"} disabled={pending} />
+            </div>
           )}
         </Section>
 

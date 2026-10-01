@@ -7,6 +7,7 @@ import { THUMBNAIL_FORMATS, coverTypography, thumbnailColors, type ThumbnailForm
 import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
 import { loadLogo, loadStyleReferences, normalizeLogoUrl, normalizeStyleReferences } from "./image-references";
 import { resolveCoverTitle } from "./cover-title";
+import { imageSubject } from "./image-subject";
 import { makeCover, makeInlineImage } from "./images";
 
 export const imagePreviewSchema = z.object({
@@ -20,18 +21,6 @@ export const imagePreviewSchema = z.object({
   logoUrl: z.string().max(2048).nullable().default(null),
   logoPosition: z.enum(["none", ...LOGO_POSITIONS]).default("none"),
 }).strict();
-
-const plain = (value: string) => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-
-/** What to draw, from an existing article: its topic for a cover, its first section for an inline image. */
-function subject(kind: "cover" | "inline", post: { title: string; excerpt: string | null; content: unknown }) {
-  const blocks = ((post.content as { blocks?: Array<{ type?: string; data?: { text?: unknown } }> } | null)?.blocks ?? []);
-  if (kind === "cover") return `Cover image for an article titled "${post.title}". ${plain(post.excerpt ?? "")}`.slice(0, 900);
-  const headingIndex = blocks.findIndex((block) => block.type === "header" && typeof block.data?.text === "string");
-  const heading = headingIndex >= 0 ? plain(String(blocks[headingIndex].data!.text)) : post.title;
-  const paragraph = blocks.slice(headingIndex + 1).find((block) => block.type === "paragraph" && typeof block.data?.text === "string");
-  return `Explanatory image for the section "${heading}" of an article titled "${post.title}". ${plain(String(paragraph?.data?.text ?? post.excerpt ?? ""))}`.slice(0, 900);
-}
 
 /**
  * Makes one sample image with the given (possibly unsaved) settings and an
@@ -53,7 +42,7 @@ export async function previewImage(blogId: string, raw: unknown) {
     input.logoPosition === "none" ? null : loadLogo(blogId, normalizeLogoUrl(blogId, input.logoUrl)),
   ]);
   const request = {
-    prompt: subject(input.kind, post), style: input.style, references, runId: "preview",
+    prompt: imageSubject(input.kind, post), style: input.style, references, runId: "preview",
     logo: logo ? { bytes: logo, position: input.logoPosition } : null,
   };
   const warnings: string[] = [];
