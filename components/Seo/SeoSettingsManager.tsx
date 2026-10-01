@@ -98,14 +98,14 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   const [logoUrl, setLogoUrl] = useState(settings?.logoUrl ?? null);
   /**
    * A logo left unplaced is never drawn, so a freshly uploaded one starts in
-   * the top-left corner. A position already chosen is kept, including an
-   * explicit "No logo".
+   * the thumbnail's top-left corner. A position already chosen is kept,
+   * including an explicit "No logo". Images inside the article stay unmarked
+   * unless asked for: a logo on every illustration is rarely wanted.
    */
   function changeLogo(next: string | null) {
     setLogoUrl(next);
     if (!next || settings?.logoUrl) return;
     setThumbnailLogoPosition((current) => (current === "none" ? "top-left" : current));
-    setInlineLogoPosition((current) => (current === "none" ? "top-left" : current));
   }
   const [thumbnailLogoPosition, setThumbnailLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.thumbnailLogoPosition) ? settings.thumbnailLogoPosition : "none");
   const [inlineLogoPosition, setInlineLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.inlineLogoPosition) ? settings.inlineLogoPosition : "none");
