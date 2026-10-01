@@ -24,20 +24,23 @@ export const COVER_REFRESH_LIMIT = 200;
 export type CoverRefreshScope = {
   /** Also draw a first cover for articles that have no image at all. */
   includeMissing?: boolean;
+  /** Also replace covers set by hand (uploaded or an outside URL). */
+  includeManual?: boolean;
   limit?: number;
 };
 
 /**
  * The articles a redraw would cover, newest first.
  *
- * A cover uploaded by hand or pointed at an outside URL is never touched: only
- * an article whose current `coverImage` is a media asset we made for it is
- * redrawn. With `includeMissing`, articles with no cover at all are added,
- * which is how a blog that has never generated one gets its first.
+ * By default a cover uploaded by hand or pointed at an outside URL is never
+ * touched: only an article whose current `coverImage` is a media asset we made
+ * for it is redrawn. With `includeManual`, those hand-set covers are replaced
+ * too. With `includeMissing`, articles with no cover at all are added, which is
+ * how a blog that has never generated one gets its first.
  */
 export async function refreshableCoverPostIds(
   blogId: string,
-  { includeMissing = false, limit = COVER_REFRESH_LIMIT }: CoverRefreshScope = {},
+  { includeMissing = false, includeManual = false, limit = COVER_REFRESH_LIMIT }: CoverRefreshScope = {},
 ) {
   const assets = await prisma.mediaAsset.findMany({
     where: { blogId, kind: "cover", post: { blogId, coverImage: { not: null } } },
@@ -55,7 +58,21 @@ export async function refreshableCoverPostIds(
     if (ids.length >= limit) return ids;
   }
 
-  if (!includeMissing) return ids;
+  if (includeManual && ids.length < limit) {
+    const handSet = await prisma.post.findMany({
+      where: { blogId, coverImage: { not: null }, id: { notIn: [...ids] } },
+      orderBy: { createdAt: "desc" },
+      take: limit - ids.length,
+      select: { id: true },
+    });
+    for (const post of handSet) {
+      if (seen.has(post.id)) continue;
+      seen.add(post.id);
+      ids.push(post.id);
+    }
+  }
+
+  if (!includeMissing || ids.length >= limit) return ids;
   const uncovered = await prisma.post.findMany({
     where: { blogId, coverImage: null },
     orderBy: { createdAt: "desc" },

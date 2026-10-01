@@ -12,7 +12,12 @@ import {
 import { discoverContentOpportunities, saveDiscoverySettings, setAutopilotActive } from "./discovery";
 import { queueContentPlanDraft } from "./draft-queue";
 import { previewImage } from "./image-preview";
-import { countRefreshableCovers, queueCoverRefresh } from "./cover-refresh";
+import { countRefreshableCovers, queueCoverRefresh, type CoverRefreshScope } from "./cover-refresh";
+
+/** Only the caller's choices; the cap stays a server decision. */
+function pickCoverRefreshScope(scope: CoverRefreshScope): CoverRefreshScope {
+  return { includeMissing: scope.includeMissing === true, includeManual: scope.includeManual === true };
+}
 
 async function requireOwner(blogId: string) {
   const session = await getSession();
@@ -90,10 +95,10 @@ export async function previewImageAction(blogId: string, input: unknown) {
 }
 
 /** How many covers a refresh would redraw, so the confirmation can name a number. */
-export async function countRefreshableCoversAction(blogId: string, includeMissing = false) {
+export async function countRefreshableCoversAction(blogId: string, scope: CoverRefreshScope = {}) {
   try {
     await requireOwner(blogId);
-    return { success: true as const, count: await countRefreshableCovers(blogId, { includeMissing }) };
+    return { success: true as const, count: await countRefreshableCovers(blogId, pickCoverRefreshScope(scope)) };
   } catch (error) {
     return { error: apiError(error).error };
   }
@@ -103,10 +108,10 @@ export async function countRefreshableCoversAction(blogId: string, includeMissin
  * Redraws every cover this blog generated with the saved thumbnail settings.
  * Queued one article at a time, so the request returns at once.
  */
-export async function refreshCoversAction(blogId: string, includeMissing = false) {
+export async function refreshCoversAction(blogId: string, scope: CoverRefreshScope = {}) {
   try {
     await requireOwner(blogId);
-    const result = await queueCoverRefresh(blogId, { includeMissing });
+    const result = await queueCoverRefresh(blogId, pickCoverRefreshScope(scope));
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
     return { success: true as const, ...result };
   } catch (error) {

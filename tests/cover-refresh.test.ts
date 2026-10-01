@@ -93,3 +93,40 @@ describe("choosing which covers to redraw", () => {
     expect(await refreshableCoverPostIds("blog-1", { includeMissing: true })).toEqual(["p1", "p2"]);
   });
 });
+
+describe("replacing covers set by hand", () => {
+  beforeEach(() => { db.mediaAsset.findMany.mockReset(); db.post.findMany.mockReset().mockResolvedValue([]); });
+
+  it("leaves hand-set covers alone unless asked for them", async () => {
+    db.mediaAsset.findMany.mockResolvedValue([ours("p1", "a.png")]);
+    db.post.findMany.mockResolvedValue([{ id: "p5" }]);
+
+    expect(await refreshableCoverPostIds("blog-1")).toEqual(["p1"]);
+    expect(db.post.findMany).not.toHaveBeenCalled();
+
+    expect(await refreshableCoverPostIds("blog-1", { includeManual: true })).toEqual(["p1", "p5"]);
+    expect(db.post.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { blogId: "blog-1", coverImage: { not: null }, id: { notIn: ["p1"] } },
+    }));
+  });
+
+  it("combines hand-set and uncovered articles without going over the cap", async () => {
+    db.mediaAsset.findMany.mockResolvedValue([ours("p1", "a.png")]);
+    db.post.findMany
+      .mockResolvedValueOnce([{ id: "p5" }, { id: "p6" }])
+      .mockResolvedValueOnce([{ id: "p9" }]);
+
+    expect(await refreshableCoverPostIds("blog-1", { includeManual: true, includeMissing: true, limit: 4 }))
+      .toEqual(["p1", "p5", "p6", "p9"]);
+    expect(db.post.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ take: 3 }));
+    expect(db.post.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ take: 1 }));
+  });
+
+  it("stops before the uncovered articles once hand-set ones fill the cap", async () => {
+    db.mediaAsset.findMany.mockResolvedValue([]);
+    db.post.findMany.mockResolvedValueOnce([{ id: "p5" }, { id: "p6" }]);
+    expect(await refreshableCoverPostIds("blog-1", { includeManual: true, includeMissing: true, limit: 2 }))
+      .toEqual(["p5", "p6"]);
+    expect(db.post.findMany).toHaveBeenCalledTimes(1);
+  });
+});
