@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -14,12 +14,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StyleReferencesPicker } from "@/components/Growth/StyleReferencesPicker";
 import { toast } from "sonner";
 import { getLanguageName } from "@/lib/languages";
+import { BrandCardEditor, ThumbnailFormatPicker } from "@/components/Growth/ThumbnailFormatControls";
+import { coverTypography, isThumbnailFormat, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
+import { LogoPositionPicker, LogoUploader } from "@/components/Growth/LogoControls";
+import { ImagePreviewDialog } from "@/components/Growth/ImagePreviewDialog";
+import { isLogoPosition, type LogoPosition } from "@/lib/autopilot/logo";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
   credentialId: string | null; enabled: boolean; targetDomain: string | null; locationCode: number; languageCode: string;
   timezone: string; competitorDomains: string[]; audience: string | null; brandVoice: string | null; publishingMode: string;
   thumbnailEnabled: boolean; inlineImagesEnabled: boolean;
+  thumbnailFormat: string; thumbnailColors: string[]; thumbnailTypography: unknown;
+  logoUrl: string | null; thumbnailLogoPosition: string; inlineLogoPosition: string;
   thumbnailReferenceUrls: string[]; inlineImageReferenceUrls: string[];
   internalLinksEnabled: boolean; backlinksEnabled: boolean;
   thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
@@ -68,8 +75,12 @@ function SettingToggle({ id, label, checked, onChange, disabled }: {
   );
 }
 
-export function SeoSettingsManager({ blogId, plan, credentials, settings, languages = [] }: {
+export function SeoSettingsManager({ blogId, plan, credentials, settings, languages = [], blogName = "", posts = [] }: {
   blogId: string;
+  /** Recent articles to try image settings on. */
+  posts?: { id: string; title: string }[];
+  /** Shown on the brand thumbnail preview. */
+  blogName?: string;
   /** The blog's languages; each can have its own article path. */
   languages?: string[];
   plan: "lifetime" | "subscription";
@@ -80,6 +91,15 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   const [pending, startTransition] = useTransition();
   const [enabled, setEnabled] = useState(settings?.enabled ?? false);
   const [thumbnailEnabled, setThumbnailEnabled] = useState(settings?.thumbnailEnabled ?? true);
+  const [thumbnailFormat, setThumbnailFormat] = useState<ThumbnailFormat>(isThumbnailFormat(settings?.thumbnailFormat) ? settings.thumbnailFormat : "generated");
+  const [coverColors, setCoverColors] = useState(() => thumbnailColors(settings?.thumbnailColors));
+  const [typography, setTypography] = useState(() => coverTypography(settings?.thumbnailTypography));
+  const [logoUrl, setLogoUrl] = useState(settings?.logoUrl ?? null);
+  const [thumbnailLogoPosition, setThumbnailLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.thumbnailLogoPosition) ? settings.thumbnailLogoPosition : "none");
+  const [inlineLogoPosition, setInlineLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.inlineLogoPosition) ? settings.inlineLogoPosition : "none");
+  const formRef = useRef<HTMLFormElement>(null);
+  /** Current text of a style field (they are uncontrolled), for previews. */
+  const fieldValue = (name: string) => (formRef.current?.elements.namedItem(name) as HTMLTextAreaElement | null)?.value.trim() || null;
   const [inlineImagesEnabled, setInlineImagesEnabled] = useState(settings?.inlineImagesEnabled ?? true);
   const [internalLinksEnabled, setInternalLinksEnabled] = useState(settings?.internalLinksEnabled ?? true);
   const [backlinksEnabled, setBacklinksEnabled] = useState(settings?.backlinksEnabled ?? true);
@@ -103,6 +123,8 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
         competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
         audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
         thumbnailEnabled, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled,
+        thumbnailFormat, thumbnailColors: [...coverColors], thumbnailTypography: typography,
+        logoUrl, thumbnailLogoPosition, inlineLogoPosition,
         thumbnailReferenceUrls: thumbnailReferences, inlineImageReferenceUrls: inlineReferences,
         thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
         articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
@@ -117,7 +139,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   }
 
   return (
-    <form onSubmit={save} className="space-y-6">
+    <form ref={formRef} onSubmit={save} className="space-y-6">
       {/* Edited in the Schedule tab and the blog's languages; kept so saving here never clears them. */}
       <input type="hidden" name="targetDomain" value={settings?.targetDomain || ""} />
       <input type="hidden" name="languageCode" value={settings?.languageCode ?? "en"} />
@@ -148,13 +170,39 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
           <Area label="Voice" name="brandVoice" defaultValue={settings?.brandVoice || ""} placeholder="Tone, words to use or avoid" />
         </Section>
 
+        <Section title="Logo">
+          <LogoUploader blogId={blogId} value={logoUrl} onChange={setLogoUrl} disabled={pending} />
+        </Section>
+
         <Section title="Thumbnail">
           <SettingToggle id="thumbnail-enabled" label="Generate a thumbnail" checked={thumbnailEnabled} onChange={setThumbnailEnabled} disabled={pending} />
-          {/* Kept mounted while off so its value is saved unchanged. */}
-          <div className={thumbnailEnabled ? "grid" : "hidden"}>
-            <Area label="Style" name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
+          {thumbnailEnabled && <ThumbnailFormatPicker value={thumbnailFormat} onChange={setThumbnailFormat} disabled={pending} />}
+          {thumbnailEnabled && thumbnailFormat !== "generated" && (
+            <BrandCardEditor format={thumbnailFormat} colors={coverColors} onChange={setCoverColors} typography={typography} onTypographyChange={setTypography} blogName={blogName} disabled={pending} />
+          )}
+          {/* Kept mounted while hidden so its value is saved unchanged. */}
+          <div className={thumbnailEnabled && thumbnailFormat !== "template" ? "grid" : "hidden"}>
+            <Area label={thumbnailFormat === "generated" ? "Style" : "Illustration style"} name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
           </div>
-          {thumbnailEnabled && <StyleReferencesPicker blogId={blogId} value={thumbnailReferences} onChange={setThumbnailReferences} disabled={pending} />}
+          {thumbnailEnabled && thumbnailFormat !== "template" && <StyleReferencesPicker blogId={blogId} value={thumbnailReferences} onChange={setThumbnailReferences} disabled={pending} />}
+          {thumbnailEnabled && logoUrl && (
+            <div className="grid gap-2">
+              <Label>Logo position</Label>
+              <LogoPositionPicker value={thumbnailLogoPosition} onChange={setThumbnailLogoPosition} disabled={pending} />
+            </div>
+          )}
+          {thumbnailEnabled && (
+            <ImagePreviewDialog
+              blogId={blogId}
+              kind="cover"
+              posts={posts}
+              usesAi={thumbnailFormat !== "template"}
+              settings={() => ({
+                format: thumbnailFormat, colors: [...coverColors], typography, style: fieldValue("thumbnailStyle"),
+                referenceUrls: thumbnailReferences, logoUrl, logoPosition: logoUrl ? thumbnailLogoPosition : "none",
+              })}
+            />
+          )}
         </Section>
 
         <Section title="Post images">
@@ -164,6 +212,24 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
             <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
           </div>
           {inlineImagesEnabled && <StyleReferencesPicker blogId={blogId} value={inlineReferences} onChange={setInlineReferences} disabled={pending} />}
+          {inlineImagesEnabled && logoUrl && (
+            <div className="grid gap-2">
+              <Label>Logo position</Label>
+              <LogoPositionPicker value={inlineLogoPosition} onChange={setInlineLogoPosition} disabled={pending} />
+            </div>
+          )}
+          {inlineImagesEnabled && (
+            <ImagePreviewDialog
+              blogId={blogId}
+              kind="inline"
+              posts={posts}
+              usesAi
+              settings={() => ({
+                style: fieldValue("inlineImageStyle"), referenceUrls: inlineReferences,
+                logoUrl, logoPosition: logoUrl ? inlineLogoPosition : "none",
+              })}
+            />
+          )}
         </Section>
 
         <Section title="Links">

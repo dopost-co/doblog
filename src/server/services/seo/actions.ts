@@ -6,8 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
-import { normalizeStyleReferences } from "@/src/server/services/growth/image-references";
-import { articlePathsSchema } from "./service";
+import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
+import { articlePathsSchema, logoPositionSchema, thumbnailColorsSchema, thumbnailFormatSchema, thumbnailTypographySchema } from "./service";
 
 const settingsSchema = z.object({
   credentialId: z.string().min(1).nullable(), enabled: z.boolean(),
@@ -17,6 +17,8 @@ const settingsSchema = z.object({
   audience: z.string().trim().max(2000).nullable(), brandVoice: z.string().trim().max(2000).nullable(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]),
   thumbnailEnabled: z.boolean(), inlineImagesEnabled: z.boolean(),
+  thumbnailFormat: thumbnailFormatSchema, thumbnailColors: thumbnailColorsSchema, thumbnailTypography: thumbnailTypographySchema,
+  logoUrl: z.string().max(2048).nullable(), thumbnailLogoPosition: logoPositionSchema, inlineLogoPosition: logoPositionSchema,
   internalLinksEnabled: z.boolean(), backlinksEnabled: z.boolean(),
   thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2), inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2),
   thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
@@ -36,7 +38,7 @@ async function requireOwner(blogId: string) {
   if (!session?.user?.id) throw new ApiError(401, "Sign in to manage SEO settings");
   const blog = await prisma.blog.findFirst({
     where: { id: blogId, userId: session.user.id, deletedAt: null },
-    select: { id: true, userId: true, languages: true, user: { select: { plan: true } } },
+    select: { id: true, userId: true, name: true, languages: true, user: { select: { plan: true } } },
   });
   if (!blog) throw new ApiError(403, "Only the blog owner can manage SEO settings");
   return { ...blog, managed: isManagedPlan(blog.user.plan) };
@@ -52,7 +54,9 @@ export async function getSeoDashboardData(blogId: string) {
     }),
     prisma.blogSeoSettings.findUnique({ where: { blogId } }),
   ]);
-  return { plan: blog.managed ? "subscription" as const : "lifetime" as const, credentials, settings, languages: blog.languages };
+  // Articles to try image settings on (previews).
+  const posts = await prisma.post.findMany({ where: { blogId }, orderBy: { updatedAt: "desc" }, take: 30, select: { id: true, title: true } });
+  return { plan: blog.managed ? "subscription" as const : "lifetime" as const, credentials, settings, languages: blog.languages, blogName: blog.name, posts };
 }
 
 export async function saveBlogSeoSettings(blogId: string, input: unknown) {
@@ -82,6 +86,9 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       competitorDomains: data.competitorDomains.filter(Boolean), audience: data.audience || null,
       brandVoice: data.brandVoice || null, publishingMode: data.publishingMode,
       thumbnailEnabled: data.thumbnailEnabled, inlineImagesEnabled: data.inlineImagesEnabled,
+      thumbnailFormat: data.thumbnailFormat, thumbnailColors: data.thumbnailColors, thumbnailTypography: data.thumbnailTypography,
+      logoUrl: normalizeLogoUrl(blogId, data.logoUrl),
+      thumbnailLogoPosition: data.thumbnailLogoPosition, inlineLogoPosition: data.inlineLogoPosition,
       internalLinksEnabled: data.internalLinksEnabled, backlinksEnabled: data.backlinksEnabled,
       thumbnailReferenceUrls: normalizeStyleReferences(blogId, data.thumbnailReferenceUrls),
       inlineImageReferenceUrls: normalizeStyleReferences(blogId, data.inlineImageReferenceUrls),

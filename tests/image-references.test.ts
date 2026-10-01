@@ -36,7 +36,7 @@ describe("Image generation with references", () => {
   const image = { data: [{ b64_json: "aW1n" }] };
 
   it("sends the references to the edit endpoint with high input fidelity", async () => {
-    const { requestImage } = await import("@/src/server/services/growth/service");
+    const { requestImage } = await import("@/src/server/services/growth/images");
     const edit = vi.fn().mockResolvedValue(image);
     const generate = vi.fn();
     const reference = new File([new Uint8Array([1])], "ref.png", { type: "image/png" });
@@ -46,7 +46,7 @@ describe("Image generation with references", () => {
   });
 
   it("generates from text when there are no references, or the edit fails", async () => {
-    const { requestImage } = await import("@/src/server/services/growth/service");
+    const { requestImage } = await import("@/src/server/services/growth/images");
     const generate = vi.fn().mockResolvedValue(image);
     await requestImage({ images: { edit: vi.fn(), generate } } as never, "A cover", [], "run-1");
     expect(generate).toHaveBeenCalledTimes(1);

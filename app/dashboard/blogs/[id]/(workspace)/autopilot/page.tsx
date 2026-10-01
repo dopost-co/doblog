@@ -55,7 +55,7 @@ export default async function AutopilotPage({ params, searchParams }: {
       ]} />
 
       {active === "settings" && settingsData ? (
-        <SeoSettingsManager blogId={id} plan={settingsData.plan} credentials={settingsData.credentials} settings={settingsData.settings} languages={settingsData.languages} />
+        <SeoSettingsManager blogId={id} plan={settingsData.plan} credentials={settingsData.credentials} settings={settingsData.settings} languages={settingsData.languages} blogName={settingsData.blogName} posts={settingsData.posts} />
       ) : active === "ideas" ? (
         <GrowthPlanManager
           blogId={id}

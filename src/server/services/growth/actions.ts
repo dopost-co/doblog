@@ -11,6 +11,7 @@ import {
 } from "./service";
 import { discoverContentOpportunities, saveDiscoverySettings, setAutopilotActive } from "./discovery";
 import { queueContentPlanDraft } from "./draft-queue";
+import { previewImage } from "./image-preview";
 
 async function requireOwner(blogId: string) {
   const session = await getSession();
@@ -72,6 +73,16 @@ export async function setAutopilotActiveAction(blogId: string, active: boolean) 
     const result = await setAutopilotActive(blogId, active);
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
     return { success: true, active: result.active, nextDiscoveryAt: result.nextDiscoveryAt?.toISOString() ?? null };
+  } catch (error) {
+    return { error: apiError(error).error };
+  }
+}
+
+/** A sample image with the settings on screen and an existing article; nothing is saved. */
+export async function previewImageAction(blogId: string, input: unknown) {
+  try {
+    await requireOwner(blogId);
+    return { success: true as const, ...await previewImage(blogId, input) };
   } catch (error) {
     return { error: apiError(error).error };
   }

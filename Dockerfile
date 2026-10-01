@@ -57,6 +57,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+# Fuentes de las miniaturas de marca (se leen en tiempo de ejecución)
+COPY --from=builder /app/assets ./assets
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=migrator /migrator/node_modules /opt/prisma/node_modules
 COPY scripts/docker-entrypoint.mjs ./docker-entrypoint.mjs

@@ -108,6 +108,18 @@ model BlogSeoSettings {
   brandVoice             String?
   publishingMode         String   @default("draft")
   thumbnailEnabled       Boolean  @default(true)
+  // "generated" (AI image), "template" (brand gradient + title) or
+  // "template_illustration" (brand gradient + AI illustration + title).
+  thumbnailFormat        String   @default("generated")
+  // Brand gradient for template thumbnails: [from, to] as #rrggbb. Empty uses the default.
+  thumbnailColors        String[] @default([])
+  /// Brand card text: { font, size, bold, align, showBlogName }; missing values use the defaults.
+  thumbnailTypography Json?
+  // "linear" (diagonal) or "radial" (circular from the top-left corner).
+  // Brand logo placed on generated images; a position per kind ("none" or top-left … bottom-right).
+  logoUrl                String?
+  thumbnailLogoPosition  String   @default("none")
+  inlineLogoPosition     String   @default("none")
   thumbnailStyle         String?
   // Up to two uploaded images whose style generated images follow.
   thumbnailReferenceUrls String[] @default([])

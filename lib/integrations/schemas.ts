@@ -51,7 +51,12 @@ export const blogSchema = z.object({ name, slug, description: text }).strict();
 export const categoryUpdateSchema = nonempty(categorySchema.partial());
 export const tagUpdateSchema = nonempty(tagSchema.partial());
 export const authorUpdateSchema = nonempty(authorSchema.partial());
-export const blogUpdateSchema = nonempty(blogSchema.partial());
+export const blogUpdateSchema = nonempty(blogSchema.extend({
+  /** Languages the blog is written in; the first is the main one (Autopilot writes in it). */
+  languages: z.array(z.string().refine(isValidLanguageCode, "Invalid language code")).min(1).max(10),
+  /** Keep translation groups in sync automatically (needs more than one language). */
+  autoSyncTranslations: z.boolean(),
+}).partial());
 export const listSchema = z.object({
   page: z.number().int().min(1).max(10_000).default(1),
   limit: z.number().int().min(1).max(100).default(20),

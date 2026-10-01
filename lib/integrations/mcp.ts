@@ -9,7 +9,8 @@ import { editorGuide } from "./editor-guide";
 import { getSeoSettingsSummary, getSeoUsage, runSeoOperation, seoEditorialSettingsFields, updateSeoEditorialSettings } from "@/src/server/services/seo/service";
 import { downloadPublicImage, uploadBlogImage } from "@/src/server/services/media/upload";
 import { addContentPlanItem, generateContentPlanDraft, getGrowthDashboard, planItemInputSchema } from "@/src/server/services/growth/service";
-import { discoverContentOpportunities, discoverySettingsSchema, saveDiscoverySettings } from "@/src/server/services/growth/discovery";
+import { discoverContentOpportunities, discoverySettingsSchema, saveDiscoverySettings, setAutopilotActive } from "@/src/server/services/growth/discovery";
+import { uploadBrandAsset } from "@/src/server/services/growth/image-references";
 
 export function createMcpServer(principal: ApiPrincipal) {
   const authorizedBlogs: AuthorizedBlog[] = principal.authorizedBlogs ?? [{
@@ -99,30 +100,38 @@ export function createMcpServer(principal: ApiPrincipal) {
       return updateSeoEditorialSettings(blogId, rest);
     }));
     server.registerTool("growth_configure_discovery", {
-      description: "Configure the website, continuous weekly opportunity scans, automatic writing pace and what happens after writing. writingDays lists the UTC weekdays to write on (0 = Sunday … 6 = Saturday); draftsPerWeek (1-7) is still accepted and spread evenly across the week. publishingMode defaults to review; auto_publish requires content:publish permission and explicit user intent.",
+      description: "Configure the website, continuous weekly opportunity scans, automatic writing pace and what happens after writing. active: false pauses Autopilot (no idea refreshes or writing) and true resumes it. writingDays lists the UTC weekdays to write on (0 = Sunday … 6 = Saturday); draftsPerWeek (1-7) is still accepted and spread evenly across the week. publishingMode defaults to review; auto_publish requires content:publish permission and explicit user intent.",
       inputSchema: withBlog(discoverySettingsSchema.shape),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async (input: Record<string, unknown>) => seoResult(input, (blogId, rest) => {
-      const settings = discoverySettingsSchema.parse(rest);
+    }, async (input: Record<string, unknown>) => seoResult(input, async (blogId, rest) => {
+      const { active, ...settings } = discoverySettingsSchema.parse(rest);
       if (settings.publishingMode === "auto_publish" && !principal.scopes.includes("content:publish")) {
         throw new ApiError(403, "Automatic publication requires content:publish permission");
       }
-      return saveDiscoverySettings(blogId, settings);
+      // Saving turns Autopilot on unless active is false, which saves and pauses it.
+      const saved = await saveDiscoverySettings(blogId, settings, { activate: active !== false });
+      return active === false ? { ...saved, ...await setAutopilotActive(blogId, false) } : { ...saved, active: true };
     }));
   }
   if (principal.scopes.includes("media:write")) {
     server.registerTool("upload_image_file", {
-      description: "Upload a public JPEG, PNG, GIF or WebP file supplied by the MCP client to this blog's media storage. Use this for generated article images. Maximum 10 MiB. Returns a URL suitable for coverImage, ogImage or an Editor.js image block.",
+      description: "Upload a public JPEG, PNG, GIF or WebP file supplied by the MCP client to this blog's media storage. purpose \"content\" (default) is for article images (max 10 MiB): the URL suits coverImage, ogImage or an Editor.js image block. purpose \"logo\" (PNG/JPEG/WebP, max 2 MiB) or \"style_reference\" (max 8 MiB) stores a brand asset for Autopilot images and needs seo:write; then set it with seo_update_settings (logoUrl, thumbnailReferenceUrls or inlineImageReferenceUrls).",
       inputSchema: withBlog({ image: z.object({
         download_url: z.url({ protocol: /^https$/ }).max(4096), file_id: z.string().min(1).max(500),
         mime_type: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"]).optional(), file_name: z.string().max(500).optional(),
-      }).strict() }),
+      }).strict(), purpose: z.enum(["content", "logo", "style_reference"]).default("content") }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       _meta: { "openai/fileParams": ["image"] },
     }, async (input: Record<string, unknown>) => seoResult(input, async (blogId, rest) => {
       const image = rest.image as { download_url: string; mime_type?: string; file_name?: string };
+      const purpose = rest.purpose === "logo" || rest.purpose === "style_reference" ? rest.purpose : "content";
+      if (purpose !== "content" && !principal.scopes.includes("seo:write")) throw new ApiError(403, "Brand assets require seo:write permission");
       const downloaded = await downloadPublicImage(image.download_url);
       if (image.mime_type && image.mime_type !== downloaded.mimeType) throw new ApiError(400, "Declared image type does not match the downloaded file");
+      if (purpose !== "content") {
+        const url = await uploadBrandAsset(blogId, purpose === "logo" ? "brand" : "references", downloaded.bytes, downloaded.mimeType);
+        return { url, purpose, name: image.file_name || null };
+      }
       const uploaded = await uploadBlogImage(blogId, downloaded.bytes, downloaded.mimeType);
       return { ...uploaded, name: image.file_name || null };
     }));

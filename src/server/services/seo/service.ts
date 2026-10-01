@@ -6,6 +6,9 @@ import { isManagedPlan, resolveDataForSeoAccess } from "@/src/server/services/pr
 import { dataForSeoRequest, responseCostMicros } from "./dataforseo";
 import { normalizeArticlePath } from "@/src/server/services/growth/internal-links";
 import { getLanguageName } from "@/lib/languages";
+import { COVER_FONTS, COVER_TEXT_ALIGNS, COVER_TEXT_SIZES, MAX_GRADIENT_COLORS, THUMBNAIL_FORMATS, coverTypography, type CoverFont, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
+import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
+import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 
 export type SeoOperation = "keyword_ideas" | "search_intent" | "serp_brief";
 const POLICY: Record<SeoOperation, { endpoint: string; ttlMs: number; estimateMicros: number }> = {
@@ -69,6 +72,12 @@ export async function getSeoSettingsSummary(blogId: string) {
     competitorDomains: settings.competitorDomains, audience: settings.audience, brandVoice: settings.brandVoice,
     publishingMode: settings.publishingMode,
     thumbnailEnabled: settings.thumbnailEnabled,
+    thumbnailFormat: settings.thumbnailFormat,
+    logoUrl: settings.logoUrl,
+    thumbnailLogoPosition: settings.thumbnailLogoPosition,
+    inlineLogoPosition: settings.inlineLogoPosition,
+    thumbnailColors: settings.thumbnailColors,
+    thumbnailTypography: coverTypography(settings.thumbnailTypography),
     thumbnailStyle: settings.thumbnailStyle,
     thumbnailReferenceUrls: settings.thumbnailReferenceUrls,
     inlineImagesEnabled: settings.inlineImagesEnabled,
@@ -98,6 +107,19 @@ export async function getSeoSettingsSummary(blogId: string) {
   };
 }
 
+export const thumbnailFormatSchema = z.enum(THUMBNAIL_FORMATS.map((format) => format.id) as [ThumbnailFormat, ...ThumbnailFormat[]]);
+export const logoPositionSchema = z.enum(["none", ...LOGO_POSITIONS]);
+/** Brand gradient for template thumbnails: two or three #rrggbb colors (empty uses the default). */
+/** Brand card text: font, largest size, weight, alignment and whether the blog name shows. */
+export const thumbnailTypographySchema = z.object({
+  font: z.enum(COVER_FONTS.map((font) => font.id) as [CoverFont, ...CoverFont[]]),
+  size: z.enum(COVER_TEXT_SIZES),
+  bold: z.boolean(),
+  align: z.enum(COVER_TEXT_ALIGNS),
+  showBlogName: z.boolean(),
+}).strict();
+export const thumbnailColorsSchema = z.array(z.string().trim().toLowerCase().regex(/^#[0-9a-f]{6}$/, "Use colors like #6d28d9")).max(MAX_GRADIENT_COLORS);
+
 /** Article path per language ({ "es": "/es/blog" }); empty values fall back to articleUrlPrefix. */
 export const articlePathsSchema = z.record(z.string().regex(/^[a-z]{2}$/, "Use two-letter language codes"), z.string().max(300))
   .refine(paths => Object.keys(paths).length <= 20, "Too many languages")
@@ -123,6 +145,16 @@ export const seoEditorialSettingsFields = {
   brandVoice: z.string().trim().max(2000).nullable().optional(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]).optional(),
   thumbnailEnabled: z.boolean().optional(),
+  thumbnailFormat: thumbnailFormatSchema.optional(),
+  thumbnailLogoPosition: logoPositionSchema.optional(),
+  inlineLogoPosition: logoPositionSchema.optional(),
+  /** URLs from upload_image_file with purpose "logo" / "style_reference"; null or [] clears them. */
+  logoUrl: z.string().max(2048).nullable().optional(),
+  thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2).optional(),
+  inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2).optional(),
+  thumbnailColors: thumbnailColorsSchema.optional(),
+  /** Partial updates keep the other saved values. */
+  thumbnailTypography: thumbnailTypographySchema.partial().optional(),
   thumbnailStyle: z.string().trim().max(1000).nullable().optional(),
   inlineImagesEnabled: z.boolean().optional(),
   inlineImageStyle: z.string().trim().max(1000).nullable().optional(),
@@ -143,7 +175,18 @@ export const seoEditorialSettingsSchema = z.object(seoEditorialSettingsFields).s
 });
 
 export async function updateSeoEditorialSettings(blogId: string, input: unknown) {
-  const data = seoEditorialSettingsSchema.parse(input);
+  const parsed = seoEditorialSettingsSchema.parse(input);
+  // Brand assets must be ones uploaded to this blog.
+  const current = parsed.thumbnailTypography
+    ? await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { thumbnailTypography: true } })
+    : null;
+  const data = {
+    ...parsed,
+    ...(parsed.thumbnailTypography ? { thumbnailTypography: { ...coverTypography(current?.thumbnailTypography), ...parsed.thumbnailTypography } } : {}),
+    ...(parsed.logoUrl !== undefined ? { logoUrl: normalizeLogoUrl(blogId, parsed.logoUrl) } : {}),
+    ...(parsed.thumbnailReferenceUrls ? { thumbnailReferenceUrls: normalizeStyleReferences(blogId, parsed.thumbnailReferenceUrls) } : {}),
+    ...(parsed.inlineImageReferenceUrls ? { inlineImageReferenceUrls: normalizeStyleReferences(blogId, parsed.inlineImageReferenceUrls) } : {}),
+  };
   await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...data }, update: data });
   return getSeoSettingsSummary(blogId);
 }

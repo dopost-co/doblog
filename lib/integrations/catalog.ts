@@ -7,7 +7,7 @@ export type Operation = { name: OperationName; method: string; path: string; sco
 export const OPERATIONS: Operation[] = [
   { name: "upload_image", method: "POST", path: "/media", scope: "media:write", description: "Upload a public JPEG, PNG, GIF or WebP image as base64 (maximum 700 KiB decoded). Returns a URL usable in coverImage or Editor.js. Do not upload confidential files; images are public even for drafts." },
   { name: "get_blog", method: "GET", path: "", scope: "content:read", description: "Read this blog’s public identifier and metadata." },
-  { name: "update_blog", method: "PATCH", path: "", scope: "blog:write", description: "Update this blog’s name, slug or description. Cannot change ownership." },
+  { name: "update_blog", method: "PATCH", path: "", scope: "blog:write", description: "Update this blog’s name, slug, description, languages (the first is the main one) or automatic translation sync. Cannot change ownership." },
   ...CONTENT_RESOURCES.flatMap(resource => ([
     { name: `list_${resource}`, method: "GET", path: `/${resource}`, scope: "content:read", description: `List ${resource}, paginated.${resource === "posts" ? " Includes drafts and scheduled posts; filter a calendar range with publishedFrom/publishedTo." : ""} Results are private.` },
     { name: `get_${resource}`, method: "GET", path: `/${resource}/{id}`, scope: "content:read", description: `Read one ${resource} record by its internal ID, not its slug.` },

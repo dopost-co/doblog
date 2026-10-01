@@ -101,7 +101,7 @@ export default async function BlogPostsPage({
           </div>
         )}
         {pagination.totalPages > 0 && (
-          <div className="flex items-center justify-between border-t pt-6">
+          <div className="flex items-center justify-between pt-2">
             <div className="text-sm text-muted-foreground">
               {((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
             </div>

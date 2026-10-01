@@ -26,6 +26,8 @@ export const discoverySettingsSchema = z.object({
   /** Older clients: how many drafts per week; converted to evenly spread days. */
   draftsPerWeek: z.number().int().min(1).max(7).optional(),
   publishingMode: z.enum(["review", "auto_publish"]).default("review"),
+  /** API/MCP only: false pauses Autopilot after saving, true (default) keeps it running. */
+  active: z.boolean().optional(),
 }).strict().refine(value => value.writingDays?.length || value.draftsPerWeek, { message: "Choose the days to write on", path: ["writingDays"] });
 
 const siteAnalysisSchema = z.object({

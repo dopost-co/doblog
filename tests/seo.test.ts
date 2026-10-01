@@ -13,7 +13,9 @@ describe("SEO provider security", () => {
     const encrypted = encryptSecret("api-password");
     expect(encrypted).not.toContain("api-password");
     expect(decryptSecret(encrypted)).toBe("api-password");
-    expect(() => decryptSecret(`${encrypted.slice(0, -1)}x`)).toThrow();
+    // Always change the last character (replacing it with "x" was a no-op 1 in 64 times).
+    const tampered = `${encrypted.slice(0, -1)}${encrypted.endsWith("x") ? "y" : "x"}`;
+    expect(() => decryptSecret(tampered)).toThrow();
   });
 
   it("rejects missing encryption configuration", () => {

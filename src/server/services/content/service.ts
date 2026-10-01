@@ -11,6 +11,7 @@ import { cancelPostSchedule, syncPostSchedule } from "@/src/server/services/sche
 import { translatePostInto } from "@/src/server/services/translations/post-translation";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
+import { normalizeBlogLanguages } from "@/lib/blog-languages";
 
 const itemInput = z.object({ id: schemas.idSchema }).strict();
 export const operationSchemas: Record<OperationName, z.ZodType> = {
@@ -27,7 +28,7 @@ export const operationSchemas: Record<OperationName, z.ZodType> = {
   translate_posts: schemas.translatePostSchema,
 };
 const postInclude = { categories: { include: { category: true } }, tags: { include: { tag: true } }, author: true } satisfies Prisma.PostInclude;
-const blogSelect = { id: true, blogId: true, name: true, slug: true, description: true, createdAt: true, updatedAt: true } satisfies Prisma.BlogSelect;
+const blogSelect = { id: true, blogId: true, name: true, slug: true, description: true, languages: true, autoSyncTranslations: true, createdAt: true, updatedAt: true } satisfies Prisma.BlogSelect;
 
 async function findRecord(resource: ContentResource, blogId: string, id: string) {
   const where = { id, blogId };
@@ -154,7 +155,18 @@ export async function executeOperation(principal: ApiPrincipal, name: OperationN
     const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null } });
     if (!blog) throw new ApiError(404, "Blog not found");
     if (data.slug && await prisma.blog.findFirst({ where: { userId: blog.userId, slug: data.slug, id: { not: blogId }, deletedAt: null }, select: { id: true } })) throw new ApiError(409, "Blog slug already exists");
-    return { data: await prisma.blog.update({ where: { id: blogId }, data, select: blogSelect }) };
+    // Same rules as the dashboard: one language cannot sync, and the main language drives Autopilot.
+    const languages = data.languages ? normalizeBlogLanguages(data.languages) : blog.languages;
+    const autoSyncTranslations = languages.length > 1 && (data.autoSyncTranslations ?? blog.autoSyncTranslations);
+    const updated = await prisma.blog.update({
+      where: { id: blogId },
+      data: { ...data, ...(data.languages ? { languages } : {}), autoSyncTranslations },
+      select: blogSelect,
+    });
+    if (data.languages && blog.languages[0] !== languages[0]) {
+      await prisma.blogSeoSettings.updateMany({ where: { blogId }, data: { languageCode: languages[0] } });
+    }
+    return { data: updated };
   }
   if (name === "translate_posts") {
     const { id, languages, paths } = schemas.translatePostSchema.parse(input);

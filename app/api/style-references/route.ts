@@ -2,9 +2,9 @@ import { getSession } from "@/lib/get-session";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { checkOrigin, errorResponse, privateJson } from "@/lib/integrations/http";
-import { MAX_STYLE_REFERENCE_BYTES, uploadStyleReference } from "@/src/server/services/growth/image-references";
+import { MAX_STYLE_REFERENCE_BYTES, uploadBrandAsset } from "@/src/server/services/growth/image-references";
 
-/** Uploads a style reference for generated images. Blog owners only. */
+/** Uploads a style reference, or the brand logo with kind=logo, for generated images. Blog owners only. */
 export async function POST(request: Request) {
   try {
     checkOrigin(request);
@@ -28,7 +28,8 @@ export async function POST(request: Request) {
     if (!(file instanceof File) || typeof blogId !== "string") throw new ApiError(400, "Image and blogId required");
     const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id, deletedAt: null }, select: { id: true } });
     if (!blog) throw new ApiError(403, "Only the blog owner can add style references");
-    const url = await uploadStyleReference(blog.id, Buffer.from(await file.arrayBuffer()), file.type);
+    const kind = formData.get("kind") === "logo" ? "brand" : "references";
+    const url = await uploadBrandAsset(blog.id, kind, Buffer.from(await file.arrayBuffer()), file.type);
     return privateJson({ url });
   } catch (error) { return errorResponse(error); }
 }
