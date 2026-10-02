@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), create: vi.fn(), translateText: vi.fn(), resolveKey: vi.fn(async () => "owner-key") }));
-vi.mock("@/src/server/services/providers/credentials", () => ({ resolveBlogOpenAiKey: mocks.resolveKey }));
+vi.mock("@/src/server/services/providers/credentials", () => ({ resolveBlogOpenAiAccess: mocks.resolveKey }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     post: { findFirst: mocks.findFirst },

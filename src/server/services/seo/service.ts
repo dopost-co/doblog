@@ -8,13 +8,18 @@ import { normalizeArticlePath } from "@/src/server/services/growth/internal-link
 import { getLanguageName } from "@/lib/languages";
 import { COVER_FONTS, COVER_TEXT_ALIGNS, COVER_TEXT_SIZES, MAX_GRADIENT_COLORS, THUMBNAIL_FORMATS, coverTypography, type CoverFont, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
+import { DEFAULT_SEARCH_MARKET, defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 
-export type SeoOperation = "keyword_ideas" | "search_intent" | "serp_brief";
+export type SeoOperation = "keyword_ideas" | "search_intent" | "serp_brief" | "ranked_keywords" | "competitor_gap";
 const POLICY: Record<SeoOperation, { endpoint: string; ttlMs: number; estimateMicros: number }> = {
   keyword_ideas: { endpoint: "/v3/dataforseo_labs/google/keyword_ideas/live", ttlMs: 30 * 86400_000, estimateMicros: 50_000 },
   search_intent: { endpoint: "/v3/dataforseo_labs/google/search_intent/live", ttlMs: 30 * 86400_000, estimateMicros: 10_000 },
   serp_brief: { endpoint: "/v3/serp/google/organic/live/advanced", ttlMs: 48 * 3600_000, estimateMicros: 3_000 },
+  /** Keywords the blog's own domain already ranks for (avoids cannibalizing them). */
+  ranked_keywords: { endpoint: "/v3/dataforseo_labs/google/ranked_keywords/live", ttlMs: 7 * 86400_000, estimateMicros: 40_000 },
+  /** Keywords a competitor ranks for and the blog's domain does not. */
+  competitor_gap: { endpoint: "/v3/dataforseo_labs/google/domain_intersection/live", ttlMs: 14 * 86400_000, estimateMicros: 30_000 },
 };
 
 const stable = (value: unknown): string => Array.isArray(value)
@@ -26,19 +31,36 @@ const stable = (value: unknown): string => Array.isArray(value)
 const microsToUsd = (value: number) => Number((value / 1_000_000).toFixed(6));
 const firstResult = (data: Record<string, unknown>) => ((data.tasks as Array<Record<string, unknown>> | undefined)?.[0]?.result as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
 
+/** Metrics of one DataForSEO Labs keyword item. */
+function labsKeyword(item: Record<string, unknown>) {
+  // keyword_ideas returns fields directly on each item; ranked_keywords and
+  // domain_intersection nest them under keyword_data.
+  const keywordData = (item.keyword_data || item) as Record<string, unknown>;
+  const info = (keywordData.keyword_info || {}) as Record<string, unknown>;
+  const props = (keywordData.keyword_properties || {}) as Record<string, unknown>;
+  const intent = (keywordData.search_intent_info || {}) as Record<string, unknown>;
+  return { keyword: keywordData.keyword, searchVolume: info.search_volume, cpc: info.cpc, competition: info.competition_level, difficulty: props.keyword_difficulty, intent: intent.main_intent };
+}
+
 export function normalizeSeoResponse(operation: SeoOperation, raw: Record<string, unknown>) {
   const result = firstResult(raw) || {};
   const items = Array.isArray(result.items) ? result.items as Array<Record<string, unknown>> : [];
   if (operation === "keyword_ideas") return {
     totalCount: Number(result.total_count || items.length),
-    items: items.slice(0, 50).map(item => {
-      // keyword_ideas returns fields directly on each item. Keep the nested
-      // fallback for compatible DataForSEO Labs endpoints that use keyword_data.
-      const keywordData = (item.keyword_data || item) as Record<string, unknown>;
-      const info = (keywordData.keyword_info || {}) as Record<string, unknown>;
-      const props = (keywordData.keyword_properties || {}) as Record<string, unknown>;
-      const intent = (keywordData.search_intent_info || {}) as Record<string, unknown>;
-      return { keyword: keywordData.keyword, searchVolume: info.search_volume, cpc: info.cpc, competition: info.competition_level, difficulty: props.keyword_difficulty, intent: intent.main_intent };
+    items: items.slice(0, 200).map(labsKeyword),
+  };
+  if (operation === "ranked_keywords") return {
+    totalCount: Number(result.total_count || items.length),
+    items: items.slice(0, 300).map(item => {
+      const serpItem = ((item.ranked_serp_element as Record<string, unknown> | undefined)?.serp_item || {}) as Record<string, unknown>;
+      return { ...labsKeyword(item), position: serpItem.rank_group, url: serpItem.url };
+    }),
+  };
+  if (operation === "competitor_gap") return {
+    totalCount: Number(result.total_count || items.length),
+    items: items.slice(0, 200).map(item => {
+      const competitor = (item.first_domain_serp_element || {}) as Record<string, unknown>;
+      return { ...labsKeyword(item), competitorPosition: competitor.rank_group ?? competitor.rank_absolute, competitorUrl: competitor.url };
     }),
   };
   if (operation === "search_intent") return {
@@ -51,7 +73,27 @@ export function normalizeSeoResponse(operation: SeoOperation, raw: Record<string
     const entries = Array.isArray(item.items) ? item.items as Array<Record<string, unknown>> : [];
     return entries.map(entry => entry.title || entry.question).filter(Boolean);
   }).slice(0, 10);
-  return { keyword: result.keyword, organic, peopleAlsoAsk: questions };
+  // Searches Google pairs with this one: subtopics readers expect covered.
+  const relatedSearches = items.filter(item => item.type === "related_searches")
+    .flatMap(item => Array.isArray(item.items) ? item.items : [])
+    .filter((entry): entry is string => typeof entry === "string").slice(0, 10);
+  const snippet = items.find(item => item.type === "featured_snippet");
+  return {
+    keyword: result.keyword, organic, peopleAlsoAsk: questions, relatedSearches,
+    featuredSnippet: snippet ? { title: snippet.title, url: snippet.url, description: snippet.description } : null,
+    hasAiOverview: items.some(item => item.type === "ai_overview"),
+  };
+}
+
+/**
+ * Autopilot researches and writes in the blog's main language. A market nobody
+ * picked follows the language, so Spanish research measures searches in Spain.
+ */
+export async function syncSeoLanguage(blogId: string, language: string) {
+  await prisma.$transaction([
+    prisma.blogSeoSettings.updateMany({ where: { blogId, locationCode: DEFAULT_SEARCH_MARKET }, data: { locationCode: defaultSearchMarket(language) } }),
+    prisma.blogSeoSettings.updateMany({ where: { blogId }, data: { languageCode: language } }),
+  ]);
 }
 
 async function usageSince(blogId: string, since: Date) {

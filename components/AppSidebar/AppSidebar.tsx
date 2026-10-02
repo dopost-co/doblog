@@ -18,6 +18,7 @@ import {
   Plug,
   Plus,
   Settings,
+  ShieldCheck,
   Sun,
   TrendingUp,
 } from "lucide-react";
@@ -35,7 +36,7 @@ import { useSidebar } from "./SidebarProvider";
 interface AppSidebarProps {
   blog: { id: string; name: string };
   blogs: { id: string; name: string }[];
-  user: { name?: string | null; email?: string | null };
+  user: { name?: string | null; email?: string | null; isAdmin?: boolean };
 }
 
 function initials(value: string) {
@@ -212,6 +213,14 @@ function UserMenu({ user }: Pick<AppSidebarProps, "user">) {
           {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
         </DropdownMenuItem>
+        {user.isAdmin && (
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/admin" className="gap-2">
+              <ShieldCheck className="size-4" />
+              Admin
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => signOut({ redirectTo: "/" })} className="gap-2">
           <LogOut className="size-4" />

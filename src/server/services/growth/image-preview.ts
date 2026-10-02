@@ -1,10 +1,9 @@
-import OpenAI from "openai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
 import { THUMBNAIL_FORMATS, coverTypography, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
-import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
+import { blogOpenAI } from "@/src/server/services/usage/openai";
 import { loadLogo, loadStyleReferences, normalizeLogoUrl, normalizeStyleReferences } from "./image-references";
 import { resolveCoverTitle } from "./cover-title";
 import { imageSubject } from "./image-subject";
@@ -36,7 +35,7 @@ export async function previewImage(blogId: string, raw: unknown) {
   if (!post) throw new ApiError(404, "Article not found");
 
   const needsAi = input.kind === "inline" || input.format !== "template";
-  const openai = needsAi ? new OpenAI({ apiKey: await resolveBlogOpenAiKey(blogId), timeout: 120_000, maxRetries: 1 }) : null;
+  const openai = needsAi ? await blogOpenAI(blogId, "image_preview", { timeout: 120_000, maxRetries: 1 }) : null;
   const [references, logo] = await Promise.all([
     needsAi ? loadStyleReferences(blogId, normalizeStyleReferences(blogId, input.referenceUrls)) : [],
     input.logoPosition === "none" ? null : loadLogo(blogId, normalizeLogoUrl(blogId, input.logoUrl)),

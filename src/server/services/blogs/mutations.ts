@@ -5,6 +5,7 @@ import { getSession } from "@/lib/get-session";
 import { z } from "zod";
 import { revalidatePath, updateTag } from "next/cache";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
+import { syncSeoLanguage } from "@/src/server/services/seo/service";
 
 const createBlogSchema = z.object({
   name: z.string().min(1),
@@ -143,7 +144,7 @@ export async function updateBlogLanguages(id: string, data: { languages: string[
   const autoSyncTranslations = languages.length > 1 && data.autoSyncTranslations;
   await prisma.blog.update({ where: { id }, data: { languages, autoSyncTranslations } });
   if (blog.languages[0] !== languages[0]) {
-    await prisma.blogSeoSettings.updateMany({ where: { blogId: id }, data: { languageCode: languages[0] } });
+    await syncSeoLanguage(id, languages[0]);
   }
 
   revalidatePath(`/dashboard/blogs/${id}`, "layout");

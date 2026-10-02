@@ -13,6 +13,8 @@ export function SettingsNav({ blogId }: { blogId: string }) {
     { href: `${basePath}/authors`, label: "Authors" },
     { href: `${basePath}/categories`, label: "Categories" },
     { href: `${basePath}/providers`, label: "Providers" },
+    { href: `${basePath}/usage`, label: "Usage" },
+    { href: `${basePath}/billing`, label: "Billing" },
   ];
 
   return (

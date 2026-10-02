@@ -12,6 +12,8 @@ import { normalizeStyleReferences } from "@/src/server/services/growth/image-ref
 import { BLOG_FLOWS, flowSteps, isOnboardingFlow, nextVisibleStep, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
 import { blogOnboardingValues, resolveUserFlow } from "./queries";
 import { normalizeWebsite } from "@/src/server/services/growth/discovery";
+import { syncSeoLanguage } from "@/src/server/services/seo/service";
+import { defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { analyzeCompetitorBrandVoice, competitorVoiceInstruction } from "@/src/server/services/growth/brand";
 
 /** The blog being set up, once the blog step has created it. */
@@ -75,9 +77,10 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
     // Autopilot writes in the main language.
     await prisma.blogSeoSettings.upsert({
       where: { blogId: blog.id },
-      create: { blogId: blog.id, languageCode: languages[0] },
-      update: { languageCode: languages[0] },
+      create: { blogId: blog.id, languageCode: languages[0], locationCode: defaultSearchMarket(languages[0]) },
+      update: {},
     });
+    await syncSeoLanguage(blog.id, languages[0]);
   },
   "content-mode": async (context, values) => {
     const blog = await onboardingBlog(context);

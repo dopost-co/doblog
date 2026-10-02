@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/get-session";
+import { isAdminEmail } from "@/lib/admin";
 import { config } from "@/data/config";
 import { SignOutButton } from "@/components/SignOutButton/SignOutButton";
 import { ThemeToggle } from "@/components/ThemeToggle/ThemeToggle";
@@ -29,7 +30,7 @@ export async function DashboardHeader({ currentBlog }: DashboardHeaderProps = {}
             Docs
           </a>
           <ThemeToggle />
-          <SignOutButton initial={session?.user?.email?.[0].toUpperCase() || "U"} />
+          <SignOutButton initial={session?.user?.email?.[0].toUpperCase() || "U"} isAdmin={isAdminEmail(session?.user?.email)} />
         </div>
       </div>
     </header>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,9 +12,10 @@ import {
 
 interface SignOutButtonProps {
   initial: string;
+  isAdmin?: boolean;
 }
 
-export function SignOutButton({ initial }: SignOutButtonProps) {
+export function SignOutButton({ initial, isAdmin }: SignOutButtonProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -26,6 +28,11 @@ export function SignOutButton({ initial }: SignOutButtonProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {isAdmin && (
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/admin">Admin</Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => signOut({ redirectTo: "/" })}>
           Log out
         </DropdownMenuItem>

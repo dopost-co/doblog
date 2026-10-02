@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isValidLanguageCode } from "@/lib/languages";
 import { missingLanguages } from "@/lib/blog-languages";
-import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
+import { resolveBlogOpenAiAccess } from "@/src/server/services/providers/credentials";
 import { TranslationService } from "./TranslationService";
 import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
 import { localizeArticleLinks } from "./translated-links";
@@ -80,7 +80,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
   if (existing) throw new ApiError(409, `A ${targetLanguage} translation already exists (post ${existing.id})`);
 
   // Billed to the blog owner's own key on lifetime plans, to the platform on subscriptions.
-  const translator = new TranslationService(await resolveBlogOpenAiKey(blogId));
+  const translator = new TranslationService(await resolveBlogOpenAiAccess(blogId), blogId);
   const { content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords } = await translatePostText(translator, source, targetLanguage);
 
   // Callers that map paths themselves (MCP `paths`) keep that; otherwise links follow translated articles.
@@ -181,7 +181,7 @@ export async function syncTranslationGroup(postId: string, version?: string) {
   });
   const retranslate = source.translationSyncPending;
   let translator: TranslationService | null = null;
-  const getTranslator = async () => (translator ??= new TranslationService(await resolveBlogOpenAiKey(source.blogId)));
+  const getTranslator = async () => (translator ??= new TranslationService(await resolveBlogOpenAiAccess(source.blogId), source.blogId));
 
   const shared = {
     coverImage: source.coverImage,

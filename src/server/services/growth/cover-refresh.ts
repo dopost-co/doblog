@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import { after } from "next/server";
-import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isLogoPosition } from "@/lib/autopilot/logo";
 import { coverTypography, isThumbnailFormat, thumbnailColors } from "@/lib/autopilot/thumbnail-templates";
 import { REFRESH_THUMBNAIL_PATH, getQStashClient, getQStashDestinationBaseUrl, isQStashConfigured } from "@/lib/qstash";
-import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
+import { blogOpenAI } from "@/src/server/services/usage/openai";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
 import { resolveCoverTitle } from "./cover-title";
 import { loadLogo, loadStyleReferences } from "./image-references";
@@ -111,7 +110,7 @@ export async function refreshPostCover(blogId: string, postId: string) {
   const format = isThumbnailFormat(settings?.thumbnailFormat) ? settings.thumbnailFormat : "generated";
   const needsAi = format !== "template";
   const openai = needsAi
-    ? new OpenAI({ apiKey: await resolveBlogOpenAiKey(blogId), timeout: 120_000, maxRetries: 1 })
+    ? await blogOpenAI(blogId, "cover_refresh", { timeout: 120_000, maxRetries: 1 })
     : null;
   const [references, logo] = await Promise.all([
     needsAi ? loadStyleReferences(blogId, settings?.thumbnailReferenceUrls ?? []) : [],

@@ -10,7 +10,7 @@ import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutatio
 import { dashboardOperation, recordBlogId } from "@/src/server/services/content/dashboard";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { createPostTranslation } from "@/src/server/services/translations/post-translation";
-import { resolveOpenAiKey } from "@/src/server/services/providers/credentials";
+import { resolveOpenAiAccess } from "@/src/server/services/providers/credentials";
 import type { PostStatus } from "@/lib/integrations/schemas";
 
 export async function createPost(data: {
@@ -181,7 +181,7 @@ export async function syncPostTranslations(postId: string) {
     }
 
     // Uses the blog owner's AI key (or the platform's for subscribers).
-    const translationService = new TranslationService(await resolveOpenAiKey(currentPost.blog.userId));
+    const translationService = new TranslationService(await resolveOpenAiAccess(currentPost.blog.userId), currentPost.blogId);
 
     // Sync each translation (with error handling per translation)
     const syncResults = await Promise.allSettled(

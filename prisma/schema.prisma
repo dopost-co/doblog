@@ -56,6 +56,7 @@ model Blog {
   authors    Author[]
   members    BlogMember[]
   apiKeys    ApiKey[]
+  aiUsage    AiUsageEntry[]
 
   oauthAuthorizationCodes McpOAuthAuthorizationCode[]
   oauthGrants             McpOAuthGrant[]
@@ -194,6 +195,28 @@ model SeoUsageEntry {
 
   @@index([blogId, createdAt])
   @@index([credentialId, createdAt])
+}
+
+// One OpenAI request made for a blog, with the tokens it used and what they cost.
+model AiUsageEntry {
+  id                String   @id @default(cuid())
+  blogId            String
+  provider          String   @default("openai")
+  feature           String // article | discovery | brand_voice | cover_refresh | image_preview | translation
+  kind              String // text | image
+  model             String
+  inputTokens       Int      @default(0) // includes cached and image input tokens
+  cachedInputTokens Int      @default(0)
+  imageInputTokens  Int      @default(0)
+  outputTokens      Int      @default(0)
+  costUsdMicros     Int? // null when the model has no known price
+  paidBy            String // platform (subscription) | owner (the owner's own key)
+  createdAt         DateTime @default(now())
+
+  blog Blog @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@index([blogId, createdAt])
+  @@index([createdAt])
 }
 
 // Secrets are shown once; only SHA-256 digests of 256-bit random tokens are stored.

@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import type { OutputData } from "@editorjs/editorjs";
 import { isValidLanguageCode, getLanguageByCode } from "@/lib/languages";
+import type { OpenAiAccess } from "@/src/server/services/providers/credentials";
+import { trackedOpenAI } from "@/src/server/services/usage/openai";
 
 /** URLs must survive translation verbatim; models otherwise "translate" slugs into links that 404. */
 function protectUrls(text: string) {
@@ -38,11 +40,11 @@ export class TranslationService {
     }
   }
 
-  /** Pass the key from resolveOpenAiKey: it belongs to the blog owner (or the platform for subscribers). */
-  constructor(apiKey: string | null | undefined) {
-    if (apiKey) {
+  /** Pass the access from resolveOpenAiAccess: the blog owner's key (or the platform's for subscribers). */
+  constructor(access: OpenAiAccess | null | undefined, blogId: string) {
+    if (access?.apiKey) {
       // The SDK retries 429s and 5xx responses with backoff.
-      this.client = new OpenAI({ apiKey, timeout: 60_000, maxRetries: 3 });
+      this.client = trackedOpenAI(access, { blogId, feature: "translation" }, { timeout: 60_000, maxRetries: 3 });
     }
   }
 

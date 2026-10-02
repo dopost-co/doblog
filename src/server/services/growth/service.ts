@@ -8,7 +8,7 @@ import { slugify } from "@/lib/slug";
 import { R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/r2";
 import { ApiError } from "@/lib/integrations/errors";
 import { COVER_TITLE_MAX_WORDS, COVER_TITLE_MIN_WORDS, storedCoverTitle } from "@/lib/autopilot/cover-title";
-import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credentials";
+import { blogOpenAI } from "@/src/server/services/usage/openai";
 import { runSeoOperation } from "@/src/server/services/seo/service";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
 import { invalidateContent } from "@/src/server/services/content/cache";
@@ -171,6 +171,24 @@ async function linkTargets(blogId: string, item: { language: string; primaryKeyw
   );
 }
 
+/** Search volume and difficulty recorded when the idea was found, if any. */
+function researchMetrics(snapshot: Prisma.JsonValue | null) {
+  const metrics = (snapshot as { metrics?: Record<string, unknown> | null } | null)?.metrics;
+  if (!metrics) return undefined;
+  return { monthlySearches: metrics.searchVolume, difficulty: metrics.difficulty, foundVia: metrics.source };
+}
+
+/** Researched URLs the article may cite: never a competitor's page. */
+function externalSources(serpBrief: unknown, competitorDomains: string[]) {
+  const competitors = competitorDomains.map(domain => domain.toLowerCase().replace(/^www\./, ""));
+  return new Set([...urlsIn(serpBrief)].filter(url => {
+    try {
+      const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+      return !competitors.some(domain => host === domain || host.endsWith(`.${domain}`));
+    } catch { return false; }
+  }));
+}
+
 async function generateArticle(openai: OpenAI, input: Record<string, unknown>) {
   const response = await openai.responses.parse({
     model: CONTENT_MODEL,
@@ -181,7 +199,8 @@ Answer the search intent directly, use concrete explanations and avoid generic A
 Do not invent statistics, quotes, product capabilities or first-hand experiences. If evidence is absent, explain without fabricating specifics.
 Use only <strong>, <em>, <code>, <br> and <a href="..."> inside paragraph strings.
 internalLinks lists published articles of this blog (title, topic, summary). Link 2-4 of them where a sentence naturally touches their topic and the reader would want to go deeper: short descriptive anchor text taken from that sentence (never "click here" or a bare keyword), spread across the body, each article at most once, never in headings. Skip any that do not fit; fewer good links beat forced ones. Preserve each href exactly. If internalLinks is empty, add no internal links. Never invent an internal URL.
-External links may only use URLs supplied in serpBrief. Do not mention SEO, keywords, prompts or this workflow in the article.
+topic carries the research behind this article: cover secondaryKeywords naturally where they fit, and serve the stated intent (informational: explain; commercial: compare options and help choose). When serpBrief is present, organic lists the pages Google ranks today: cover what they cover and answer it better, without copying their wording or structure. Answer the relevant peopleAlsoAsk questions inside the article, using a question as a heading when it deserves its own section, and touch on relatedSearches the reader would expect. When featuredSnippet is present, answer the core question in a concise 40-60 word paragraph right after the introduction.
+External links may only use URLs supplied in serpBrief, never pages on the domains in competitors. Do not mention SEO, keywords, prompts or this workflow in the article.
 Inline images are optional and must explain a particular section. Request no more than maxInlineImages. The cover must be visually distinct from inline images and contain no text or logos.
 coverTitle is drawn on the thumbnail, not read in a list: ${COVER_TITLE_MIN_WORDS} to ${COVER_TITLE_MAX_WORDS} words naming the subject, in the article's language. It is not the title shortened and it never ends mid-thought or in an ellipsis. Prefer the plain subject ("Content batching for teams") over a clipped title ("The Complete Guide to").`,
     input: JSON.stringify(input),
@@ -281,10 +300,10 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
   const blogId = claimed.item.blogId;
   let postId: string | null = null;
   try {
-    const [blog, settings, apiKey] = await Promise.all([
+    const [blog, settings, openai] = await Promise.all([
       prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { blogId: true, name: true, description: true } }),
       prisma.blogSeoSettings.findUnique({ where: { blogId } }),
-      resolveBlogOpenAiKey(blogId),
+      blogOpenAI(blogId, "article", { timeout: 180_000, maxRetries: 2 }),
     ]);
     if (!blog) throw new ApiError(404, "Blog not found");
     const thumbnailEnabled = settings?.thumbnailEnabled ?? true;
@@ -310,6 +329,9 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
       topic: {
         primaryKeyword: claimed.item.primaryKeyword, preferredTitle: claimed.item.title,
         notes: claimed.item.notes, language: claimed.item.language,
+        secondaryKeywords: claimed.item.secondaryKeywords, intent: claimed.item.intent,
+        cluster: claimed.item.cluster, whyThisTopic: claimed.item.rationale,
+        searchData: researchMetrics(claimed.item.opportunitySnapshot),
       },
       audience: settings?.audience || "Readers looking for a clear, practical answer",
       brandVoice: settings?.brandVoice || "Clear, calm, practical and human",
@@ -323,12 +345,11 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
       },
     };
     await prisma.generationRun.update({ where: { id: claimed.run.id }, data: { stage: "writing", inputSnapshot: json(input) } });
-    const openai = new OpenAI({ apiKey, timeout: 180_000, maxRetries: 2 });
     const generated = await generateArticle(openai, input);
     // Only the offered articles and researched sources may be linked; anything else loses its link.
     const article = enforceArticleLinks(generated.article as ArticleDraft, {
       internal: new Set(targets.map((target) => target.href)),
-      external: urlsIn(serpBrief),
+      external: externalSources(serpBrief, settings?.competitorDomains ?? []),
       siteHosts: siteHosts(settings?.targetDomain, targets.map((target) => target.href)),
     });
     const slug = await uniqueSlug(blogId, claimed.item.language, article.suggestedSlug || article.title);

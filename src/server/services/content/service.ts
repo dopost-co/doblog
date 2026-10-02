@@ -13,6 +13,7 @@ import { translatePostInto } from "@/src/server/services/translations/post-trans
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
+import { syncSeoLanguage } from "@/src/server/services/seo/service";
 
 const itemInput = z.object({ id: schemas.idSchema }).strict();
 export const operationSchemas: Record<OperationName, z.ZodType> = {
@@ -174,7 +175,7 @@ export async function executeOperation(principal: ApiPrincipal, name: OperationN
       select: blogSelect,
     });
     if (data.languages && blog.languages[0] !== languages[0]) {
-      await prisma.blogSeoSettings.updateMany({ where: { blogId }, data: { languageCode: languages[0] } });
+      await syncSeoLanguage(blogId, languages[0]);
     }
     return { data: updated };
   }

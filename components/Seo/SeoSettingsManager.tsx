@@ -21,6 +21,7 @@ import { LogoPositionPicker, LogoUploader } from "@/components/Growth/LogoContro
 import { ImagePreviewDialog } from "@/components/Growth/ImagePreviewDialog";
 import { RefreshCoversDialog } from "@/components/Growth/RefreshCoversDialog";
 import { isLogoPosition, type LogoPosition } from "@/lib/autopilot/logo";
+import { SEARCH_MARKETS, defaultSearchMarket } from "@/lib/autopilot/search-markets";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
@@ -302,7 +303,18 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
               </div>
             )}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Location code" name="locationCode" type="number" defaultValue={String(settings?.locationCode ?? 2840)} hint="DataForSEO location, e.g. 2724 for Spain." />
+              <div className="grid gap-1.5">
+                <Label htmlFor="locationCode">Search market</Label>
+                <Select name="locationCode" defaultValue={String(settings?.locationCode ?? defaultSearchMarket(settings?.languageCode ?? "en"))}>
+                  <SelectTrigger id="locationCode" className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {!SEARCH_MARKETS.some((market) => market.code === settings?.locationCode) && settings?.locationCode
+                      ? <SelectItem value={String(settings.locationCode)}>Location {settings.locationCode}</SelectItem> : null}
+                    {SEARCH_MARKETS.map((market) => <SelectItem key={market.code} value={String(market.code)}>{market.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Country whose Google searches set keyword volume and difficulty.</p>
+              </div>
               <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />
             </div>
             <div className="grid gap-4 sm:grid-cols-3">

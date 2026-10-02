@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   blog: { findFirst: vi.fn(), update: vi.fn() },
   blogSeoSettings: { updateMany: vi.fn(), upsert: vi.fn(), findUnique: vi.fn() },
+  $transaction: vi.fn(async (operations: Promise<unknown>[]) => Promise.all(operations)),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/r2", () => ({
@@ -33,6 +34,8 @@ describe("Blog languages over the API and MCP", () => {
     const { data } = await executeOperation(principal, "update_blog", { languages: ["es"] }) as unknown as { data: { languages: string[]; autoSyncTranslations: boolean } };
     expect(data).toMatchObject({ languages: ["es"], autoSyncTranslations: false });
     expect(db.blogSeoSettings.updateMany).toHaveBeenCalledWith({ where: { blogId: "blog-1" }, data: { languageCode: "es" } });
+    // A market nobody picked follows the language.
+    expect(db.blogSeoSettings.updateMany).toHaveBeenCalledWith({ where: { blogId: "blog-1", locationCode: 2840 }, data: { locationCode: 2724 } });
   });
 });
 

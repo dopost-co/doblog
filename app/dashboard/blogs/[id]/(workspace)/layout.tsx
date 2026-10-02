@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/get-session";
+import { isAdminEmail } from "@/lib/admin";
 import { getBlogById, getBlogsByUserId } from "@/src/server/services/blogs/queries";
 import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
 import { AppSidebar } from "@/components/AppSidebar/AppSidebar";
@@ -43,7 +44,7 @@ export default async function BlogWorkspaceLayout({
       <AppSidebar
         blog={{ id: blog.id, name: blog.name }}
         blogs={blogs.map(({ id, name }) => ({ id, name }))}
-        user={{ name: session?.user?.name, email: session?.user?.email }}
+        user={{ name: session?.user?.name, email: session?.user?.email, isAdmin: isAdminEmail(session?.user?.email) }}
       />
       <div className="flex min-w-0 flex-1 flex-col transition-[padding] duration-200 ease-linear md:p-2 md:pl-64 md:group-data-[sidebar-open=false]/shell:pl-2">
         {/* `relative` on the card and on <main> makes them the containing block of

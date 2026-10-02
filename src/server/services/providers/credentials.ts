@@ -17,8 +17,12 @@ export async function getUserPlan(userId: string): Promise<Plan> {
   return isManagedPlan(user?.plan) ? "subscription" : "lifetime";
 }
 
+/** Who pays for a provider call: the platform (subscription) or the blog owner's own account (lifetime). */
+export type PaidBy = "platform" | "owner";
+export type OpenAiAccess = { apiKey: string; paidBy: PaidBy };
+
 /** The AI key used for work on a blog: always the blog owner's (or the platform's for subscribers). */
-export async function resolveOpenAiKey(ownerUserId: string): Promise<string> {
+export async function resolveOpenAiAccess(ownerUserId: string): Promise<OpenAiAccess> {
   const user = await prisma.user.findUnique({
     where: { id: ownerUserId },
     select: { plan: true, openaiApiKeyEncrypted: true },
@@ -27,18 +31,23 @@ export async function resolveOpenAiKey(ownerUserId: string): Promise<string> {
   if (isManagedPlan(user.plan)) {
     const key = process.env.OPENAI_API_KEY?.trim();
     if (!key) throw new ApiError(503, "AI features are temporarily unavailable");
-    return key;
+    return { apiKey: key, paidBy: "platform" };
   }
   if (!user.openaiApiKeyEncrypted) {
     throw new ApiError(412, "Add an OpenAI API key in Settings → Providers to use AI features");
   }
-  return decryptSecret(user.openaiApiKeyEncrypted);
+  return { apiKey: decryptSecret(user.openaiApiKeyEncrypted), paidBy: "owner" };
 }
 
-export async function resolveBlogOpenAiKey(blogId: string): Promise<string> {
+export async function resolveBlogOpenAiAccess(blogId: string): Promise<OpenAiAccess> {
   const blog = await prisma.blog.findUnique({ where: { id: blogId, deletedAt: null }, select: { userId: true } });
   if (!blog) throw new ApiError(404, "Blog not found");
-  return resolveOpenAiKey(blog.userId);
+  return resolveOpenAiAccess(blog.userId);
+}
+
+/** Checks that AI work can run for a blog without making a request. */
+export async function resolveBlogOpenAiKey(blogId: string): Promise<string> {
+  return (await resolveBlogOpenAiAccess(blogId)).apiKey;
 }
 
 export type DataForSeoAccess = { credentialId: string | null; login: string; password: string; cacheScope: string };
