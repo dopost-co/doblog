@@ -21,7 +21,7 @@ interface Category {
   description: string | null;
 }
 
-export function CategoriesList({ categories, blogId }: { categories: Category[]; blogId: string }) {
+export function CategoriesList({ categories, blogId, canEdit = true }: { categories: Category[]; blogId: string; canEdit?: boolean }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -70,6 +70,7 @@ export function CategoriesList({ categories, blogId }: { categories: Category[];
                 onOpenChange={(open) => !open && setEditingId(null)}
               />
             )}
+            {canEdit && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${category.name}`} disabled={deletingId === category.id}>
@@ -86,6 +87,7 @@ export function CategoriesList({ categories, blogId }: { categories: Category[];
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
           </div>
         ))}
       </div>

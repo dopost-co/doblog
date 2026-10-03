@@ -67,7 +67,7 @@ export function BlogLanguagesSettings({ blogId, initialLanguages, initialAutoSyn
       {canEdit ? (
         <Button type="submit" variant="outline" disabled={pending || !changed}>{pending ? "Saving…" : "Save"}</Button>
       ) : (
-        <p className="text-xs text-muted-foreground">Only the blog owner can change the languages.</p>
+        <p className="text-xs text-muted-foreground">Only blog admins can change the languages.</p>
       )}
     </form>
   );

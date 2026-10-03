@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export function SettingsNav({ blogId }: { blogId: string }) {
+/** Providers, Usage and Billing belong to the owner's account, so only the owner sees them. */
+export function SettingsNav({ blogId, showAccount }: { blogId: string; showAccount: boolean }) {
   const pathname = usePathname();
   const basePath = `/dashboard/blogs/${blogId}/settings`;
   const items = [
@@ -12,9 +13,11 @@ export function SettingsNav({ blogId }: { blogId: string }) {
     { href: `${basePath}/members`, label: "Members" },
     { href: `${basePath}/authors`, label: "Authors" },
     { href: `${basePath}/categories`, label: "Categories" },
-    { href: `${basePath}/providers`, label: "Providers" },
-    { href: `${basePath}/usage`, label: "Usage" },
-    { href: `${basePath}/billing`, label: "Billing" },
+    ...(showAccount ? [
+      { href: `${basePath}/providers`, label: "Providers" },
+      { href: `${basePath}/usage`, label: "Usage" },
+      { href: `${basePath}/billing`, label: "Billing" },
+    ] : []),
   ];
 
   return (

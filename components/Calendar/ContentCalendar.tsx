@@ -47,8 +47,10 @@ export function ContentCalendar({
   date,
   posts,
   drafts,
+  readOnly = false,
 }: {
   blogId: string;
+  readOnly?: boolean;
   view: CalendarView;
   date: string;
   posts: CalendarPost[];
@@ -69,7 +71,10 @@ export function ContentCalendar({
     () => posts.map((post) => (overrides[post.id]?.from === post.publishedAt ? { ...post, publishedAt: overrides[post.id].to } : post)),
     [posts, overrides],
   );
-  const entriesByDate = useMemo(() => groupEntriesByDate(buildCalendarEntries(visiblePosts)), [visiblePosts]);
+  const entriesByDate = useMemo(() => {
+    const entries = buildCalendarEntries(visiblePosts);
+    return groupEntriesByDate(readOnly ? entries.map((entry) => ({ ...entry, draggable: false })) : entries);
+  }, [visiblePosts, readOnly]);
 
   const navigate = useCallback((nextView: CalendarView, nextDate: Date) => {
     const query = new URLSearchParams({ view: nextView, date: toDateKey(nextDate) });
@@ -131,6 +136,7 @@ export function ContentCalendar({
     entriesByDate,
     pendingIds,
     hasDrafts: drafts.length > 0,
+    readOnly,
     onOpen: openEntry,
     onAdd: addPost,
     onScheduleDraft: (at: Date) => setDraftSlot(at),

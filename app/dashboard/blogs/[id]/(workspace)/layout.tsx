@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/get-session";
 import { isAdminEmail } from "@/lib/admin";
 import { getBlogById, getBlogsByUserId } from "@/src/server/services/blogs/queries";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { AppSidebar } from "@/components/AppSidebar/AppSidebar";
 import { SIDEBAR_COOKIE, SidebarProvider } from "@/components/AppSidebar/SidebarProvider";
 import { SiteHeader } from "@/components/AppSidebar/SiteHeader";
@@ -23,13 +23,9 @@ export default async function BlogWorkspaceLayout({
     redirect("/dashboard");
   }
 
-  const hasAccess = await userHasAccessToBlog(
-    session?.user?.id || "",
-    session?.user?.email || "",
-    id
-  );
+  const access = await getBlogAccess(id);
 
-  if (!hasAccess) {
+  if (!access) {
     redirect("/dashboard");
   }
 

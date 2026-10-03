@@ -24,7 +24,8 @@ import {
 import type { OutputData } from "@editorjs/editorjs";
 import { slugify } from "@/lib/slug";
 import { createPost, updatePost, syncPostTranslations } from "@/src/server/services/posts/mutations";
-import { ChevronDown, ChevronUp, Languages, RefreshCw } from "lucide-react";
+import { regeneratePostCoverAction } from "@/src/server/services/growth/actions";
+import { ChevronDown, ChevronUp, Languages, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
 import { LanguageSelector } from "@/components/LanguageSelector/LanguageSelector";
 import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
 import { getLanguageByCode } from "@/lib/languages";
@@ -113,6 +114,23 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
   const [autoSlug, setAutoSlug] = useState(!post?.slug);
   const [translateDialogOpen, setTranslateDialogOpen] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [drawingCover, setDrawingCover] = useState(false);
+
+  /** Draws the cover with the autopilot's thumbnail settings; the article is updated on the server too. */
+  async function handleGenerateCover() {
+    if (!post) return;
+    const hadCover = !!coverImage;
+    setDrawingCover(true);
+    try {
+      const result = await regeneratePostCoverAction(blogId, post.id);
+      if (!("url" in result)) { toast.error(result.error); return; }
+      setCoverImage(result.url);
+      if (result.coverTitle && !coverTitle.trim()) setCoverTitle(result.coverTitle);
+      toast.success(hadCover ? "Thumbnail regenerated" : "Thumbnail generated");
+    } finally {
+      setDrawingCover(false);
+    }
+  }
 
   async function handleCoverImageUpload(file: File) {
     setUploadingCover(true);
@@ -295,13 +313,32 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
                 height={630} 
                 className="w-full h-auto object-cover max-h-96" 
               />
-              <button
-                type="button"
-                onClick={() => setCoverImage("")}
-                className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-              >
-                ×
-              </button>
+              {drawingCover && (
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/70 text-sm text-muted-foreground backdrop-blur-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating thumbnail…
+                </div>
+              )}
+              <div className={`absolute right-3 top-3 flex items-center gap-2 transition-opacity ${drawingCover ? "hidden" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"}`}>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={handleGenerateCover}
+                    className="flex h-8 items-center gap-1.5 rounded-full bg-background/90 px-3 text-xs font-medium text-foreground shadow-sm backdrop-blur hover:bg-background"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Regenerate thumbnail
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCoverImage("")}
+                  aria-label="Remove cover image"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -362,6 +399,20 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
             >
               paste URL
             </button>
+            {isEditing && (
+              <>
+                <span className="text-muted-foreground">or</span>
+                <button
+                  type="button"
+                  onClick={handleGenerateCover}
+                  disabled={drawingCover}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                >
+                  {drawingCover ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {drawingCover ? "Generating..." : "generate with AI"}
+                </button>
+              </>
+            )}
           </div>
         )}
 

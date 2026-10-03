@@ -58,7 +58,7 @@ export function BlogNameSettings({
         />
         {canEdit && <Button type="submit" variant="outline" disabled={pending || !name.trim() || name.trim() === initialName}>{pending ? "Saving…" : "Save"}</Button>}
       </div>
-      {!canEdit && <p className="text-xs text-muted-foreground">Only the blog owner can change this name.</p>}
+      {!canEdit && <p className="text-xs text-muted-foreground">Only blog admins can change the name.</p>}
     </form>
   );
 }

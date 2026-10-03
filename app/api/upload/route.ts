@@ -1,8 +1,8 @@
 import { getSession } from "@/lib/get-session";
-import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { checkOrigin, errorResponse, privateJson } from "@/lib/integrations/http";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
+import { requireBlogPermission } from "@/src/server/services/blogs/access";
 
 export async function POST(request: Request) {
   try {
@@ -25,12 +25,8 @@ export async function POST(request: Request) {
     const file = formData.get("image");
     const blogId = formData.get("blogId");
     if (!(file instanceof File) || typeof blogId !== "string") throw new ApiError(400, "Image and blogId required");
-    const email = session.user.email?.trim().toLowerCase();
-    const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null, OR: [
-      { userId: session.user.id }, ...(email ? [{ members: { some: { userEmail: email } } }] : []),
-    ] }, select: { id: true } });
-    if (!blog) throw new ApiError(403, "No access to this blog");
-    const result = await uploadBlogImage(blog.id, Buffer.from(await file.arrayBuffer()), file.type === "image/jpg" ? "image/jpeg" : file.type);
+    await requireBlogPermission(blogId, "content.write");
+    const result = await uploadBlogImage(blogId, Buffer.from(await file.arrayBuffer()), file.type === "image/jpg" ? "image/jpeg" : file.type);
     return privateJson({ success: 1, file: { ...result, name: file.name } });
   } catch (error) { return errorResponse(error); }
 }

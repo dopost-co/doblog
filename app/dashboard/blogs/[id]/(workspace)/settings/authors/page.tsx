@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/get-session";
 import { getBlogById } from "@/src/server/services/blogs/queries";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { getAuthorsByBlogId } from "@/src/server/services/authors/queries";
 import { CreateAuthorDialog } from "@/components/CreateAuthorDialog/CreateAuthorDialog";
 import { AuthorsList } from "@/components/AuthorsList/AuthorsList";
@@ -12,7 +11,6 @@ export default async function BlogAuthorsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await getSession();
   const { id } = await params;
   const blog = await getBlogById(id);
 
@@ -20,13 +18,9 @@ export default async function BlogAuthorsPage({
     redirect("/dashboard");
   }
 
-  const hasAccess = await userHasAccessToBlog(
-    session?.user?.id || "",
-    session?.user?.email || "",
-    id
-  );
+  const access = await getBlogAccess(id);
 
-  if (!hasAccess) {
+  if (!access) {
     redirect("/dashboard");
   }
 
@@ -36,9 +30,9 @@ export default async function BlogAuthorsPage({
     <div className="space-y-6">
       <SettingsSectionHeader
         title="Authors"
-        action={<CreateAuthorDialog blogId={id} />}
+        action={access.can("content.write") ? <CreateAuthorDialog blogId={id} /> : undefined}
       />
-      <AuthorsList authors={authors} blogId={id} />
+      <AuthorsList authors={authors} blogId={id} canEdit={access.can("content.write")} />
     </div>
   );
 }

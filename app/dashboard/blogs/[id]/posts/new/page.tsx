@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/get-session";
 import { getBlogById } from "@/src/server/services/blogs/queries";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { getCategoriesByBlogId } from "@/src/server/services/categories/queries";
 import { getTagsByBlogId } from "@/src/server/services/tags/queries";
 import { getAuthorsByBlogId } from "@/src/server/services/authors/queries";
@@ -14,7 +13,6 @@ export default async function NewPostPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ scheduleAt?: string }>;
 }) {
-  const session = await getSession();
   const { id } = await params;
   const { scheduleAt } = await searchParams;
   const initialScheduleAt = scheduleAt && !Number.isNaN(Date.parse(scheduleAt)) ? scheduleAt : undefined;
@@ -24,14 +22,13 @@ export default async function NewPostPage({
     redirect("/dashboard");
   }
 
-  const hasAccess = await userHasAccessToBlog(
-    session?.user?.id || "",
-    session?.user?.email || "",
-    id
-  );
+  const access = await getBlogAccess(id);
 
-  if (!hasAccess) {
+  if (!access) {
     redirect("/dashboard");
+  }
+  if (!access.can("content.write")) {
+    redirect(`/dashboard/blogs/${id}`);
   }
 
   const [categories, tags, authors] = await Promise.all([

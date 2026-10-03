@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { API_SCOPES, type ApiScope } from "./scopes";
 import type { ApiPrincipal } from "./auth";
+import { can, isBlogRole, roleApiScopes, type BlogAccessRole, type BlogRole } from "@/lib/permissions";
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS = 10 * 60;
@@ -191,7 +192,10 @@ export async function assertBlogsAccessible(userId: string, userEmail: string, b
       deletedAt: null,
       OR: [{ userId }, { members: { some: { userEmail: userEmail.toLowerCase().trim() } } }],
     },
-    select: { id: true, blogId: true, name: true, slug: true, userId: true },
+    select: {
+      id: true, blogId: true, name: true, slug: true, userId: true,
+      members: { where: { userEmail: userEmail.toLowerCase().trim() }, select: { role: true }, take: 1 },
+    },
   });
   if (blogs.length !== uniqueIds.length) {
     throw new OAuthError("access_denied", "You do not have access to every selected blog", 403);
@@ -402,19 +406,27 @@ export async function resolveOAuthAccessToken(rawToken: string): Promise<ApiPrin
       // Usage metadata must not affect authentication or leak token details.
     });
 
-  const primary = blogs[0];
-  return {
-    blogId: primary.id,
-    publicBlogId: primary.blogId,
-    keyId: `oauth:${token.id}`,
-    scopes: token.scopes,
-    authorizedBlogs: blogs.map((blog) => ({
+  // A connection never does more on a blog than the person's current role there allows.
+  const authorizedBlogs = blogs.map((blog) => {
+    const role: BlogAccessRole = blog.userId === token.grant.user.id ? "owner" : isBlogRole(blog.members[0]?.role) ? blog.members[0].role as BlogRole : "viewer";
+    const allowed = new Set<string>(roleApiScopes(role));
+    return {
       blogId: blog.id,
       publicBlogId: blog.blogId,
       name: blog.name,
       slug: blog.slug,
-      canUsePaidSeo: blog.userId === token.grant.user.id,
-    })),
-    canUsePaidSeo: primary.userId === token.grant.user.id,
+      scopes: token.scopes.filter((scope) => allowed.has(scope)),
+      canUsePaidSeo: can(role, "autopilot.manage"),
+    };
+  });
+  const primary = authorizedBlogs[0];
+  return {
+    blogId: primary.blogId,
+    publicBlogId: primary.publicBlogId,
+    keyId: `oauth:${token.id}`,
+    // Tools are listed if any blog allows them; each call is checked against its blog's scopes.
+    scopes: [...new Set(authorizedBlogs.flatMap((blog) => blog.scopes))],
+    authorizedBlogs,
+    canUsePaidSeo: primary.canUsePaidSeo,
   };
 }

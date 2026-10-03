@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Languages, MoreHorizontal, Star, Trash2, Undo2 } from "lucide-react";
+import { Check, Languages, Loader2, MoreHorizontal, Sparkles, Star, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
 import { getLanguageName } from "@/lib/languages";
 import { deletePost, updatePost } from "@/src/server/services/posts/mutations";
+import { regeneratePostCoverAction } from "@/src/server/services/growth/actions";
 import { toast } from "sonner";
 
 interface PostCardProps {
@@ -39,6 +40,8 @@ interface PostCardProps {
   availableLanguages?: string[];
   categories: Array<{ id: string; name: string }>;
   author?: { id: string; name: string } | null;
+  /** Viewers open the post but get no publish, delete or translate actions. */
+  canEdit?: boolean;
 }
 
 export function PostCard({
@@ -53,6 +56,7 @@ export function PostCard({
   availableLanguages = [],
   categories,
   author,
+  canEdit = true,
 }: PostCardProps) {
   const router = useRouter();
   const [currentStatus, setCurrentStatus] = useState(status);
@@ -61,6 +65,8 @@ export function PostCard({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [cover, setCover] = useState(coverImage);
+  const [drawingCover, setDrawingCover] = useState(false);
 
   const formattedDate = publishedAt
     ? new Date(publishedAt).toLocaleString("en-US", {
@@ -99,6 +105,16 @@ export function PostCard({
     }
   }
 
+  async function regenerateCover() {
+    setDrawingCover(true);
+    const result = await regeneratePostCoverAction(blogId, id);
+    setDrawingCover(false);
+    if (!("url" in result)) { toast.error(result.error); return; }
+    setCover(result.url);
+    toast.success(cover ? "Thumbnail regenerated" : "Thumbnail generated");
+    router.refresh();
+  }
+
   async function handleDelete() {
     setIsUpdating(true);
     setDeleteError("");
@@ -123,9 +139,14 @@ export function PostCard({
       <Card className="transition-colors hover:bg-muted/30">
         <CardContent className="flex items-center gap-4 px-4 py-3">
           <Link href={`/dashboard/blogs/${blogId}/posts/${id}/edit`} className="flex min-w-0 flex-1 items-center gap-4">
-            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
-              {coverImage ? (
-                <img src={coverImage} alt="" className="h-full w-full object-cover" />
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
+              {drawingCover && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Generating thumbnail" />
+                </div>
+              )}
+              {cover ? (
+                <img src={cover} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
                   <span className="text-lg font-medium">{title.slice(0, 1).toUpperCase()}</span>
@@ -159,38 +180,43 @@ export function PostCard({
             {statusBadge.label}
           </span>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${title}`} disabled={isUpdating}>
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {currentStatus !== "published" && (
-                <DropdownMenuItem onSelect={() => setStatus("published")}>
-                  <Check />
-                  {currentStatus === "scheduled" ? "Publish now" : "Publish"}
+          {canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${title}`} disabled={isUpdating}>
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {currentStatus !== "published" && (
+                  <DropdownMenuItem onSelect={() => setStatus("published")}>
+                    <Check />
+                    {currentStatus === "scheduled" ? "Publish now" : "Publish"}
+                  </DropdownMenuItem>
+                )}
+                {currentStatus !== "draft" && (
+                  <DropdownMenuItem onSelect={() => setStatus("draft")}>
+                    <Undo2 />
+                    {currentStatus === "scheduled" ? "Unschedule" : "Move to draft"}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem role="menuitemcheckbox" aria-checked={isFeatured} onSelect={() => toggleFeatured(!isFeatured)}>
+                  <Star className={cn(isFeatured && "fill-amber-400 text-amber-500")} />
+                  Featured
                 </DropdownMenuItem>
-              )}
-              {currentStatus !== "draft" && (
-                <DropdownMenuItem onSelect={() => setStatus("draft")}>
-                  <Undo2 />
-                  {currentStatus === "scheduled" ? "Unschedule" : "Move to draft"}
+                <DropdownMenuItem onSelect={regenerateCover} disabled={drawingCover}>
+                  <Sparkles /> {cover ? "Regenerate thumbnail" : "Generate thumbnail"}
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem role="menuitemcheckbox" aria-checked={isFeatured} onSelect={() => toggleFeatured(!isFeatured)}>
-                <Star className={cn(isFeatured && "fill-amber-400 text-amber-500")} />
-                Featured
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setTranslateOpen(true)}>
-                <Languages /> Translate to…
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-                <Trash2 /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem onSelect={() => setTranslateOpen(true)}>
+                  <Languages /> Translate to…
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                  <Trash2 /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </CardContent>
       </Card>
 

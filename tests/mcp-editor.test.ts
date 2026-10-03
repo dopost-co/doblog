@@ -111,7 +111,7 @@ describe("MCP rich content", () => {
     } finally { await client.close(); await server.close(); }
   });
 
-  it("does not let an invited OAuth member trigger paid SEO calls", async () => {
+  it("does not let a non-admin OAuth member trigger paid SEO calls", async () => {
     const server = createMcpServer({
       blogId: "blog", publicBlogId: "public", keyId: "oauth:test", scopes: ["content:read"], canUsePaidSeo: false,
       authorizedBlogs: [{ blogId: "blog", publicBlogId: "public", name: "Shared", canUsePaidSeo: false }],
@@ -122,7 +122,7 @@ describe("MCP rich content", () => {
       await server.connect(serverTransport); await client.connect(clientTransport);
       const result = await client.callTool({ name: "seo_get_usage", arguments: {} });
       expect(result.isError).toBe(true);
-      expect(result.content).toEqual(expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("Only the blog owner") })]));
+      expect(result.content).toEqual(expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("Only blog admins") })]));
     } finally { await client.close(); await server.close(); }
   });
 });

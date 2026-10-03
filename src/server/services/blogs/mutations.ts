@@ -6,6 +6,7 @@ import { z } from "zod";
 import { revalidatePath, updateTag } from "next/cache";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
 import { syncSeoLanguage } from "@/src/server/services/seo/service";
+import { forbiddenMessage, getBlogAccess } from "@/src/server/services/blogs/access";
 
 const createBlogSchema = z.object({
   name: z.string().min(1),
@@ -87,15 +88,16 @@ export async function updateBlog(
       return { error: "Blog not found" };
     }
 
-    if (blog.userId !== session.user.id) {
-      return { error: "Unauthorized: Only the blog owner can update the blog" };
+    const access = await getBlogAccess(id);
+    if (!access?.can("blog.manage")) {
+      return { error: forbiddenMessage("blog.manage") };
     }
 
     // Check slug uniqueness if updating slug
     if (validated.slug && validated.slug !== blog.slug) {
       const existingBlog = await prisma.blog.findFirst({
         where: {
-          userId: session.user.id,
+          userId: blog.userId,
           slug: validated.slug,
           id: { not: id },
           deletedAt: null,
@@ -139,7 +141,7 @@ export async function updateBlogLanguages(id: string, data: { languages: string[
 
   const blog = await prisma.blog.findFirst({ where: { id, deletedAt: null }, select: { userId: true, languages: true } });
   if (!blog) return { error: "Blog not found" };
-  if (blog.userId !== session.user.id) return { error: "Only the blog owner can change its languages" };
+  if (!(await getBlogAccess(id))?.can("blog.manage")) return { error: forbiddenMessage("blog.manage") };
 
   const autoSyncTranslations = languages.length > 1 && data.autoSyncTranslations;
   await prisma.blog.update({ where: { id }, data: { languages, autoSyncTranslations } });
@@ -166,9 +168,8 @@ export async function deleteBlog(id: string, confirmationName: string) {
       return { error: "Blog not found" };
     }
 
-    // Only owner can delete blog
-    if (blog.userId !== session.user.id) {
-      return { error: "Unauthorized: Only the blog owner can delete the blog" };
+    if (!(await getBlogAccess(id))?.can("blog.delete")) {
+      return { error: forbiddenMessage("blog.delete") };
     }
 
     if (confirmationName !== blog.name) {

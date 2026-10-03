@@ -18,18 +18,21 @@ export default async function AutopilotPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const { view } = await searchParams;
-  const { blog, isOwner } = await integrationBlog(id);
-  if (!isOwner) {
-    return <BlogIntegrationLayout blog={blog} title="Autopilot">
-      <p className="text-sm text-muted-foreground">Only the blog owner can manage Autopilot.</p>
-    </BlogIntegrationLayout>;
-  }
+  const { blog, access } = await integrationBlog(id);
+  const canManage = access.can("autopilot.manage");
 
   // Blogs created before onboarding asked about Autopilot finish setting it up there.
   const setup = await prisma.blogSeoSettings.findUnique({ where: { blogId: id }, select: { targetDomain: true, audience: true, brandVoice: true } });
-  if (missingAutopilotStep(setup)) redirect(`/onboarding/autopilot?blog=${id}`);
+  if (missingAutopilotStep(setup)) {
+    // Setup turns Autopilot on with the owner's AI keys, so it is the owner's step.
+    if (access.role === "owner") redirect(`/onboarding/autopilot?blog=${id}`);
+    return <BlogIntegrationLayout blog={blog} title="Autopilot">
+      <p className="text-sm text-muted-foreground">Autopilot isn’t set up for this blog yet. The blog owner can set it up.</p>
+    </BlogIntegrationLayout>;
+  }
 
-  const active = view === "ideas" || view === "settings" ? view : "schedule";
+  // Schedule and Settings are admin tools; everyone else works from the ideas.
+  const active = !canManage ? "ideas" : view === "ideas" || view === "settings" ? view : "schedule";
   const [data, settingsData] = await Promise.all([
     getGrowthDashboard(id),
     active === "settings" ? getSeoDashboardData(id) : null,
@@ -45,17 +48,18 @@ export default async function AutopilotPage({ params, searchParams }: {
       nextDiscoveryAt={data.discovery.nextDiscoveryAt?.toISOString() || null}
       running={data.discovery.running}
       aiReady={data.aiReady}
+      canManage={canManage}
     />}
   >
     <div className="space-y-6">
-      <LinkTabs active={active} items={[
+      {canManage && <LinkTabs active={active} items={[
         { id: "schedule", label: "Schedule", href: base },
         { id: "ideas", label: data.items.length ? `Ideas ${data.items.length}` : "Ideas", href: `${base}?view=ideas` },
         { id: "settings", label: "Settings", href: `${base}?view=settings` },
-      ]} />
+      ]} />}
 
       {active === "settings" && settingsData ? (
-        <SeoSettingsManager blogId={id} plan={settingsData.plan} credentials={settingsData.credentials} settings={settingsData.settings} languages={settingsData.languages} posts={settingsData.posts} />
+        <SeoSettingsManager blogId={id} plan={settingsData.plan} credentials={settingsData.credentials} settings={settingsData.settings} languages={settingsData.languages} posts={settingsData.posts} canSpend={settingsData.canSpend} />
       ) : active === "ideas" ? (
         <GrowthPlanManager
           blogId={id}
@@ -63,6 +67,7 @@ export default async function AutopilotPage({ params, searchParams }: {
           aiReady={data.aiReady}
           mediaReady={data.mediaReady}
           publishingMode={data.discovery.publishingMode}
+          canEdit={access.can("autopilot.write")}
           items={data.items.map((item) => ({
             ...item,
             opportunitySnapshot: item.opportunitySnapshot ? JSON.parse(JSON.stringify(item.opportunitySnapshot)) : null,

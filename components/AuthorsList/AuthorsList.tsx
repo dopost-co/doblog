@@ -25,9 +25,11 @@ interface Author {
 interface AuthorsListProps {
   authors: Author[];
   blogId: string;
+  /** Viewers see the list without edit or delete. */
+  canEdit?: boolean;
 }
 
-export function AuthorsList({ authors, blogId }: AuthorsListProps) {
+export function AuthorsList({ authors, blogId, canEdit = true }: AuthorsListProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -82,6 +84,7 @@ export function AuthorsList({ authors, blogId }: AuthorsListProps) {
               open={editingId === author.id}
               onOpenChange={(open) => setEditingId(open ? author.id : null)}
             />
+            {canEdit && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${author.name}`} disabled={deletingId === author.id || editingId === author.id}>
@@ -99,6 +102,7 @@ export function AuthorsList({ authors, blogId }: AuthorsListProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
           </div>
         ))}
       </div>

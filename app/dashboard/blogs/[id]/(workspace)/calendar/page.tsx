@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/get-session";
 import { prisma } from "@/lib/prisma";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { ContentCalendar } from "@/components/Calendar/ContentCalendar";
 import {
   getCalendarRange,
@@ -18,12 +17,11 @@ export default async function BlogCalendarPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ date?: string }>;
 }) {
-  const session = await getSession();
   const { id } = await params;
   const query = await searchParams;
 
-  const hasAccess = await userHasAccessToBlog(session?.user?.id || "", session?.user?.email || "", id);
-  if (!hasAccess) redirect("/dashboard");
+  const access = await getBlogAccess(id);
+  if (!access) redirect("/dashboard");
 
   // Week and list views exist but are hidden for now; the calendar is month-only.
   const view = parseCalendarView("month");
@@ -56,6 +54,7 @@ export default async function BlogCalendarPage({
         publishedAt: post.publishedAt!.toISOString(),
       }))}
       drafts={drafts.map((draft) => ({ ...draft, updatedAt: draft.updatedAt.toISOString() }))}
+      readOnly={!access.can("content.write")}
     />
   );
 }

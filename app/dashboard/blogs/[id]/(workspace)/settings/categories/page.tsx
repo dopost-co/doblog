@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/get-session";
 import { getBlogById } from "@/src/server/services/blogs/queries";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { getCategoriesByBlogId } from "@/src/server/services/categories/queries";
 import { CreateCategoryDialog } from "@/components/CreateCategoryDialog/CreateCategoryDialog";
 import { CategoriesList } from "@/components/CategoriesList/CategoriesList";
@@ -12,7 +11,6 @@ export default async function BlogCategoriesPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await getSession();
   const { id } = await params;
   const blog = await getBlogById(id);
 
@@ -20,13 +18,9 @@ export default async function BlogCategoriesPage({
     redirect("/dashboard");
   }
 
-  const hasAccess = await userHasAccessToBlog(
-    session?.user?.id || "",
-    session?.user?.email || "",
-    id
-  );
+  const access = await getBlogAccess(id);
 
-  if (!hasAccess) {
+  if (!access) {
     redirect("/dashboard");
   }
 
@@ -36,9 +30,9 @@ export default async function BlogCategoriesPage({
     <div className="space-y-6">
       <SettingsSectionHeader
         title="Categories"
-        action={<CreateCategoryDialog blogId={id} />}
+        action={access.can("content.write") ? <CreateCategoryDialog blogId={id} /> : undefined}
       />
-      <CategoriesList categories={categories} blogId={id} />
+      <CategoriesList categories={categories} blogId={id} canEdit={access.can("content.write")} />
     </div>
   );
 }

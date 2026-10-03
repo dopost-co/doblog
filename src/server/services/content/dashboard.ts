@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
-import { API_SCOPES } from "@/lib/integrations/scopes";
+import { roleApiScopes } from "@/lib/permissions";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { ApiError } from "@/lib/integrations/errors";
 import type { OperationName, ContentResource } from "@/lib/integrations/catalog";
 import { executeOperation } from "./service";
@@ -9,17 +10,22 @@ import { invalidateContent } from "./cache";
 export async function dashboardOperation(blogId: string, name: OperationName, input: unknown) {
   const session = await getSession();
   if (!session?.user?.id) throw new ApiError(401, "Unauthorized");
-  const email = session.user.email?.trim().toLowerCase();
-  const blog = await prisma.blog.findFirst({ where: {
-    id: blogId,
-    deletedAt: null,
-    OR: [{ userId: session.user.id }, ...(email && name !== "update_blog" ? [{ members: { some: { userEmail: email } } }] : [])],
-  } });
-  if (!blog) throw new ApiError(403, "Unauthorized");
-  const principal = { blogId, publicBlogId: blog.blogId, keyId: "session", scopes: [...API_SCOPES] };
-  const result = await executeOperation(principal, name, input);
-  invalidateContent(principal, true);
-  return result.data;
+  const access = await getBlogAccess(blogId);
+  const blog = access ? await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { blogId: true } }) : null;
+  if (!access || !blog) throw new ApiError(403, "Unauthorized");
+  // The role decides the scopes, so the dashboard and API clients follow the same rules.
+  const principal = { blogId, publicBlogId: blog.blogId, keyId: "session", scopes: roleApiScopes(access.role) };
+  try {
+    const result = await executeOperation(principal, name, input);
+    invalidateContent(principal, true);
+    return result.data;
+  } catch (error) {
+    // "Missing scope: content:write" is for API clients; people see what their role allows.
+    if (error instanceof ApiError && error.message.startsWith("Missing scope")) {
+      throw new ApiError(403, access.can("content.write") ? "Only blog admins can do this" : "Your role on this blog can only view it");
+    }
+    throw error;
+  }
 }
 
 export async function recordBlogId(resource: ContentResource, id: string) {

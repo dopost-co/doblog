@@ -141,7 +141,7 @@ export async function refreshPostCover(blogId: string, postId: string) {
       ...(cover.written ? { coverTitle: cover.written } : {}),
     } }),
   ]);
-  return { url: uploaded.url, warnings };
+  return { url: uploaded.url, coverTitle: cover.written ?? null, warnings };
 }
 
 /**

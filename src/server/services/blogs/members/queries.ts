@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/get-session";
+import { isBlogRole, type BlogRole } from "@/lib/permissions";
 
 export interface BlogMemberWithUser {
   id: string;
   userEmail: string;
+  role: BlogRole;
   createdAt: Date;
   user?: {
     id: string;
@@ -79,6 +81,7 @@ export async function getBlogMembers(blogId: string): Promise<{
     const membersWithUser: BlogMemberWithUser[] = members.map((member) => ({
       id: member.id,
       userEmail: member.userEmail,
+      role: isBlogRole(member.role) ? member.role : "viewer",
       createdAt: member.createdAt,
       user: usersByEmail.get(member.userEmail.toLowerCase()) || null,
     }));

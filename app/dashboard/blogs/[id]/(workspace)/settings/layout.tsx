@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader/PageHeader";
 import { SettingsNav } from "@/components/SettingsNav/SettingsNav";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 
 export default async function BlogSettingsLayout({
   children,
@@ -9,13 +10,14 @@ export default async function BlogSettingsLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const access = await getBlogAccess(id);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <PageHeader title="Settings" />
       <div className="flex flex-col gap-6 border-t pt-6 lg:flex-row lg:gap-10">
         <aside className="lg:w-44 lg:shrink-0">
-          <SettingsNav blogId={id} />
+          <SettingsNav blogId={id} showAccount={Boolean(access?.can("account.manage"))} />
         </aside>
         <div className="min-w-0 flex-1 lg:max-w-2xl">{children}</div>
       </div>

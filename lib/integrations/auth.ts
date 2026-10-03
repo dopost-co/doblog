@@ -4,7 +4,12 @@ import { ApiError } from "./errors";
 import type { ApiScope } from "./scopes";
 import { resolveOAuthAccessToken } from "./oauth";
 
-export type AuthorizedBlog = { blogId: string; publicBlogId: string; name?: string; slug?: string; canUsePaidSeo?: boolean };
+export type AuthorizedBlog = {
+  blogId: string; publicBlogId: string; name?: string; slug?: string;
+  /** What the connection may do on this blog: its scopes, capped by the person's role there. */
+  scopes?: string[];
+  canUsePaidSeo?: boolean;
+};
 export type ApiPrincipal = {
   blogId: string;
   publicBlogId: string;
@@ -32,7 +37,7 @@ export async function authenticateApiKey(request: Request, publicBlogId?: string
     if (!publicBlogId) return principal;
     const selected = (principal.authorizedBlogs ?? [principal]).find((blog) => blog.publicBlogId === publicBlogId);
     if (!selected) throw new ApiError(403, "Access token does not grant access to this blog");
-    return { ...principal, blogId: selected.blogId, publicBlogId: selected.publicBlogId };
+    return { ...principal, blogId: selected.blogId, publicBlogId: selected.publicBlogId, scopes: selected.scopes ?? principal.scopes, canUsePaidSeo: selected.canUsePaidSeo };
   }
   const match = /^Bearer (znx_[A-Za-z0-9_-]{43})$/i.exec(header);
   if (!match) throw new ApiError(401, "A valid Bearer API key is required");

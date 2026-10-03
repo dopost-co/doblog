@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/get-session";
 import { getBlogById } from "@/src/server/services/blogs/queries";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { getPostsByBlogId, getAvailableLanguagesByTranslationGroupIds } from "@/src/server/services/posts/queries";
 import { PageHeader } from "@/components/PageHeader/PageHeader";
 import { PostCard } from "@/components/PostCard/PostCard";
@@ -10,6 +9,8 @@ import { GroupTranslationsToggle } from "@/components/GroupTranslationsToggle/Gr
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
+/** Regenerating a cover with AI runs as a server action on this page. */
+export const maxDuration = 300;
 export default async function BlogPostsPage({
   params,
   searchParams,
@@ -17,7 +18,6 @@ export default async function BlogPostsPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ status?: string; page?: string; groupTranslations?: string }>;
 }) {
-  const session = await getSession();
   const { id } = await params;
   const { status, page: pageParam, groupTranslations: groupTranslationsParam } = await searchParams;
   const blog = await getBlogById(id);
@@ -26,13 +26,9 @@ export default async function BlogPostsPage({
     redirect("/dashboard");
   }
 
-  const hasAccess = await userHasAccessToBlog(
-    session?.user?.id || "",
-    session?.user?.email || "",
-    id
-  );
+  const access = await getBlogAccess(id);
 
-  if (!hasAccess) {
+  if (!access) {
     redirect("/dashboard");
   }
 
@@ -63,12 +59,14 @@ export default async function BlogPostsPage({
           actions={
             <>
               <GroupTranslationsToggle enabled={groupTranslations} />
-              <Button asChild>
-                <Link href={`/dashboard/blogs/${id}/posts/new`}>
-                  <Plus />
-                  New post
-                </Link>
-              </Button>
+              {access.can("content.write") && (
+                <Button asChild>
+                  <Link href={`/dashboard/blogs/${id}/posts/new`}>
+                    <Plus />
+                    New post
+                  </Link>
+                </Button>
+              )}
             </>
           }
         />
@@ -91,6 +89,7 @@ export default async function BlogPostsPage({
                   categories={post.categories.map(({ category }) => ({ id: category.id, name: category.name }))}
                   author={post.author ? { id: post.author.id, name: post.author.name } : null}
                   featured={post.featured}
+                  canEdit={access.can("content.write")}
                 />
               );
             })}

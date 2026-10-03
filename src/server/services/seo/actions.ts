@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/get-session";
+import { requireBlogPermission } from "@/src/server/services/blogs/access";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
@@ -33,19 +33,43 @@ const settingsSchema = z.object({
   try { new Intl.DateTimeFormat("en", { timeZone: value.timezone }); } catch { ctx.addIssue({ code: "custom", message: "Invalid timezone" }); }
 });
 
-async function requireOwner(blogId: string) {
-  const session = await getSession();
-  if (!session?.user?.id) throw new ApiError(401, "Sign in to manage SEO settings");
+/** Autopilot settings are for blog admins; DataForSEO connections are always the owner's. */
+async function requireSettingsAccess(blogId: string) {
+  const access = await requireBlogPermission(blogId, "autopilot.manage");
   const blog = await prisma.blog.findFirst({
-    where: { id: blogId, userId: session.user.id, deletedAt: null },
+    where: { id: blogId, deletedAt: null },
     select: { id: true, userId: true, name: true, languages: true, user: { select: { plan: true } } },
   });
-  if (!blog) throw new ApiError(403, "Only the blog owner can manage SEO settings");
-  return { ...blog, managed: isManagedPlan(blog.user.plan) };
+  if (!blog) throw new ApiError(404, "Blog not found");
+  return { ...blog, managed: isManagedPlan(blog.user.plan), canSpend: access.can("account.spending") };
+}
+
+/** The owner's choices for research and spending, checked against their own connections. */
+async function ownerSpending(blog: { userId: string; managed: boolean }, data: z.infer<typeof settingsSchema>) {
+  const micros = (value: number) => Math.round(value * 1_000_000);
+  let credentialId: string | null = null;
+  if (!blog.managed) {
+    const credentials = await prisma.seoProviderCredential.findMany({
+      where: { ownerUserId: blog.userId, provider: "dataforseo", verifiedAt: { not: null } },
+      select: { id: true },
+    });
+    // With a single connection there is nothing to choose.
+    credentialId = data.credentialId ?? (credentials.length === 1 ? credentials[0].id : null);
+    if (credentialId && !credentials.some((item) => item.id === credentialId)) {
+      throw new ApiError(403, "Choose a verified DataForSEO connection of the blog owner");
+    }
+    if (data.enabled && !credentialId) throw new ApiError(400, "Connect DataForSEO in Settings → Providers first");
+  }
+  return {
+    credentialId, enabled: data.enabled,
+    perRunBudgetUsdMicros: micros(data.perRunBudgetUsd),
+    dailyBudgetUsdMicros: micros(data.dailyBudgetUsd),
+    monthlyBudgetUsdMicros: micros(data.monthlyBudgetUsd),
+  };
 }
 
 export async function getSeoDashboardData(blogId: string) {
-  const blog = await requireOwner(blogId);
+  const blog = await requireSettingsAccess(blogId);
   const [credentials, settings] = await Promise.all([
     blog.managed ? [] : prisma.seoProviderCredential.findMany({
       where: { ownerUserId: blog.userId, provider: "dataforseo", verifiedAt: { not: null } },
@@ -54,34 +78,27 @@ export async function getSeoDashboardData(blogId: string) {
     }),
     prisma.blogSeoSettings.findUnique({ where: { blogId } }),
   ]);
+  // Login hints identify the owner's DataForSEO account; other admins only see the connection names.
+  const visibleCredentials = blog.canSpend ? credentials : credentials.map((item) => ({ ...item, loginHint: "" }));
   // Articles to try image settings on (previews).
   const posts = await prisma.post.findMany({ where: { blogId }, orderBy: { updatedAt: "desc" }, take: 30, select: { id: true, title: true } });
-  return { plan: blog.managed ? "subscription" as const : "lifetime" as const, credentials, settings, languages: blog.languages, blogName: blog.name, posts };
+  return { plan: blog.managed ? "subscription" as const : "lifetime" as const, credentials: visibleCredentials, settings, languages: blog.languages, blogName: blog.name, posts, canSpend: blog.canSpend };
 }
 
 export async function saveBlogSeoSettings(blogId: string, input: unknown) {
   try {
-    const blog = await requireOwner(blogId);
+    const blog = await requireSettingsAccess(blogId);
     // The form shows one plain message; field paths are for API clients.
     const parsed = settingsSchema.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the settings and try again" };
     const data = parsed.data;
-    let credentialId: string | null = null;
-    if (!blog.managed) {
-      const credentials = await prisma.seoProviderCredential.findMany({
-        where: { ownerUserId: blog.userId, provider: "dataforseo", verifiedAt: { not: null } },
-        select: { id: true },
-      });
-      // With a single connection there is nothing to choose.
-      credentialId = data.credentialId ?? (credentials.length === 1 ? credentials[0].id : null);
-      if (credentialId && !credentials.some((item) => item.id === credentialId)) {
-        throw new ApiError(403, "Choose a verified DataForSEO connection owned by your account");
-      }
-      if (data.enabled && !credentialId) throw new ApiError(400, "Connect DataForSEO in Settings → Providers first");
-    }
-    const micros = (value: number) => Math.round(value * 1_000_000);
+    // Research on/off, the connection and the limits spend the owner's money: other admins keep them as they are.
+    const spending = blog.canSpend ? await ownerSpending(blog, data) : await prisma.blogSeoSettings.findUnique({
+      where: { blogId },
+      select: { credentialId: true, enabled: true, perRunBudgetUsdMicros: true, dailyBudgetUsdMicros: true, monthlyBudgetUsdMicros: true },
+    }) ?? {};
     const values = {
-      credentialId, enabled: data.enabled, targetDomain: data.targetDomain,
+      ...spending, targetDomain: data.targetDomain,
       locationCode: data.locationCode, languageCode: data.languageCode, timezone: data.timezone,
       competitorDomains: data.competitorDomains.filter(Boolean), audience: data.audience || null,
       brandVoice: data.brandVoice || null, publishingMode: data.publishingMode,
@@ -95,8 +112,7 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       thumbnailStyle: data.thumbnailStyle || null, inlineImageStyle: data.inlineImageStyle || null,
       articleUrlPrefix: `/${data.articleUrlPrefix.split("/").filter(Boolean).join("/")}`,
       articlePaths: data.articlePaths,
-      maxInlineImages: data.maxInlineImages, perRunBudgetUsdMicros: micros(data.perRunBudgetUsd),
-      dailyBudgetUsdMicros: micros(data.dailyBudgetUsd), monthlyBudgetUsdMicros: micros(data.monthlyBudgetUsd),
+      maxInlineImages: data.maxInlineImages,
     };
     await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...values }, update: values });
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);

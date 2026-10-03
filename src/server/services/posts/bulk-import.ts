@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/get-session";
 import { z } from "zod";
 import { revalidatePath, updateTag } from "next/cache";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { forbiddenMessage, getBlogAccess } from "@/src/server/services/blogs/access";
 import { v4 as uuidv4 } from "uuid";
 
 const importPostSchema = z.object({
@@ -56,14 +56,8 @@ export async function importPostsInBulk(data: {
       return { error: "Blog not found" };
     }
 
-    const hasAccess = await userHasAccessToBlog(
-      session.user.id,
-      session.user.email || "",
-      data.blogId
-    );
-
-    if (!hasAccess) {
-      return { error: "Unauthorized" };
+    if (!(await getBlogAccess(data.blogId))?.can("content.write")) {
+      return { error: forbiddenMessage("content.write") };
     }
 
     const results = {

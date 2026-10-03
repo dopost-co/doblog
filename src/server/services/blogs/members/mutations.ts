@@ -1,172 +1,65 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/get-session";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { apiError, ApiError } from "@/lib/integrations/errors";
+import { BLOG_ROLES, DEFAULT_BLOG_ROLE } from "@/lib/permissions";
+import { requireBlogPermission } from "@/src/server/services/blogs/access";
 
-const emailSchema = z.string().email("Invalid email format");
+const emailSchema = z.string().trim().toLowerCase().email("Enter a valid email address");
+const roleSchema = z.enum(BLOG_ROLES, { message: "Choose viewer, member or admin" });
 
-/**
- * Check if user has access to blog (owner or member)
- */
-export async function userHasAccessToBlog(
-  userId: string,
-  userEmail: string,
-  blogId: string
-): Promise<boolean> {
+function revalidateMembers(blogId: string) {
+  revalidatePath(`/dashboard/blogs/${blogId}/settings/members`);
+  revalidatePath("/dashboard");
+}
+
+/** Gives someone access to the blog with a role; they get it when they sign in with that email. */
+export async function addBlogMember(blogId: string, email: string, role: string = DEFAULT_BLOG_ROLE) {
   try {
-    const normalizedEmail = userEmail.toLowerCase().trim();
-    const blog = await prisma.blog.findFirst({
-      where: { id: blogId, deletedAt: null },
-    });
+    await requireBlogPermission(blogId, "members.manage");
+    const userEmail = emailSchema.parse(email);
+    const validRole = roleSchema.parse(role);
+    const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { user: { select: { email: true } } } });
+    if (!blog) throw new ApiError(404, "Blog not found");
+    if (blog.user.email.toLowerCase() === userEmail) throw new ApiError(409, "That's the blog owner, who already has full access");
+    const existing = await prisma.blogMember.findUnique({ where: { blogId_userEmail: { blogId, userEmail } }, select: { id: true } });
+    if (existing) throw new ApiError(409, "This email already has access. Change its role instead");
 
-    if (!blog) {
-      return false;
-    }
-
-    // Check if user is owner
-    if (blog.userId === userId) {
-      return true;
-    }
-
-    // Check if user is member
-    const member = await prisma.blogMember.findFirst({
-      where: {
-        blogId,
-        userEmail: normalizedEmail,
-      },
-    });
-
-    return !!member;
+    const member = await prisma.blogMember.create({ data: { blogId, userEmail, role: validRole } });
+    const user = await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true, name: true, email: true } });
+    revalidateMembers(blogId);
+    return { success: true, member: { ...member, role: validRole, user } };
   } catch (error) {
-    console.error("Error checking blog access:", error);
-    return false;
+    return { error: error instanceof z.ZodError ? error.issues[0].message : apiError(error).error };
   }
 }
 
-/**
- * Add a member to a blog
- */
-export async function addBlogMember(blogId: string, email: string) {
-  const session = await getSession();
-  if (!session?.user?.id || !session?.user?.email) {
-    return { error: "Unauthorized" };
-  }
-
+export async function updateBlogMemberRole(blogId: string, memberId: string, role: string) {
   try {
-    // Validate email format
-    const validatedEmail = emailSchema.parse(email.toLowerCase().trim());
-
-    // Get blog and verify ownership
-    const blog = await prisma.blog.findFirst({
-      where: { id: blogId, deletedAt: null },
-      include: {
-        user: {
-          select: {
-            email: true,
-          },
-        },
-      },
-    });
-
-    if (!blog) {
-      return { error: "Blog not found" };
-    }
-
-    // Only owner can add members
-    if (blog.userId !== session.user.id) {
-      return { error: "Unauthorized: Only the blog owner can add members" };
-    }
-
-    // Cannot add owner as member (owner already has access)
-    if (blog.user.email.toLowerCase().trim() === validatedEmail) {
-      return { error: "The blog owner is already a member" };
-    }
-
-    // Check if member already exists
-    const existingMember = await prisma.blogMember.findFirst({
-      where: {
-        blogId,
-        userEmail: validatedEmail,
-      },
-    });
-
-    if (existingMember) {
-      return { error: "This email is already a member of this blog" };
-    }
-
-    // Add member
-    const member = await prisma.blogMember.create({
-      data: {
-        blogId,
-        userEmail: validatedEmail,
-      },
-    });
-    const user = await prisma.user.findUnique({
-      where: { email: validatedEmail },
-      select: { id: true, name: true, email: true },
-    });
-
-    revalidatePath(`/dashboard/blogs/${blogId}/settings/members`);
-    revalidatePath("/dashboard");
-    return { success: true, member: { ...member, user } };
+    const access = await requireBlogPermission(blogId, "members.manage");
+    const validRole = roleSchema.parse(role);
+    const member = await prisma.blogMember.findFirst({ where: { id: memberId, blogId }, select: { userEmail: true } });
+    if (!member) throw new ApiError(404, "Member not found");
+    // Admins can't lower their own role by accident and lock themselves out of this page.
+    if (member.userEmail === access.email && validRole !== "admin") throw new ApiError(409, "Ask the owner or another admin to change your own role");
+    await prisma.blogMember.update({ where: { id: memberId }, data: { role: validRole } });
+    revalidateMembers(blogId);
+    return { success: true, role: validRole };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { error: error.issues[0].message };
-    }
-    console.error("Error adding blog member:", error);
-    return { error: "Failed to add blog member" };
+    return { error: error instanceof z.ZodError ? error.issues[0].message : apiError(error).error };
   }
 }
 
-/**
- * Remove a member from a blog
- */
 export async function removeBlogMember(blogId: string, memberId: string) {
-  const session = await getSession();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
-
   try {
-    // Get blog and verify ownership
-    const blog = await prisma.blog.findFirst({
-      where: { id: blogId, deletedAt: null },
-    });
-
-    if (!blog) {
-      return { error: "Blog not found" };
-    }
-
-    // Only owner can remove members
-    if (blog.userId !== session.user.id) {
-      return { error: "Unauthorized: Only the blog owner can remove members" };
-    }
-
-    // Get member to verify it exists and belongs to this blog
-    const member = await prisma.blogMember.findFirst({
-      where: {
-        id: memberId,
-        blogId,
-      },
-    });
-
-    if (!member) {
-      return { error: "Member not found" };
-    }
-
-    // Remove member
-    await prisma.blogMember.delete({
-      where: { id: memberId },
-    });
-
-    revalidatePath(`/dashboard/blogs/${blogId}/settings/members`);
-    revalidatePath("/dashboard");
+    await requireBlogPermission(blogId, "members.manage");
+    const removed = await prisma.blogMember.deleteMany({ where: { id: memberId, blogId } });
+    if (!removed.count) throw new ApiError(404, "Member not found");
+    revalidateMembers(blogId);
     return { success: true };
   } catch (error) {
-    console.error("Error removing blog member:", error);
-    return { error: "Failed to remove blog member" };
+    return { error: apiError(error).error };
   }
 }
-

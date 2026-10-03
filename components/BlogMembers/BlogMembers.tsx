@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addBlogMember, removeBlogMember } from "@/src/server/services/blogs/members/mutations";
+import { addBlogMember, removeBlogMember, updateBlogMemberRole } from "@/src/server/services/blogs/members/mutations";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BLOG_ROLES, DEFAULT_BLOG_ROLE, ROLE_DETAILS, type BlogRole } from "@/lib/permissions";
+import Link from "next/link";
 import { Check, Copy, Loader2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 interface BlogMember {
   id: string;
   userEmail: string;
+  role: BlogRole;
   createdAt: Date;
   user?: {
     id: string;
@@ -29,13 +33,31 @@ interface BlogMembersProps {
     name: string | null;
     email: string;
   } | null;
-  isOwner: boolean;
+  /** Owners and admins invite, change roles and remove people. */
+  canManage: boolean;
+  /** The signed-in user's email, so they can't demote themselves here. */
+  currentEmail: string;
 }
 
-export function BlogMembers({ blogId, members: initialMembers, ownerEmail, ownerUser, isOwner }: BlogMembersProps) {
+function RoleSelect({ value, onChange, disabled, label }: { value: BlogRole; onChange: (role: BlogRole) => void; disabled?: boolean; label: string }) {
+  return (
+    <Select value={value} onValueChange={(next) => onChange(next as BlogRole)} disabled={disabled}>
+      <SelectTrigger size="sm" className="w-28" aria-label={label}><SelectValue /></SelectTrigger>
+      <SelectContent align="end">
+        {BLOG_ROLES.map((role) => (
+          <SelectItem key={role} value={role}>{ROLE_DETAILS[role].label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function BlogMembers({ blogId, members: initialMembers, ownerEmail, ownerUser, canManage, currentEmail }: BlogMembersProps) {
   const router = useRouter();
   const [members, setMembers] = useState(initialMembers);
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState<BlogRole>(DEFAULT_BLOG_ROLE);
+  const [changingId, setChangingId] = useState<string | null>(null);
   const [copiedEmail, setCopiedEmail] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -45,7 +67,7 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
     setIsAdding(true);
 
     try {
-      const result = await addBlogMember(blogId, email);
+      const result = await addBlogMember(blogId, email, role);
 
       if (result.error) {
         toast.error(result.error);
@@ -111,6 +133,16 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
     }
   }
 
+  async function handleRoleChange(memberId: string, memberEmail: string, next: BlogRole) {
+    setChangingId(memberId);
+    const result = await updateBlogMemberRole(blogId, memberId, next);
+    setChangingId(null);
+    if (result.error) { toast.error(result.error); return; }
+    setMembers((current) => current.map((member) => member.id === memberId ? { ...member, role: next } : member));
+    toast.success(`${memberEmail} is now ${ROLE_DETAILS[next].label.toLowerCase()}`);
+    router.refresh();
+  }
+
   // Combine owner and members for display
   const allMembers = [
     {
@@ -118,6 +150,7 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
       userEmail: ownerEmail,
       createdAt: new Date(),
       user: ownerUser || null,
+      role: "admin" as BlogRole,
       isOwner: true,
     },
     ...members.map((m) => ({ ...m, isOwner: false })),
@@ -125,7 +158,7 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
 
   return (
     <div className="space-y-6">
-      {isOwner && (
+      {canManage && (
         <form onSubmit={handleAddMember} className="space-y-2">
           <Label htmlFor="email">Invite by email</Label>
           <div className="flex gap-2">
@@ -139,11 +172,20 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
               disabled={isAdding}
               className="flex-1"
             />
+            <Select value={role} onValueChange={(next) => setRole(next as BlogRole)} disabled={isAdding}>
+              <SelectTrigger className="w-28" aria-label="Role"><SelectValue /></SelectTrigger>
+              <SelectContent align="end">
+                {BLOG_ROLES.map((option) => <SelectItem key={option} value={option}>{ROLE_DETAILS[option].label}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Button type="submit" disabled={isAdding || !email.trim()}>
               {isAdding ? <Loader2 className="animate-spin" /> : <UserPlus />}
               {isAdding ? "Adding..." : "Add"}
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            {ROLE_DETAILS[role].description} <Link href="/docs/members#roles" className="underline underline-offset-4">Compare roles</Link>
+          </p>
         </form>
       )}
 
@@ -161,12 +203,22 @@ export function BlogMembers({ blogId, members: initialMembers, ownerEmail, owner
                 {member.user?.name ? member.userEmail : member.user ? "Registered user" : "Pending, not registered yet"}
               </p>
             </div>
+            {!member.isOwner && !member.user && (
+              <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground">Pending</span>
+            )}
             {member.isOwner ? (
               <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">Owner</span>
-            ) : !member.user ? (
-              <span className="rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground">Pending</span>
-            ) : null}
-            {isOwner && !member.isOwner && <div className="flex shrink-0 items-center gap-1">
+            ) : canManage ? (
+              <RoleSelect
+                value={member.role}
+                label={`Role of ${member.userEmail}`}
+                disabled={changingId === member.id || member.userEmail.toLowerCase() === currentEmail}
+                onChange={(next) => handleRoleChange(member.id, member.userEmail, next)}
+              />
+            ) : (
+              <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">{ROLE_DETAILS[member.role].label}</span>
+            )}
+            {canManage && !member.isOwner && <div className="flex shrink-0 items-center gap-1">
               <Button
                 type="button"
                 variant="ghost"

@@ -516,6 +516,7 @@ model BlogMember {
   id        String   @id @default(cuid())
   blogId    String
   userEmail String
+  role      String   @default("member") // viewer | member | admin (lib/permissions.ts)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

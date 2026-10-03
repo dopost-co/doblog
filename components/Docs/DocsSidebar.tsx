@@ -33,7 +33,7 @@ const navigation: NavItem[] = [
   {
     title: "Features",
     items: [
-      { title: "Blog Members", href: "/docs/members" },
+      { title: "Members & roles", href: "/docs/members" },
     ],
   },
 ];

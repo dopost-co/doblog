@@ -78,8 +78,10 @@ function SettingToggle({ id, label, checked, onChange, disabled }: {
   );
 }
 
-export function SeoSettingsManager({ blogId, plan, credentials, settings, languages = [], posts = [] }: {
+export function SeoSettingsManager({ blogId, plan, credentials, settings, languages = [], posts = [], canSpend = true }: {
   blogId: string;
+  /** Research on/off, the connection and the spending limits are the owner's; other admins see them read-only. */
+  canSpend?: boolean;
   /** Recent articles to try image settings on. */
   posts?: { id: string; title: string }[];
   /** Shown on the brand thumbnail preview. */
@@ -177,16 +179,18 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
             <p className="text-sm text-muted-foreground">
               {managed ? "Included in your plan."
                 : connected ? <>Uses {activeCredential?.label ?? "your DataForSEO connection"}.</>
-                  : <>Connect DataForSEO in <Link href={`/dashboard/blogs/${blogId}/settings/providers`} className="text-foreground underline underline-offset-4">Providers</Link> to use search data.</>}
+                  : canSpend ? <>Connect DataForSEO in <Link href={`/dashboard/blogs/${blogId}/settings/providers`} className="text-foreground underline underline-offset-4">Providers</Link> to use search data.</>
+                    : "The blog owner hasn't connected DataForSEO."}
+              {!canSpend && " Only the owner can turn it on or off."}
             </p>
-            <Switch id="seo-enabled" aria-label="SEO research" checked={enabled} onCheckedChange={setEnabled} disabled={pending || !connected} />
+            <Switch id="seo-enabled" aria-label="SEO research" checked={enabled} onCheckedChange={setEnabled} disabled={pending || !connected || !canSpend} />
           </div>
           {!managed && credentials.length > 1 && (
             <div className="grid gap-1.5">
               <Label htmlFor="credential">DataForSEO connection</Label>
-              <Select value={credentialId} onValueChange={setCredentialId} disabled={pending}>
+              <Select value={credentialId} onValueChange={setCredentialId} disabled={pending || !canSpend}>
                 <SelectTrigger id="credential" className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>{credentials.map((item) => <SelectItem key={item.id} value={item.id}>{item.label} · {item.loginHint}</SelectItem>)}</SelectContent>
+                <SelectContent>{credentials.map((item) => <SelectItem key={item.id} value={item.id}>{item.loginHint ? `${item.label} · ${item.loginHint}` : item.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           )}
@@ -318,9 +322,10 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
               <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Per run (USD)" name="perRunBudgetUsd" type="number" step="any" min="0.001" defaultValue={usd(settings?.perRunBudgetUsdMicros, 0.25)} />
-              <Field label="Per day (USD)" name="dailyBudgetUsd" type="number" step="any" min="0.001" defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />
-              <Field label="Per month (USD)" name="monthlyBudgetUsd" type="number" step="any" min="0.001" defaultValue={usd(settings?.monthlyBudgetUsdMicros, 20)} />
+              {/* Read-only rather than disabled, so the saved limits are still submitted. */}
+              <Field label="Per run (USD)" name="perRunBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.perRunBudgetUsdMicros, 0.25)} />
+              <Field label="Per day (USD)" name="dailyBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />
+              <Field label="Per month (USD)" name="monthlyBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.monthlyBudgetUsdMicros, 20)} hint={canSpend ? undefined : "Set by the blog owner."} />
             </div>
           </div>
         </details>

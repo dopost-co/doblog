@@ -12,7 +12,7 @@ import type { CalendarViewProps } from "./types";
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const GRID = "grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]";
 
-export function WeekView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd, onScheduleDraft, hasDrafts }: CalendarViewProps) {
+export function WeekView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd, onScheduleDraft, readOnly, hasDrafts }: CalendarViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: WEEK_STARTS_ON });
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
@@ -63,7 +63,7 @@ export function WeekView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd
                   disabled={isPast}
                   className={cn("group relative flex flex-col gap-1 border-r p-1 last:border-r-0", isPast && "calendar-past-day")}
                 >
-                  {!isPast && (
+                  {!isPast && !readOnly && (
                     <AddSlotMenu
                       hasDrafts={hasDrafts}
                       onNewPost={() => onAdd(slot)}

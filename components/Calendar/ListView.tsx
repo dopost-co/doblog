@@ -9,7 +9,7 @@ import { toDateKey } from "./calendar-utils";
 import type { CalendarViewProps } from "./types";
 
 /** Agenda of the current and next month; empty past days are skipped to keep it short. */
-export function ListView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd, onScheduleDraft, hasDrafts }: CalendarViewProps) {
+export function ListView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd, onScheduleDraft, readOnly, hasDrafts }: CalendarViewProps) {
   const todayKey = toDateKey(new Date());
   const days = eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(addMonths(currentDate, 1)) })
     .filter((day) => toDateKey(day) >= todayKey || (entriesByDate[toDateKey(day)]?.length ?? 0) > 0);
@@ -44,7 +44,7 @@ export function ListView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd
                   <DraggableCalendarEntry key={entry.entryId} entry={entry} pending={pendingIds.has(entry.entryId)} onOpen={onOpen} />
                 ))}
               </div>
-              {!isPast && (
+              {!isPast && !readOnly && (
                 <AddSlotMenu
                   hasDrafts={hasDrafts}
                   onNewPost={() => onAdd(day)}

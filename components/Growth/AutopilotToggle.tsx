@@ -9,12 +9,14 @@ import { toast } from "sonner";
 const dateLabel = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 /** Pauses or resumes Autopilot, with when ideas refresh next. */
-export function AutopilotToggle({ blogId, active: initialActive, nextDiscoveryAt: initialNext, running, aiReady }: {
+export function AutopilotToggle({ blogId, active: initialActive, nextDiscoveryAt: initialNext, running, aiReady, canManage = true }: {
   blogId: string;
   active: boolean;
   nextDiscoveryAt: string | null;
   running: boolean;
   aiReady: boolean;
+  /** Only admins turn Autopilot on or off; everyone else sees its status. */
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -40,7 +42,7 @@ export function AutopilotToggle({ blogId, active: initialActive, nextDiscoveryAt
   return (
     <label className="flex items-center gap-3 text-sm">
       <span className="text-muted-foreground">{status}</span>
-      <Switch checked={active} onCheckedChange={toggle} disabled={pending || (!active && !aiReady)} aria-label="Autopilot active" />
+      {canManage && <Switch checked={active} onCheckedChange={toggle} disabled={pending || (!active && !aiReady)} aria-label="Autopilot active" />}
     </label>
   );
 }

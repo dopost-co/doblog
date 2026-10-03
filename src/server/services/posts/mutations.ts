@@ -6,7 +6,7 @@ import { getSession } from "@/lib/get-session";
 import { revalidatePath, updateTag } from "next/cache";
 import type { OutputData } from "@editorjs/editorjs";
 import { TranslationService } from "@/src/server/services/translations/TranslationService";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { forbiddenMessage, getBlogAccess } from "@/src/server/services/blogs/access";
 import { dashboardOperation, recordBlogId } from "@/src/server/services/content/dashboard";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { createPostTranslation } from "@/src/server/services/translations/post-translation";
@@ -99,8 +99,7 @@ export async function translatePost(postId: string, targetLanguage: string) {
   try {
     const source = await prisma.post.findUnique({ where: { id: postId }, select: { blogId: true } });
     if (!source) return { error: "Post not found" };
-    const hasAccess = await userHasAccessToBlog(session.user.id, session.user.email || "", source.blogId);
-    if (!hasAccess) return { error: "Unauthorized" };
+    if (!(await getBlogAccess(source.blogId))?.can("content.write")) return { error: forbiddenMessage("content.write") };
 
     const post = await createPostTranslation(source.blogId, postId, targetLanguage);
     updateTag(`blog-${source.blogId}-posts`);
@@ -141,11 +140,7 @@ export async function syncPostTranslations(postId: string) {
       return { error: "Post not found" };
     }
 
-    const hasAccess = await userHasAccessToBlog(
-      session.user.id,
-      session.user.email || "",
-      currentPost.blogId
-    );
+    const hasAccess = (await getBlogAccess(currentPost.blogId))?.can("content.write");
 
     if (!hasAccess) {
       return { error: "Unauthorized" };

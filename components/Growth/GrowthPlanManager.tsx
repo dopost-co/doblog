@@ -55,8 +55,10 @@ const scheduledLabel = (value: string) => new Intl.DateTimeFormat(undefined, {
   weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
 }).format(new Date(value));
 
-export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, mediaReady, publishingMode }: {
+export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, mediaReady, publishingMode, canEdit = true }: {
   blogId: string;
+  /** Viewers see the ideas and their progress without adding, writing or removing. */
+  canEdit?: boolean;
   items: PlanItem[];
   defaultLanguage: string;
   aiReady: boolean;
@@ -146,7 +148,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span />
-          <Button size="sm" onClick={() => setAdding(true)} disabled={pending}><Plus />Add idea</Button>
+          {canEdit && <Button size="sm" onClick={() => setAdding(true)} disabled={pending}><Plus />Add idea</Button>}
         </div>
         {items.length === 0 ? (
           <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">No ideas yet. New ones appear after the next refresh.</p>
@@ -203,12 +205,12 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                   <div className="flex shrink-0 items-center gap-2">
                     {inProgress ? null : item.post ? (
                       <Button asChild variant="outline"><Link href={`/dashboard/blogs/${blogId}/posts/${item.post.id}/edit`}><Check />{item.post.status === "published" ? "View article" : "Review draft"}</Link></Button>
-                    ) : (
+                    ) : canEdit && (
                       <Button onClick={() => generate(item.id)} disabled={pending || !aiReady} variant={item.scheduledFor ? "outline" : "default"}>
                         {item.status === "failed" ? "Try again" : "Write now"}
                       </Button>
                     )}
-                    {!item.post && !inProgress && (
+                    {canEdit && !item.post && !inProgress && (
                       <Button variant="ghost" size="icon" onClick={() => remove(item.id)} disabled={pending} aria-label={`Remove ${item.primaryKeyword}`}>
                         <Trash2 />
                       </Button>

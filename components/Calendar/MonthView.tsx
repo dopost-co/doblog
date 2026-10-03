@@ -10,7 +10,7 @@ import type { CalendarViewProps } from "./types";
 
 const MAX_VISIBLE = 3;
 
-export function MonthView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd, onScheduleDraft, onShowDay, hasDrafts }: CalendarViewProps) {
+export function MonthView({ currentDate, entriesByDate, pendingIds, onOpen, onAdd, onScheduleDraft, readOnly, onShowDay, hasDrafts }: CalendarViewProps) {
   const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: WEEK_STARTS_ON });
   const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: WEEK_STARTS_ON });
   const days = eachDayOfInterval({ start, end });
@@ -58,7 +58,7 @@ export function MonthView({ currentDate, entriesByDate, pendingIds, onOpen, onAd
                 >
                   {format(day, "d")}
                 </span>
-                {!isPast && (
+                {!isPast && !readOnly && (
                   <AddSlotMenu
                     hasDrafts={hasDrafts}
                     onNewPost={() => onAdd(day)}

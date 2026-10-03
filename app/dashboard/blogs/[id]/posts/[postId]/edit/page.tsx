@@ -1,20 +1,21 @@
 import type { OutputData } from "@editorjs/editorjs";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/get-session";
 import { getBlogById } from "@/src/server/services/blogs/queries";
-import { userHasAccessToBlog } from "@/src/server/services/blogs/members/mutations";
+import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { getPostById, getPostsByTranslationGroup } from "@/src/server/services/posts/queries";
 import { getCategoriesByBlogId } from "@/src/server/services/categories/queries";
 import { getTagsByBlogId } from "@/src/server/services/tags/queries";
 import { getAuthorsByBlogId } from "@/src/server/services/authors/queries";
 import { PostForm } from "@/components/PostForm/PostForm";
+import { PostReadOnly } from "@/components/PostReadOnly/PostReadOnly";
 
+/** Regenerating a cover with AI runs as a server action on this page. */
+export const maxDuration = 300;
 export default async function EditPostPage({
   params,
 }: {
   params: Promise<{ id: string; postId: string }>;
 }) {
-  const session = await getSession();
   const { id, postId } = await params;
   const blog = await getBlogById(id);
   const post = await getPostById(postId);
@@ -23,18 +24,24 @@ export default async function EditPostPage({
     redirect("/dashboard");
   }
 
-  const hasAccess = await userHasAccessToBlog(
-    session?.user?.id || "",
-    session?.user?.email || "",
-    id
-  );
+  const access = await getBlogAccess(id);
 
-  if (!hasAccess) {
+  if (!access) {
     redirect("/dashboard");
   }
 
   if (!post || post.blogId !== id) {
     redirect(`/dashboard/blogs/${id}`);
+  }
+
+  if (!access.can("content.write")) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto w-full max-w-[800px] px-6 py-12">
+          <PostReadOnly blogId={id} post={post} />
+        </main>
+      </div>
+    );
   }
 
   // Get existing translations if post has a translationGroupId

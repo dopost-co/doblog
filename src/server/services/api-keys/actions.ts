@@ -1,22 +1,19 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/get-session";
+import { requireBlogPermission } from "@/src/server/services/blogs/access";
 import { generateApiKey } from "@/lib/integrations/auth";
 import { createKeySchema, idSchema } from "@/lib/integrations/schemas";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { revalidatePath } from "next/cache";
 
-async function requireOwner(blogId: string) {
+async function requireKeyManager(blogId: string) {
   idSchema.parse(blogId);
-  const session = await getSession();
-  if (!session?.user?.id) throw new ApiError(401, "Sign in to manage API keys");
-  const blog = await prisma.blog.findFirst({ where: { id: blogId, userId: session.user.id, deletedAt: null }, select: { id: true } });
-  if (!blog) throw new ApiError(403, "Only the blog owner can manage API keys");
+  await requireBlogPermission(blogId, "integrations.manage");
 }
 
 export async function listApiKeys(blogId: string) {
-  await requireOwner(blogId);
+  await requireKeyManager(blogId);
   const keys = await prisma.apiKey.findMany({ where: { blogId }, orderBy: { createdAt: "desc" }, take: 100, select: {
     id: true, name: true, prefix: true, scopes: true, createdAt: true,
     expiresAt: true, neverExpires: true, revokedAt: true, lastUsedAt: true,
@@ -26,7 +23,7 @@ export async function listApiKeys(blogId: string) {
 
 export async function createApiKey(blogId: string, input: unknown) {
   try {
-    await requireOwner(blogId);
+    await requireKeyManager(blogId);
     const data = createKeySchema.parse(input);
     const { token, tokenHash, prefix } = generateApiKey();
     const expiresAt = data.neverExpires ? null : new Date(Date.now() + data.expiresInDays * 86_400_000);
@@ -44,7 +41,7 @@ export async function createApiKey(blogId: string, input: unknown) {
 
 export async function revokeApiKey(blogId: string, keyId: string) {
   try {
-    await requireOwner(blogId);
+    await requireKeyManager(blogId);
     idSchema.parse(keyId);
     const result = await prisma.apiKey.updateMany({ where: { id: keyId, blogId, revokedAt: null }, data: { revokedAt: new Date() } });
     if (!result.count) throw new ApiError(404, "Active API key not found");
