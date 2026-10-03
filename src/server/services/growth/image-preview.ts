@@ -4,7 +4,7 @@ import { ApiError } from "@/lib/integrations/errors";
 import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
 import { THUMBNAIL_FORMATS, coverTypography, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { blogOpenAI } from "@/src/server/services/usage/openai";
-import { loadLogo, loadStyleReferences, normalizeLogoUrl, normalizeStyleReferences } from "./image-references";
+import { LOGO_MISSING, loadLogo, loadStyleReferences, normalizeLogoUrl, normalizeStyleReferences } from "./image-references";
 import { resolveCoverTitle } from "./cover-title";
 import { imageSubject } from "./image-subject";
 import { makeCover, makeInlineImage } from "./images";
@@ -36,15 +36,17 @@ export async function previewImage(blogId: string, raw: unknown) {
 
   const needsAi = input.kind === "inline" || input.format !== "template";
   const openai = needsAi ? await blogOpenAI(blogId, "image_preview", { timeout: 120_000, maxRetries: 1 }) : null;
+  const wantsLogo = input.logoPosition !== "none" && Boolean(input.logoUrl);
   const [references, logo] = await Promise.all([
     needsAi ? loadStyleReferences(blogId, normalizeStyleReferences(blogId, input.referenceUrls)) : [],
-    input.logoPosition === "none" ? null : loadLogo(blogId, normalizeLogoUrl(blogId, input.logoUrl)),
+    wantsLogo ? loadLogo(blogId, normalizeLogoUrl(blogId, input.logoUrl)) : null,
   ]);
+  const warnings: string[] = [];
+  if (wantsLogo && !logo) warnings.push(LOGO_MISSING);
   const request = {
     prompt: imageSubject(input.kind, post), style: input.style, references, runId: "preview",
     logo: logo ? { bytes: logo, position: input.logoPosition } : null,
   };
-  const warnings: string[] = [];
   /**
    * The preview stores nothing, so an article with no headline gets one written
    * for this sample only; generation writes and keeps its own. A plain brand

@@ -11,7 +11,7 @@ import { normalizeWritingDays } from "@/lib/autopilot/writing-days";
 import { normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 import { BLOG_FLOWS, flowSteps, isOnboardingFlow, nextVisibleStep, type OnboardingFlowId, type OnboardingStepId, type OnboardingValues } from "@/lib/onboarding/steps";
 import { blogOnboardingValues, resolveUserFlow } from "./queries";
-import { normalizeWebsite } from "@/src/server/services/growth/discovery";
+import { normalizeWebsite, startContentDiscovery } from "@/src/server/services/growth/discovery";
 import { syncSeoLanguage } from "@/src/server/services/seo/service";
 import { defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { analyzeCompetitorBrandVoice, competitorVoiceInstruction } from "@/src/server/services/growth/brand";
@@ -208,6 +208,11 @@ export async function completeOnboardingStep(flowId: string, stepId: string, val
         where: { id: userId },
         data: next ? { onboardingStep: next.id } : { onboardingStep: null, onboardingCompleted: true },
       });
+    }
+    if (!next && savedBlogId) {
+      // Finishing setup with Autopilot on finds the first ideas now, not at the next hourly sweep.
+      const autopilot = await prisma.blogSeoSettings.findUnique({ where: { blogId: savedBlogId }, select: { discoveryEnabled: true, targetDomain: true } });
+      if (autopilot?.discoveryEnabled && autopilot.targetDomain) await startContentDiscovery(savedBlogId, "activation").catch(() => null);
     }
     if (!next) revalidatePath("/dashboard", "layout");
     return { done: !next, nextStep: next?.id ?? null, blogId: savedBlogId };

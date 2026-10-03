@@ -5,6 +5,9 @@ import { missingAutopilotStep } from "@/lib/autopilot/setup";
 import { OnboardingFlow } from "@/components/Onboarding/OnboardingFlow";
 import { blogOnboardingValues } from "@/src/server/services/onboarding/queries";
 
+/** Finishing setup starts finding the first ideas in the background, within this request. */
+export const maxDuration = 300;
+
 export const metadata = { title: "Set up Autopilot" };
 
 /** Autopilot questions for a blog created before onboarding asked them. */

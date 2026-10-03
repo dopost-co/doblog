@@ -28,7 +28,9 @@ type PlanItem = {
   scheduledFor: string | null;
   lastError: string | null;
   createdAt: string;
-  post: { id: string; title: string; status: string; coverImage: string | null; publishedAt: string | null } | null;
+  post: { id: string; title: string; status: string; coverImage: string | null; publishedAt: string | null; translationSyncPending: boolean } | null;
+  /** Translations of the written article, in the blog's other languages. */
+  translations: Array<{ id: string; language: string; status: string }>;
   runs: Array<{ id: string; status: string; stage: string; error: string | null; createdAt: string; completedAt: string | null }>;
 };
 
@@ -55,8 +57,48 @@ const scheduledLabel = (value: string) => new Intl.DateTimeFormat(undefined, {
   weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
 }).format(new Date(value));
 
-export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, mediaReady, publishingMode, canEdit = true }: {
+/**
+ * The languages an idea ends up in: written in the main one, then translated
+ * into each of translateTo once the article exists.
+ */
+function LanguageBadges({ blogId, item, translateTo, inProgress }: { blogId: string; item: PlanItem; translateTo: string[]; inProgress: boolean }) {
+  const main = <span className="text-xs font-medium uppercase text-muted-foreground">{item.language}</span>;
+  if (!translateTo.length) return main;
+  if (!item.post) {
+    return (
+      <span className="text-xs uppercase text-muted-foreground" title="Written in the main language, then translated automatically">
+        {item.language} <span aria-hidden>→</span> {translateTo.join(" · ")}
+      </span>
+    );
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5 text-xs uppercase text-muted-foreground">
+      {main}
+      {translateTo.map((language) => {
+        const translation = item.translations.find((entry) => entry.language === language);
+        if (translation) {
+          return (
+            <Link key={language} href={`/dashboard/blogs/${blogId}/posts/${translation.id}/edit`} className="inline-flex items-center gap-0.5 rounded px-1 hover:bg-muted" title={`${language.toUpperCase()} translation (${translation.status})`}>
+              <Check className="size-3 text-emerald-600" />{language}
+            </Link>
+          );
+        }
+        const translating = inProgress || item.post!.translationSyncPending;
+        return (
+          <span key={language} className={cn("inline-flex items-center gap-0.5 normal-case", !translating && "text-amber-700 dark:text-amber-300")}>
+            {translating ? <LoaderCircle className="size-3 animate-spin" /> : null}
+            <span className="uppercase">{language}</span> {translating ? "translating…" : "not translated"}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, mediaReady, publishingMode, canEdit = true, translateTo = [] }: {
   blogId: string;
+  /** With auto-sync on, the blog's other languages each article is translated into. */
+  translateTo?: string[];
   /** Viewers see the ideas and their progress without adding, writing or removing. */
   canEdit?: boolean;
   items: PlanItem[];
@@ -104,7 +146,8 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
   }
 
   // Drafts are written in the background; refresh until none is in progress.
-  const writing = items.some(isInProgress);
+  // Keep refreshing while articles are written or their translations are still being made.
+  const writing = items.some((item) => isInProgress(item) || (translateTo.length > 0 && Boolean(item.post?.translationSyncPending)));
 
   // Tell the owner when a background run finishes.
   const inProgressIds = useRef<Set<string> | null>(null);
@@ -186,7 +229,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                         {item.scheduledFor && !item.post && item.status === "planned" && <CalendarClock className="size-3" />}
                         {stateLabel}
                       </span>
-                      <span className="text-xs uppercase text-muted-foreground">{item.language}</span>
+                      <LanguageBadges blogId={blogId} item={item} translateTo={translateTo} inProgress={inProgress} />
                       {item.intent && <span className="text-xs capitalize text-muted-foreground">{item.intent}</span>}
                     </div>
                     <h3 className="font-medium">{item.post?.title || item.title || item.primaryKeyword}</h3>

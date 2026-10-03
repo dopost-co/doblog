@@ -33,7 +33,7 @@ describe("SEO provider security", () => {
 
   it("does not accept provider-level error responses", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ status_code: 40101, status_message: "Authentication failed" }), { status: 200 })));
-    await expect(dataForSeoRequest({ login: "bad", password: "bad-password" }, "/v3/test")).rejects.toThrow("Authentication failed");
+    await expect(dataForSeoRequest({ login: "bad", password: "bad-password" }, "/v3/test")).rejects.toThrow("DataForSEO rejected the login");
   });
 
   it("normalizes keyword ideas from their documented top-level fields", () => {

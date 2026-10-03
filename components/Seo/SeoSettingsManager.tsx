@@ -254,8 +254,11 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
           {inlineImagesEnabled && <StyleReferencesPicker blogId={blogId} value={inlineReferences} onChange={setInlineReferences} disabled={pending} />}
           {inlineImagesEnabled && logoUrl && (
             <div className="grid gap-2">
-              <Label>Logo position</Label>
+              <Label>Logo on post images</Label>
               <LogoPositionPicker value={inlineLogoPosition} onChange={setInlineLogoPosition} disabled={pending} />
+              <p className="text-xs text-muted-foreground">
+                {inlineLogoPosition === "none" ? "Post images have no logo. Pick a spot to add it." : "Each image inside the article gets your logo there, previews included."}
+              </p>
             </div>
           )}
           {inlineImagesEnabled && (

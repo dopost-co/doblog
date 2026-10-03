@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
-import { getUsageReport, platformProviderStatus, type UsageMonth } from "@/src/server/services/usage/queries";
+import { getUsageReport, type UsageMonth } from "@/src/server/services/usage/queries";
 
 /** Every account with its blogs, who else can open each blog, and the month's provider spend. */
 export async function getAdminOverview(month: UsageMonth) {
@@ -20,7 +20,6 @@ export async function getAdminOverview(month: UsageMonth) {
   ]);
   const spend = (blogId: string) => usage.byBlog.get(blogId) ?? { openai: 0, dataforseo: 0 };
   return {
-    providers: platformProviderStatus(),
     platformSpend: {
       openai: usage.openai.byPaidBy.platform,
       dataforseo: usage.dataforseo.byPaidBy.platform,

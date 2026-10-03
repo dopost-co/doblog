@@ -8,7 +8,7 @@ import {
   planItemInputSchema,
   removeContentPlanItem,
 } from "./service";
-import { discoverContentOpportunities, saveDiscoverySettings, setAutopilotActive } from "./discovery";
+import { discoverContentOpportunities, saveDiscoverySettings, setAutopilotActive, startContentDiscovery } from "./discovery";
 import { queueContentPlanDraft } from "./draft-queue";
 import { previewImage } from "./image-preview";
 import { countRefreshableCovers, queueCoverRefresh, refreshPostCover, type CoverRefreshScope } from "./cover-refresh";
@@ -69,8 +69,10 @@ export async function setAutopilotActiveAction(blogId: string, active: boolean) 
   try {
     await requireBlogPermission(blogId, "autopilot.manage");
     const result = await setAutopilotActive(blogId, active);
+    // Find ideas right away instead of waiting up to an hour for the scheduled sweep.
+    const discovery = active ? await startContentDiscovery(blogId, "activation") : null;
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
-    return { success: true, active: result.active, nextDiscoveryAt: result.nextDiscoveryAt?.toISOString() ?? null };
+    return { success: true, active: result.active, nextDiscoveryAt: result.nextDiscoveryAt?.toISOString() ?? null, discovering: Boolean(discovery) };
   } catch (error) {
     return { error: apiError(error).error };
   }

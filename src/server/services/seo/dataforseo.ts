@@ -9,6 +9,14 @@ type DataForSeoResponse = {
   tasks?: Array<{ id?: string; status_code?: number; status_message?: string; cost?: number; result?: unknown[] }>;
 };
 
+/** DataForSEO status codes worth a plain explanation (https://docs.dataforseo.com/v3/appendix/errors). */
+function providerError(httpStatus: number, code: number | undefined, message: string | undefined) {
+  if (code === 40200 || code === 40210) return new ApiError(402, "DataForSEO balance is used up. Add funds at app.dataforseo.com");
+  if (httpStatus === 401 || code === 40100 || code === 40101) return new ApiError(401, "DataForSEO rejected the login. Use the API login and API password from app.dataforseo.com/api-access");
+  if (code === 40202 || httpStatus === 429) return new ApiError(429, "DataForSEO rate limit reached. Try again in a minute");
+  return new ApiError(502, message || `DataForSEO request failed (${httpStatus})`);
+}
+
 export async function dataForSeoRequest(credentials: DataForSeoCredentials, endpoint: string, body?: unknown) {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     method: body === undefined ? "GET" : "POST",
@@ -21,6 +29,9 @@ export async function dataForSeoRequest(credentials: DataForSeoCredentials, endp
     signal: AbortSignal.timeout(25_000),
     redirect: "error",
     cache: "no-store",
+  }).catch((error: unknown) => {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new ApiError(504, timedOut ? "DataForSEO did not answer within 25 seconds" : "DataForSEO could not be reached");
   });
   const declaredLength = Number(response.headers.get("content-length") || 0);
   if (declaredLength > MAX_RESPONSE_BYTES) throw new ApiError(502, "DataForSEO response exceeded the safety limit");
@@ -29,11 +40,9 @@ export async function dataForSeoRequest(credentials: DataForSeoCredentials, endp
   let data: DataForSeoResponse;
   try { data = JSON.parse(text) as DataForSeoResponse; }
   catch { throw new ApiError(502, "DataForSEO returned an invalid response"); }
-  if (!response.ok || data.status_code !== 20000) {
-    throw new ApiError(response.status === 401 ? 401 : 502, data.status_message || `DataForSEO request failed (${response.status})`);
-  }
+  if (!response.ok || data.status_code !== 20000) throw providerError(response.status, data.status_code, data.status_message);
   const failedTask = data.tasks?.find(task => task.status_code && task.status_code !== 20000);
-  if (failedTask) throw new ApiError(502, failedTask.status_message || "DataForSEO task failed");
+  if (failedTask) throw providerError(response.status, failedTask.status_code, failedTask.status_message || "DataForSEO task failed");
   return data;
 }
 
@@ -46,5 +55,6 @@ export function responseCostMicros(data: DataForSeoResponse) {
 export async function verifyDataForSeoCredentials(credentials: DataForSeoCredentials) {
   const response = await dataForSeoRequest(credentials, "/v3/appendix/user_data");
   const result = response.tasks?.[0]?.result?.[0] as Record<string, unknown> | undefined;
-  return { valid: true, balance: typeof result?.money === "object" ? result.money : undefined };
+  const money = result?.money as { balance?: unknown } | undefined;
+  return { valid: true, balanceUsd: typeof money?.balance === "number" ? money.balance : null };
 }

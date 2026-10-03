@@ -8,7 +8,7 @@ import { REFRESH_THUMBNAIL_PATH, getQStashClient, getQStashDestinationBaseUrl, i
 import { blogOpenAI } from "@/src/server/services/usage/openai";
 import { uploadBlogImage } from "@/src/server/services/media/upload";
 import { resolveCoverTitle } from "./cover-title";
-import { loadLogo, loadStyleReferences } from "./image-references";
+import { LOGO_MISSING, loadLogo, loadStyleReferences } from "./image-references";
 import { imageSubject } from "./image-subject";
 import { makeCover } from "./images";
 
@@ -119,6 +119,7 @@ export async function refreshPostCover(blogId: string, postId: string) {
 
   const cover = await resolveCoverTitle(openai, post);
   const warnings: string[] = [];
+  if (settings?.logoUrl && settings.thumbnailLogoPosition !== "none" && !logo) warnings.push(LOGO_MISSING);
   const image = await makeCover(openai, {
     prompt: imageSubject("cover", post), style: settings?.thumbnailStyle, references, runId: "cover-refresh",
     format, colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),

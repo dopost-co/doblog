@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { after } from "next/server";
 import ipaddr from "ipaddr.js";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
@@ -324,7 +325,11 @@ async function keywordResearch(blogId: string, domain: string, competitorDomains
   return { candidates, rankingKeywords: rankingKeywords.slice(0, 150), refreshCandidates };
 }
 
-export async function discoverContentOpportunities(blogId: string, trigger = "dashboard") {
+/**
+ * Reserves the blog's single discovery slot and records the run. Fast, so a
+ * request can return while the run itself continues in the background.
+ */
+async function claimDiscovery(blogId: string, trigger: string) {
   const staleBefore = new Date(Date.now() - 30 * 60_000);
   const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId } });
   if (!settings?.targetDomain) throw new ApiError(409, "Add the website address before finding ideas");
@@ -333,15 +338,51 @@ export async function discoverContentOpportunities(blogId: string, trigger = "da
     data: { discoveryRunningAt: new Date() },
   });
   if (claim.count !== 1) throw new ApiError(409, "Zenex is already looking for ideas for this website");
-
+  // A run cut off by a deploy or a timeout never finished: close it so it doesn't look busy forever.
+  await prisma.contentDiscoveryRun.updateMany({
+    where: { blogId, status: "running", createdAt: { lt: staleBefore } },
+    data: { status: "failed", stage: "failed", error: "Stopped before finishing", completedAt: new Date() },
+  });
   const run = await prisma.contentDiscoveryRun.create({ data: {
     blogId, trigger, domain: settings.targetDomain, sitemapUrl: settings.sitemapUrl, status: "running", stage: "sitemap",
   } });
+  return { settings: settings as typeof settings & { targetDomain: string }, run };
+}
+
+/** Finds ideas now and waits for them (dashboard "find ideas", MCP, the hourly sweep). */
+export async function discoverContentOpportunities(blogId: string, trigger = "dashboard") {
+  const { settings, run } = await claimDiscovery(blogId, trigger);
+  return runClaimedDiscovery(blogId, trigger, settings, run);
+}
+
+/**
+ * Starts finding ideas and returns at once; the run continues after the
+ * response. Used when Autopilot is turned on, so it doesn't wait for the
+ * hourly sweep. Returns null when a run is already going or nothing is set up.
+ */
+export async function startContentDiscovery(blogId: string, trigger: "activation") {
+  let claimed: Awaited<ReturnType<typeof claimDiscovery>>;
+  try { claimed = await claimDiscovery(blogId, trigger); }
+  catch (error) { if (error instanceof ApiError && error.status === 409) return null; throw error; }
+  after(async () => {
+    // Failures are recorded on the run and shown on the Autopilot page.
+    await runClaimedDiscovery(blogId, trigger, claimed.settings, claimed.run).catch((error) => {
+      console.error("[Growth] background-discovery-failed", { blogId, error: error instanceof Error ? error.message : String(error) });
+    });
+  });
+  return { runId: claimed.run.id };
+}
+
+async function runClaimedDiscovery(
+  blogId: string, trigger: string,
+  settings: Awaited<ReturnType<typeof claimDiscovery>>["settings"],
+  run: Awaited<ReturnType<typeof claimDiscovery>>["run"],
+) {
   const warnings: string[] = [];
   try {
-    // Scheduled refreshes only top the queue up; asking for ideas directly always adds them.
+    // Scheduled refreshes and turning Autopilot on only top the queue up; asking for ideas directly always adds them.
     let limit = settings.discoveryTopicsPerRun;
-    if (trigger === "scheduler") {
+    if (trigger === "scheduler" || trigger === "activation") {
       const waiting = await prisma.contentPlanItem.count({ where: { blogId, postId: null, status: { in: ["planned", "generating"] } } });
       limit = ideasNeeded(settings.draftsPerWeek, waiting, settings.discoveryTopicsPerRun);
       if (limit === 0) {

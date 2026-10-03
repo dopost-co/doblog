@@ -189,6 +189,7 @@ model SeoUsageEntry {
   status         String    @default("reserved")
   createdAt      DateTime  @default(now())
   completedAt    DateTime?
+  error          String? // why a failed request failed, as DataForSEO or the network reported it
 
   blog       Blog                  @relation(fields: [blogId], references: [id], onDelete: Cascade)
   credential SeoProviderCredential? @relation(fields: [credentialId], references: [id], onDelete: Cascade)

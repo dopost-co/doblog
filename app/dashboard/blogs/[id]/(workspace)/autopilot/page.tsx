@@ -6,6 +6,8 @@ import { BlogIntegrationLayout, integrationBlog } from "@/components/Integration
 import { AutopilotToggle } from "@/components/Growth/AutopilotToggle";
 import { GrowthPlanManager } from "@/components/Growth/GrowthPlanManager";
 import { OpportunityRadar } from "@/components/Growth/OpportunityRadar";
+import { LastIdeasRun } from "@/components/Growth/LastIdeasRun";
+import { DiscoveryProgress } from "@/components/Growth/DiscoveryProgress";
 import { SeoSettingsManager } from "@/components/Seo/SeoSettingsManager";
 import { getSeoDashboardData } from "@/src/server/services/seo/actions";
 import { getGrowthDashboard } from "@/src/server/services/growth/service";
@@ -58,6 +60,13 @@ export default async function AutopilotPage({ params, searchParams }: {
         { id: "settings", label: "Settings", href: `${base}?view=settings` },
       ]} />}
 
+      {data.discovery.running && data.discovery.lastRun?.status === "running" && <DiscoveryProgress stage={data.discovery.lastRun.stage} />}
+      <LastIdeasRun
+        run={data.discovery.lastRun}
+        researchOn={data.seoReady}
+        settingsHref={canManage ? `${base}?view=settings` : undefined}
+      />
+
       {active === "settings" && settingsData ? (
         <SeoSettingsManager blogId={id} plan={settingsData.plan} credentials={settingsData.credentials} settings={settingsData.settings} languages={settingsData.languages} posts={settingsData.posts} canSpend={settingsData.canSpend} />
       ) : active === "ideas" ? (
@@ -68,6 +77,7 @@ export default async function AutopilotPage({ params, searchParams }: {
           mediaReady={data.mediaReady}
           publishingMode={data.discovery.publishingMode}
           canEdit={access.can("autopilot.write")}
+          translateTo={data.translateTo}
           items={data.items.map((item) => ({
             ...item,
             opportunitySnapshot: item.opportunitySnapshot ? JSON.parse(JSON.stringify(item.opportunitySnapshot)) : null,

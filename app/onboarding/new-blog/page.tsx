@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { OnboardingFlow } from "@/components/Onboarding/OnboardingFlow";
 import { blogOnboardingValues } from "@/src/server/services/onboarding/queries";
 
+/** Finishing setup starts finding the first ideas in the background, within this request. */
+export const maxDuration = 300;
+
 export const metadata = { title: "New blog" };
 
 /** Sets up another blog. `?blog=` resumes a blog this flow already created. */

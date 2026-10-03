@@ -276,7 +276,8 @@ export async function runSeoOperation(blogId: string, operation: SeoOperation, i
     ]);
     return { data: normalized, cacheHit: false, actualCostUsd: microsToUsd(actualCost), snapshotAt: new Date().toISOString() };
   } catch (error) {
-    await prisma.seoUsageEntry.update({ where: { id: reservation.id }, data: { costUsdMicros: 0, status: "failed", completedAt: new Date() } }).catch(() => undefined);
+    const reason = error instanceof Error ? error.message : "Unknown error";
+    await prisma.seoUsageEntry.update({ where: { id: reservation.id }, data: { costUsdMicros: 0, status: "failed", error: reason.slice(0, 500), completedAt: new Date() } }).catch(() => undefined);
     throw error;
   }
 }

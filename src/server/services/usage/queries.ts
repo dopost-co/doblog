@@ -44,7 +44,7 @@ const SEO_ENDPOINT_LABELS: Array<[string, string]> = [
   ["/search_intent/", "Search intent"],
   ["/serp/", "Search result briefs"],
 ];
-const seoOperationLabel = (endpoint: string) => SEO_ENDPOINT_LABELS.find(([fragment]) => endpoint.includes(fragment))?.[1] ?? "Other";
+export const seoOperationLabel = (endpoint: string) => SEO_ENDPOINT_LABELS.find(([fragment]) => endpoint.includes(fragment))?.[1] ?? "Other";
 
 export type UsageLine = { label: string; requests: number; costUsdMicros: number };
 export type ProviderUsage = {
@@ -111,12 +111,4 @@ export async function getUsageReport(month: UsageMonth, blogIds?: string[]): Pro
   dataforseo.lines = sortedLines(seoLines);
 
   return { openai, dataforseo, byBlog };
-}
-
-/** Whether the platform keys subscribers rely on are configured. */
-export function platformProviderStatus() {
-  return {
-    openai: Boolean(process.env.OPENAI_API_KEY?.trim()),
-    dataforseo: Boolean(process.env.DATAFORSEO_LOGIN?.trim() && process.env.DATAFORSEO_PASSWORD?.trim()),
-  };
 }

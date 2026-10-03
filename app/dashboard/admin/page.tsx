@@ -1,28 +1,22 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { requireAdminPage } from "@/src/server/services/admin/access";
 import { getAdminOverview } from "@/src/server/services/admin/queries";
+import { getRecentProblems } from "@/src/server/services/admin/problems";
+import { ProviderHealthCard, ProviderHealthFallback } from "@/components/Admin/ProviderHealthCard";
+import { ProblemsList } from "@/components/Admin/ProblemsList";
 import { parseUsageMonth, recentUsageMonths } from "@/src/server/services/usage/queries";
 import { DashboardHeader } from "@/components/DashboardHeader/DashboardHeader";
 import { MonthPicker } from "@/components/Usage/MonthPicker";
 import { PlanSwitcher } from "@/components/Usage/PlanSwitcher";
 import { formatUsd } from "@/components/Usage/format";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Admin" };
-
-function Status({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-sm">
-      <span className={cn("size-1.5 rounded-full", ok ? "bg-emerald-500" : "bg-amber-500")} />
-      {label} <span className="text-muted-foreground">{ok ? "configured" : "missing"}</span>
-    </span>
-  );
-}
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ month?: string | string[] }> }) {
   const admin = await requireAdminPage();
   const month = parseUsageMonth((await searchParams).month);
-  const overview = await getAdminOverview(month);
+  const [overview, problems] = await Promise.all([getAdminOverview(month), getRecentProblems(month)]);
   const date = (value: string) => new Date(value).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" });
 
   return (
@@ -40,11 +34,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         <section className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2">
           <div className="space-y-2">
             <p className="text-sm font-medium">Platform keys</p>
-            <p className="text-xs text-muted-foreground">Used for accounts on Subscription.</p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              <Status ok={overview.providers.openai} label="OpenAI" />
-              <Status ok={overview.providers.dataforseo} label="DataForSEO" />
-            </div>
+            <p className="text-xs text-muted-foreground">Used for accounts on Subscription. Checked live.</p>
+            <Suspense fallback={<ProviderHealthFallback />}>
+              <ProviderHealthCard />
+            </Suspense>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Paid by the platform</p>
@@ -53,6 +46,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               OpenAI {formatUsd(overview.platformSpend.openai)} <span className="text-muted-foreground">·</span> DataForSEO {formatUsd(overview.platformSpend.dataforseo)}
             </p>
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium">Problems <span className="text-muted-foreground">({problems.problems.length})</span></h2>
+          <ProblemsList problems={problems.problems} failedSeoCalls={problems.failedSeoCalls} monthLabel={month.label} />
         </section>
 
         <section className="space-y-3">

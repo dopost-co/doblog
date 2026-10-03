@@ -108,6 +108,9 @@ export function normalizeLogoUrl(blogId: string, url: string | null | undefined)
   return url.trim();
 }
 
+/** Said wherever a logo was asked for but its file could not be read, so it is never silently left out. */
+export const LOGO_MISSING = "The logo could not be loaded, so this image has no logo. Upload it again in the Logo section.";
+
 /** The logo's bytes, or null when there is none or it is missing. */
 export async function loadLogo(blogId: string, url: string | null | undefined) {
   if (!url) return null;

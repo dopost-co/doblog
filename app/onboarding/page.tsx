@@ -5,6 +5,9 @@ import { stepIndex } from "@/lib/onboarding/steps";
 import { OnboardingFlow } from "@/components/Onboarding/OnboardingFlow";
 import { blogOnboardingValues, resolveUserFlow } from "@/src/server/services/onboarding/queries";
 
+/** Finishing setup starts finding the first ideas in the background, within this request. */
+export const maxDuration = 300;
+
 export const metadata = { title: "Welcome" };
 
 /** First-run onboarding: new-user or invited-user, depending on the account. */

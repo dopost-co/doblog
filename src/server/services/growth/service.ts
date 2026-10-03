@@ -20,7 +20,7 @@ import {
   type GeneratedInlineImage,
 } from "./content";
 import { schedulePendingDrafts } from "./planning";
-import { loadLogo, loadStyleReferences } from "./image-references";
+import { LOGO_MISSING, loadLogo, loadStyleReferences } from "./image-references";
 import { makeCover, makeInlineImage, type MadeImage } from "./images";
 import { isLogoPosition } from "@/lib/autopilot/logo";
 import { coverTypography, isThumbnailFormat, thumbnailColors } from "@/lib/autopilot/thumbnail-templates";
@@ -54,13 +54,13 @@ export async function getGrowthDashboard(blogId: string) {
   const [blog, settings, items, coveredTopics, lastDiscoveryRun] = await Promise.all([
     prisma.blog.findFirst({
       where: { id: blogId, deletedAt: null },
-      select: { id: true, name: true, user: { select: { plan: true, openaiApiKeyEncrypted: true } } },
+      select: { id: true, name: true, languages: true, autoSyncTranslations: true, user: { select: { plan: true, openaiApiKeyEncrypted: true } } },
     }),
     prisma.blogSeoSettings.findUnique({ where: { blogId } }),
     prisma.contentPlanItem.findMany({
       where: { blogId }, orderBy: [{ scheduledFor: "asc" }, { createdAt: "desc" }], take: 100,
       include: {
-        post: { select: { id: true, title: true, status: true, coverImage: true, publishedAt: true } },
+        post: { select: { id: true, title: true, status: true, coverImage: true, publishedAt: true, translationGroupId: true, translationSyncPending: true } },
         runs: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, status: true, stage: true, error: true, createdAt: true, completedAt: true } },
       },
     }),
@@ -71,8 +71,22 @@ export async function getGrowthDashboard(blogId: string) {
     }),
   ]);
   if (!blog) throw new ApiError(404, "Blog not found");
+  // Autopilot writes in the main language; with auto-sync on, each article is then translated into the others.
+  const translateTo = blog.autoSyncTranslations ? blog.languages.filter((language) => language !== (settings?.languageCode || blog.languages[0])) : [];
+  const groupIds = items.flatMap((item) => item.post?.translationGroupId ? [item.post.translationGroupId] : []);
+  const translations = translateTo.length && groupIds.length ? await prisma.post.findMany({
+    where: { blogId, translationGroupId: { in: groupIds } },
+    select: { id: true, translationGroupId: true, language: true, status: true },
+  }) : [];
   return {
-    items,
+    translateTo,
+    items: items.map((item) => ({
+      ...item,
+      translations: item.post?.translationGroupId
+        ? translations.filter((post) => post.translationGroupId === item.post!.translationGroupId && post.id !== item.post!.id)
+          .map(({ id, language, status }) => ({ id, language, status }))
+        : [],
+    })),
     coveredTopics,
     defaultLanguage: settings?.languageCode || "en",
     aiReady: blog.user.plan === "subscription" || !!blog.user.openaiApiKeyEncrypted,
@@ -389,6 +403,8 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
         inlineImageLimit > 0 ? loadStyleReferences(blogId, settings?.inlineImageReferenceUrls ?? []) : [],
         loadLogo(blogId, settings?.logoUrl),
       ]);
+      const logoWanted = (thumbnailEnabled && settings?.thumbnailLogoPosition !== "none") || (inlineImageLimit > 0 && settings?.inlineLogoPosition !== "none");
+      if (settings?.logoUrl && logoWanted && !logo) warnings.push(LOGO_MISSING);
       if (thumbnailEnabled) {
         try {
           const cover = await makeCover(openai, {
