@@ -12,7 +12,8 @@ import {
 } from "date-fns";
 
 export type CalendarView = "month" | "week" | "list";
-export type CalendarPostStatus = "scheduled" | "published";
+/** "idea": an Autopilot idea waiting to be written on that date (not a post yet). */
+export type CalendarPostStatus = "scheduled" | "published" | "idea";
 
 export const CALENDAR_VIEWS: CalendarView[] = ["month", "week", "list"];
 export const WEEK_STARTS_ON = 1;
@@ -25,6 +26,10 @@ export interface CalendarPost {
   language: string;
   coverImage: string | null;
   translationGroupId: string | null;
+  /** Ideas only: the languages it will be translated into once written. */
+  alsoIn?: string[];
+  /** Ideas only: published right after writing instead of left as a draft. */
+  autoPublish?: boolean;
 }
 
 export interface CalendarDraft {
@@ -97,7 +102,7 @@ export function buildCalendarEntries(posts: CalendarPost[]): CalendarEntry[] {
         entryId,
         post,
         postIds: group.map((item) => item.id),
-        languages: group.map((item) => item.language),
+        languages: [...group.map((item) => item.language), ...(post.alsoIn ?? [])],
         at: new Date(post.publishedAt),
         draggable: post.status === "scheduled",
       };

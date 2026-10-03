@@ -10,7 +10,17 @@ import { useCalendarDrag } from "./CalendarDragProvider";
 const STATUS_DOT = {
   scheduled: "bg-sky-500",
   published: "bg-emerald-500",
+  idea: "bg-violet-500",
 } as const;
+
+function entryTitle(entry: CalendarEntry) {
+  const when = format(entry.at, "PPp");
+  if (entry.post.status === "idea") {
+    const languages = entry.languages.length > 1 ? ` (${entry.languages.map((language) => language.toUpperCase()).join(", ")})` : "";
+    return `${entry.post.title} · Autopilot writes it ${when}${entry.post.autoPublish ? " and publishes it" : " as a draft for review"}${languages}`;
+  }
+  return `${entry.post.title} · ${entry.post.status === "scheduled" ? "Scheduled" : "Published"} ${when}`;
+}
 
 export function CalendarEntryCard({
   entry,
@@ -26,6 +36,8 @@ export function CalendarEntryCard({
       className={cn(
         "flex w-full min-w-0 items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-left text-xs shadow-xs",
         entry.post.status === "published" && "text-muted-foreground",
+        // Not a post yet: dashed, so it reads as planned rather than scheduled.
+        entry.post.status === "idea" && "border-dashed border-violet-500/40 bg-violet-500/5",
         className,
       )}
     >
@@ -59,7 +71,7 @@ export function DraggableCalendarEntry({
   return (
     <button
       type="button"
-      title={`${entry.post.title} · ${entry.post.status === "scheduled" ? "Scheduled" : "Published"} ${format(entry.at, "PPp")}`}
+      title={entryTitle(entry)}
       className={cn(
         "relative block w-full rounded-md text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring",
         !disabled && "cursor-grab touch-none active:cursor-grabbing",

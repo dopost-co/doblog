@@ -71,6 +71,7 @@ export function ContentCalendar({
     () => posts.map((post) => (overrides[post.id]?.from === post.publishedAt ? { ...post, publishedAt: overrides[post.id].to } : post)),
     [posts, overrides],
   );
+  const hasIdeas = posts.some((post) => post.status === "idea");
   const entriesByDate = useMemo(() => {
     const entries = buildCalendarEntries(visiblePosts);
     return groupEntriesByDate(readOnly ? entries.map((entry) => ({ ...entry, draggable: false })) : entries);
@@ -90,7 +91,9 @@ export function ContentCalendar({
     ? `${format(startOfWeek(currentDate, { weekStartsOn: WEEK_STARTS_ON }), "d MMM")} – ${format(endOfWeek(currentDate, { weekStartsOn: WEEK_STARTS_ON }), "d MMM yyyy")}`
     : format(currentDate, "MMMM yyyy");
 
-  const openEntry = (entry: CalendarEntry) => router.push(`/dashboard/blogs/${blogId}/posts/${entry.post.id}/edit`);
+  const openEntry = (entry: CalendarEntry) => router.push(entry.post.status === "idea"
+    ? `/dashboard/blogs/${blogId}/autopilot?view=ideas`
+    : `/dashboard/blogs/${blogId}/posts/${entry.post.id}/edit`);
   const addPost = (at: Date) => {
     const query = new URLSearchParams({ scheduleAt: defaultSlotTime(at).toISOString() });
     router.push(`/dashboard/blogs/${blogId}/posts/new?${query.toString()}`);
@@ -164,6 +167,7 @@ export function ContentCalendar({
           <div className="hidden items-center gap-3 text-xs text-muted-foreground sm:flex">
             <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-sky-500" />Scheduled</span>
             <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" />Published</span>
+            {hasIdeas && <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-violet-500" />Autopilot</span>}
           </div>
         </div>
       </div>
