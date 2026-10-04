@@ -15,7 +15,18 @@ export function errorResponse(error: unknown, wwwAuthenticateExtra?: string) {
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
   // No browser CORS: private credentials belong in server-side clients.
-  if (origin && origin !== new URL(request.url).origin) throw new ApiError(403, "Origin not allowed");
+  if (!origin) return;
+  let originHost: string;
+  try { originHost = new URL(origin).host; } catch { throw new ApiError(403, "Origin not allowed"); }
+  // Behind a TLS-terminating proxy request.url is the internal address
+  // (e.g. http://0.0.0.0:3000), so compare against the host the browser used.
+  const allowed = new Set([new URL(request.url).host]);
+  for (const header of ["x-forwarded-host", "host"]) {
+    const value = request.headers.get(header)?.split(",")[0].trim();
+    if (value) allowed.add(value);
+  }
+  if (process.env.NEXTAUTH_URL) { try { allowed.add(new URL(process.env.NEXTAUTH_URL).host); } catch {} }
+  if (!allowed.has(originHost)) throw new ApiError(403, "Origin not allowed");
 }
 export async function readJson(request: Request): Promise<unknown> {
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
