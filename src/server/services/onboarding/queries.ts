@@ -29,7 +29,8 @@ export async function blogOnboardingValues(blogId: string) {
     languages: blog.languages,
     // Only a saved multilingual choice counts; otherwise the step suggests syncing.
     ...(blog.languages.length > 1 ? { autoSyncTranslations: String(blog.autoSyncTranslations) } : {}),
-    ...(settings?.targetDomain ? { website: settings.targetDomain } : {}),
+    // Resuming without a website asks for it again before Autopilot.
+    ...(settings?.targetDomain ? { website: settings.targetDomain, websiteSkipped: "false" } : { websiteSkipped: "true" }),
     ...(settings?.audience ? {
       audienceChoice: audiencePreset?.id ?? "other",
       audienceCustom: audiencePreset ? "" : settings.audience,
@@ -38,6 +39,7 @@ export async function blogOnboardingValues(blogId: string) {
       voiceChoice: voicePreset?.id ?? "other",
       brandVoiceCustom: voicePreset ? "" : settings.brandVoice,
     } : {}),
+    ...(settings?.competitorDomains.length ? { competitors: settings.competitorDomains } : {}),
     ...(settings?.writingDays.length ? { writingDays: settings.writingDays.map(String) } : {}),
     ...(blog.contentMode ? { contentMode: blog.contentMode } : {}),
     ...(settings ? {

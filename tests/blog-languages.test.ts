@@ -18,10 +18,10 @@ describe("Blog languages", () => {
     expect(missingLanguages(["en"], ["en", "fr"])).toEqual([]);
   });
 
-  it("is asked right after naming a blog", () => {
+  it("is asked after the website and its analysis, which follow naming a blog", () => {
     for (const flow of ["new-user", "new-blog"] as const) {
       const steps: readonly string[] = ONBOARDING_FLOWS[flow];
-      expect(steps[steps.indexOf("blogs") + 1]).toBe("blog-languages");
+      expect(steps.slice(steps.indexOf("blogs") + 1, steps.indexOf("blogs") + 4)).toEqual(["blog-website", "website-analysis", "blog-languages"]);
     }
     expect(ONBOARDING_FLOWS["invited-user"]).not.toContain("blog-languages");
   });

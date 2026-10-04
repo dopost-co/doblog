@@ -362,10 +362,13 @@ type ResearchItems = { items?: KeywordMetrics[] };
 export const REFRESH_POSITIONS = { from: 11, to: 30 };
 
 // Shared with the MCP tools so both reuse the same cached research.
+/** DataForSEO Labs wants targets without "www." (a www target can return nothing). */
+const labsTarget = (domain: string) => domain.toLowerCase().replace(/^www\./, "");
+
 /** What the domain ranks for in the top 30, biggest searches first. */
 export function rankedKeywordsRequest(domain: string) {
   return {
-    target: domain, limit: 300, item_types: ["organic"],
+    target: labsTarget(domain), limit: 300, item_types: ["organic"],
     filters: [["ranked_serp_element.serp_item.rank_group", "<=", REFRESH_POSITIONS.to]],
     order_by: ["keyword_data.keyword_info.search_volume,desc"],
   };
@@ -374,7 +377,7 @@ export function rankedKeywordsRequest(domain: string) {
 /** Searches the competitor wins in the top 20 that the domain does not rank for. */
 export function competitorGapRequest(competitor: string, domain: string) {
   return {
-    target1: competitor, target2: domain, intersections: false, limit: 100, item_types: ["organic"],
+    target1: labsTarget(competitor), target2: labsTarget(domain), intersections: false, limit: 100, item_types: ["organic"],
     filters: [["keyword_data.keyword_info.search_volume", ">=", 10], "and", ["first_domain_serp_element.rank_group", "<=", 20]],
     order_by: ["keyword_data.keyword_info.search_volume,desc"],
   };

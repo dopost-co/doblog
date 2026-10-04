@@ -12,6 +12,8 @@ export type OnboardingField = {
   /** Lets the user add several values, e.g. more than one blog. */
   multiple?: boolean;
   addLabel?: string;
+  /** Sent with the step but never shown as an input. */
+  hidden?: boolean;
 };
 
 export type OnboardingStep = {
@@ -31,6 +33,12 @@ const answer = (values: OnboardingValues, name: string): string | undefined => {
 /** Autopilot questions are skipped for blogs whose owner only writes by hand. */
 const usesAutopilot = (values: OnboardingValues, flow: string): boolean =>
   flow === "autopilot-setup" || answer(values, "contentMode") !== "manual";
+const hasWebsite = (values: OnboardingValues): boolean => Boolean(answer(values, "website")?.trim());
+/**
+ * Set when the owner says they have no website yet, so Autopilot asks for it
+ * later. Typing a website never hides the step being typed in.
+ */
+const skippedWebsite = (values: OnboardingValues): boolean => answer(values, "websiteSkipped") === "true";
 
 export const ONBOARDING_STEPS = [
   {
@@ -43,6 +51,21 @@ export const ONBOARDING_STEPS = [
     title: "Name your blog",
     description: "You can add more later.",
     fields: [{ name: "blogs", label: "Blog name", placeholder: "My blog", required: true, maxLength: 120 }],
+  },
+  {
+    id: "blog-website",
+    title: "What’s your website?",
+    description: "Zenex reads it to set up your blog: who you write for, how you sound, your competitors and your image style.",
+    fields: [
+      { name: "website", label: "Website address", placeholder: "yourwebsite.com", maxLength: 2048 },
+      { name: "websiteSkipped", label: "No website yet", maxLength: 5, hidden: true },
+    ],
+  },
+  {
+    id: "website-analysis",
+    when: (values, flow) => hasWebsite(values) && (flow === "autopilot-setup" || !skippedWebsite(values)),
+    title: "Getting to know your website",
+    fields: [],
   },
   {
     id: "blog-languages",
@@ -60,16 +83,27 @@ export const ONBOARDING_STEPS = [
   },
   {
     id: "autopilot-website",
-    when: usesAutopilot,
+    // Asked here only when the website step was skipped (or to confirm it when setting up Autopilot later).
+    when: (values, flow) => flow === "autopilot-setup" || (usesAutopilot(values, flow) && skippedWebsite(values)),
     title: "What is your website?",
-    description: "Zenex will find its sitemap and understand what you already cover.",
-    fields: [{ name: "website", label: "Website address", placeholder: "https://yourwebsite.com", required: true, maxLength: 2048 }],
+    description: "Autopilot needs it to find what you already cover and what to write next.",
+    fields: [
+      { name: "website", label: "Website address", placeholder: "https://yourwebsite.com", required: true, maxLength: 2048 },
+      { name: "websiteSkipped", label: "No website yet", maxLength: 5, hidden: true },
+    ],
+  },
+  {
+    id: "autopilot-website-analysis",
+    // The website given just above, when the first website question was skipped.
+    when: (values, flow) => flow !== "autopilot-setup" && usesAutopilot(values, flow) && skippedWebsite(values) && hasWebsite(values),
+    title: "Getting to know your website",
+    fields: [],
   },
   {
     id: "autopilot-audience",
     when: usesAutopilot,
     title: "Who are you writing for?",
-    description: "Choose the closest audience. You can make it more specific later.",
+    description: "The more specific, the better Autopilot picks topics and explains them.",
     fields: [
       { name: "audienceChoice", label: "Audience", required: true, maxLength: 40 },
       { name: "audienceCustom", label: "Custom audience", maxLength: 2000 },
@@ -79,12 +113,19 @@ export const ONBOARDING_STEPS = [
     id: "autopilot-voice",
     when: usesAutopilot,
     title: "How should your brand sound?",
-    description: "Start from a style, write your own, or learn from a competitor you like.",
+    description: "Every article follows this. Edit it, start from a style, or learn from a competitor you like.",
     fields: [
       { name: "voiceChoice", label: "Brand voice", required: true, maxLength: 40 },
       { name: "brandVoiceCustom", label: "Custom brand voice", maxLength: 2000 },
       { name: "competitorUrl", label: "Competitor website", maxLength: 2048 },
     ],
+  },
+  {
+    id: "autopilot-competitors",
+    when: usesAutopilot,
+    title: "Who are your competitors?",
+    description: "Autopilot looks for the searches they win and you don’t, and never links to them.",
+    fields: [{ name: "competitors", label: "Competitor", placeholder: "rival.com", maxLength: 2048, multiple: true }],
   },
   {
     id: "autopilot-thumbnails",
@@ -126,7 +167,11 @@ export const ONBOARDING_STEPS = [
     when: usesAutopilot,
     title: "Which days should Zenex write?",
     description: "One article on each day you pick.",
-    fields: [{ name: "writingDays", label: "Writing days", required: true, maxLength: 1, multiple: true }],
+    fields: [
+      { name: "writingDays", label: "Writing days", required: true, maxLength: 1, multiple: true },
+      // Not asked: the browser's timezone, so "09:00" means the owner's morning.
+      { name: "timezone", label: "Timezone", maxLength: 64, hidden: true },
+    ],
   },
   {
     id: "autopilot-publishing",
@@ -148,10 +193,10 @@ export type OnboardingValues = Record<string, string | string[]>;
  * - autopilot-setup: a blog created before onboarding asked about Autopilot.
  */
 export const ONBOARDING_FLOWS = {
-  "new-user": ["profile", "blogs", "blog-languages", "content-mode", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
-  "new-blog": ["blogs", "blog-languages", "content-mode", "autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
+  "new-user": ["profile", "blogs", "blog-website", "website-analysis", "blog-languages", "content-mode", "autopilot-website", "autopilot-website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
+  "new-blog": ["blogs", "blog-website", "website-analysis", "blog-languages", "content-mode", "autopilot-website", "autopilot-website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
   "invited-user": ["profile"],
-  "autopilot-setup": ["autopilot-website", "autopilot-audience", "autopilot-voice", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
+  "autopilot-setup": ["autopilot-website", "website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
 } as const satisfies Record<string, readonly OnboardingStepId[]>;
 
 export type OnboardingFlowId = keyof typeof ONBOARDING_FLOWS;

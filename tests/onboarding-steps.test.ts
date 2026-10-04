@@ -5,8 +5,12 @@ const ids = (flow: Parameters<typeof visibleSteps>[0], values: Record<string, st
 
 describe("Onboarding steps that depend on answers", () => {
   it("asks how the blog will be used before any Autopilot question", () => {
-    const steps = ids("new-user", {});
-    expect(steps.indexOf("content-mode")).toBeLessThan(steps.indexOf("autopilot-website"));
+    for (const values of [{}, { websiteSkipped: "true" }] as Record<string, string>[]) {
+      const steps = ids("new-user", values);
+      const firstAutopilot = steps.findIndex((id) => id.startsWith("autopilot-"));
+      expect(firstAutopilot).toBeGreaterThan(-1);
+      expect(steps.indexOf("content-mode")).toBeLessThan(firstAutopilot);
+    }
   });
 
   it("skips every Autopilot question for blogs written by hand", () => {

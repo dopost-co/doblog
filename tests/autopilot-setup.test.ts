@@ -17,7 +17,8 @@ describe("Autopilot setup", () => {
   });
 
   it("asks only the Autopilot questions and leaves the user's onboarding alone", () => {
-    expect(ONBOARDING_FLOWS["autopilot-setup"].every((step) => step.startsWith("autopilot-"))).toBe(true);
+    // Besides the Autopilot questions, only the analysis of the website it asks for.
+    expect(ONBOARDING_FLOWS["autopilot-setup"].every((step) => step.startsWith("autopilot-") || step === "website-analysis")).toBe(true);
     expect(BLOG_FLOWS).toContain("autopilot-setup");
   });
 });

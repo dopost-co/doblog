@@ -15,6 +15,7 @@ import { normalizeWebsite, startContentDiscovery } from "@/src/server/services/g
 import { syncSeoLanguage } from "@/src/server/services/seo/service";
 import { defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { analyzeCompetitorBrandVoice, competitorVoiceInstruction } from "@/src/server/services/growth/brand";
+import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
 
 /** The blog being set up, once the blog step has created it. */
 type Context = { userId: string; blogId: string | null };
@@ -30,6 +31,11 @@ async function onboardingBlog({ userId, blogId }: Context) {
   const blog = await prisma.blog.findFirst({ where: { id: blogId, userId, deletedAt: null }, select: { id: true } });
   if (!blog) throw new ApiError(404, "Blog not found");
   return blog;
+}
+
+function validTimeZone(value: string) {
+  if (!value) return null;
+  try { new Intl.DateTimeFormat("en", { timeZone: value }); return value; } catch { return null; }
 }
 
 /** A preset or custom image style, plus the uploaded references it should follow. */
@@ -116,6 +122,24 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
       update: { inlineImageStyle: style, inlineImageReferenceUrls: references },
     });
   },
+  "blog-website": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const website = single(values.website);
+    // Optional: a blog without a website is asked again if it turns on Autopilot.
+    if (!website) return;
+    const targetDomain = normalizeWebsite(website);
+    await prisma.blogSeoSettings.upsert({
+      where: { blogId: blog.id },
+      create: { blogId: blog.id, targetDomain },
+      update: { targetDomain, sitemapUrl: null },
+    });
+  },
+  "autopilot-competitors": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const parsed = competitorDomainsSchema.safeParse(list(values.competitors));
+    if (!parsed.success) throw new ApiError(400, parsed.error.issues[0]?.message ?? "Check the competitor websites");
+    await prisma.blogSeoSettings.upsert({ where: { blogId: blog.id }, create: { blogId: blog.id, competitorDomains: parsed.data }, update: { competitorDomains: parsed.data } });
+  },
   "autopilot-website": async (context, values) => {
     const blog = await onboardingBlog(context);
     // Setting up Autopilot later on a blog that was written by hand: it now does both.
@@ -153,11 +177,12 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
     const writingDays = normalizeWritingDays(list(values.writingDays));
     if (!writingDays.length) throw new ApiError(400, "Choose at least one day to write on");
     const draftsPerWeek = writingDays.length;
-    await prisma.blogSeoSettings.upsert({
-      where: { blogId: blog.id },
-      create: { blogId: blog.id, discoveryEnabled: true, draftAutomationEnabled: true, writingDays, draftsPerWeek, discoveryTopicsPerRun: Math.max(8, draftsPerWeek * 4), nextDiscoveryAt: new Date() },
-      update: { discoveryEnabled: true, draftAutomationEnabled: true, writingDays, draftsPerWeek, discoveryTopicsPerRun: Math.max(8, draftsPerWeek * 4), nextDiscoveryAt: new Date() },
-    });
+    const timezone = validTimeZone(single(values.timezone));
+    const schedule = {
+      discoveryEnabled: true, draftAutomationEnabled: true, writingDays, draftsPerWeek,
+      discoveryTopicsPerRun: Math.max(8, draftsPerWeek * 4), nextDiscoveryAt: new Date(), ...(timezone ? { timezone } : {}),
+    };
+    await prisma.blogSeoSettings.upsert({ where: { blogId: blog.id }, create: { blogId: blog.id, ...schedule }, update: schedule });
   },
   "autopilot-publishing": async (context, values) => {
     const blog = await onboardingBlog(context);

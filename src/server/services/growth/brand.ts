@@ -44,19 +44,23 @@ function competitorUrl(value: string) {
   return parsed;
 }
 
-async function assertPublicHost(hostname: string) {
+export async function assertPublicHost(hostname: string) {
   const addresses = await lookup(hostname, { all: true });
   if (!addresses.length || addresses.some(({ address }) => !publicAddress(address))) {
     throw new ApiError(400, "The competitor website must resolve to a public address");
   }
 }
 
-async function readCompetitorHomepage(value: string) {
+/**
+ * Downloads a public web page as HTML, following up to three redirects on the
+ * same site and refusing private networks. `label` names the site in errors.
+ */
+export async function fetchPublicHtml(value: string, label = "competitor website") {
   const initial = competitorUrl(competitorWebsiteSchema.parse(value));
   let current = initial;
   for (let redirects = 0; redirects <= 3; redirects += 1) {
     if (!equivalentHost(current.hostname, initial.hostname)) {
-      throw new ApiError(400, "The competitor website redirected to a different domain");
+      throw new ApiError(400, `The ${label} redirected to a different domain`);
     }
     await assertPublicHost(current.hostname);
     const response = await fetch(current, {
@@ -67,19 +71,19 @@ async function readCompetitorHomepage(value: string) {
     });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
-      if (!location || redirects === 3) throw new ApiError(502, "The competitor website returned too many redirects");
+      if (!location || redirects === 3) throw new ApiError(502, `The ${label} returned too many redirects`);
       current = new URL(location, current);
       continue;
     }
-    if (!response.ok) throw new ApiError(502, `The competitor website returned ${response.status}`);
+    if (!response.ok) throw new ApiError(502, `The ${label} returned ${response.status}`);
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
-      throw new ApiError(400, "The competitor URL must point to a public web page");
+      throw new ApiError(400, `The ${label} must be a public web page`);
     }
     if (Number(response.headers.get("content-length") || 0) > MAX_COMPETITOR_HTML_BYTES) {
-      throw new ApiError(413, "The competitor page is too large to analyze");
+      throw new ApiError(413, `The ${label} is too large to analyze`);
     }
-    if (!response.body) throw new ApiError(502, "The competitor website returned an empty page");
+    if (!response.body) throw new ApiError(502, `The ${label} returned an empty page`);
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let size = 0;
@@ -89,20 +93,29 @@ async function readCompetitorHomepage(value: string) {
       size += chunk.byteLength;
       if (size > MAX_COMPETITOR_HTML_BYTES) {
         await reader.cancel();
-        throw new ApiError(413, "The competitor page is too large to analyze");
+        throw new ApiError(413, `The ${label} is too large to analyze`);
       }
       chunks.push(chunk);
     }
-    const html = Buffer.concat(chunks).toString("utf8");
-    const text = sanitizeHtml(html, {
-      allowedTags: [],
-      allowedAttributes: {},
-      nonTextTags: ["style", "script", "textarea", "option", "noscript", "template", "svg"],
-    }).replace(/\s+/g, " ").trim().slice(0, MAX_COMPETITOR_TEXT_CHARS);
-    if (text.length < 200) throw new ApiError(422, "There is not enough public copy on that page to learn its voice");
-    return { source: current.origin, text };
+    return { url: current, html: Buffer.concat(chunks).toString("utf8") };
   }
-  throw new ApiError(502, "Unable to read the competitor website");
+  throw new ApiError(502, `Unable to read the ${label}`);
+}
+
+/** The readable text of an HTML page, without scripts, styles or markup. */
+export function pageText(html: string, maxChars = MAX_COMPETITOR_TEXT_CHARS) {
+  return sanitizeHtml(html, {
+    allowedTags: [],
+    allowedAttributes: {},
+    nonTextTags: ["style", "script", "textarea", "option", "noscript", "template", "svg"],
+  }).replace(/\s+/g, " ").trim().slice(0, maxChars);
+}
+
+async function readCompetitorHomepage(value: string) {
+  const { url, html } = await fetchPublicHtml(value);
+  const text = pageText(html);
+  if (text.length < 200) throw new ApiError(422, "There is not enough public copy on that page to learn its voice");
+  return { source: url.origin, text };
 }
 
 export async function analyzeCompetitorBrandVoice(blogId: string, website: string): Promise<CompetitorVoiceProfile> {
@@ -122,5 +135,7 @@ export async function analyzeCompetitorBrandVoice(blogId: string, website: strin
 }
 
 export function competitorVoiceInstruction(profile: CompetitorVoiceProfile) {
-  return `${profile.voice} Traits: ${profile.traits.join(", ")}. Avoid: ${profile.avoid.join(", ")}.`;
+  const trimmed = profile.voice.trim();
+  const voice = `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`.replace(/[.!]?$/, ".");
+  return `${voice} Traits: ${profile.traits.join(", ")}. Avoid: ${profile.avoid.join(", ")}.`;
 }
