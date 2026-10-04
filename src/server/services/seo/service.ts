@@ -10,17 +10,20 @@ import { getLanguageName } from "@/lib/languages";
 import { COVER_FONTS, COVER_TEXT_ALIGNS, COVER_TEXT_SIZES, MAX_GRADIENT_COLORS, THUMBNAIL_FORMATS, coverTypography, type CoverFont, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
 import { DEFAULT_SEARCH_MARKET, defaultSearchMarket } from "@/lib/autopilot/search-markets";
+import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
+import { SEO_COST_ESTIMATE_MICROS } from "@/lib/autopilot/seo-costs";
+import { schedulePendingDrafts } from "@/src/server/services/growth/planning";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 
 export type SeoOperation = "keyword_ideas" | "search_intent" | "serp_brief" | "ranked_keywords" | "competitor_gap";
 const POLICY: Record<SeoOperation, { endpoint: string; ttlMs: number; estimateMicros: number }> = {
-  keyword_ideas: { endpoint: "/v3/dataforseo_labs/google/keyword_ideas/live", ttlMs: 30 * 86400_000, estimateMicros: 50_000 },
-  search_intent: { endpoint: "/v3/dataforseo_labs/google/search_intent/live", ttlMs: 30 * 86400_000, estimateMicros: 10_000 },
-  serp_brief: { endpoint: "/v3/serp/google/organic/live/advanced", ttlMs: 48 * 3600_000, estimateMicros: 3_000 },
+  keyword_ideas: { endpoint: "/v3/dataforseo_labs/google/keyword_ideas/live", ttlMs: 30 * 86400_000, estimateMicros: SEO_COST_ESTIMATE_MICROS.keyword_ideas },
+  search_intent: { endpoint: "/v3/dataforseo_labs/google/search_intent/live", ttlMs: 30 * 86400_000, estimateMicros: SEO_COST_ESTIMATE_MICROS.search_intent },
+  serp_brief: { endpoint: "/v3/serp/google/organic/live/advanced", ttlMs: 48 * 3600_000, estimateMicros: SEO_COST_ESTIMATE_MICROS.serp_brief },
   /** Keywords the blog's own domain already ranks for (avoids cannibalizing them). */
-  ranked_keywords: { endpoint: "/v3/dataforseo_labs/google/ranked_keywords/live", ttlMs: 7 * 86400_000, estimateMicros: 40_000 },
+  ranked_keywords: { endpoint: "/v3/dataforseo_labs/google/ranked_keywords/live", ttlMs: 7 * 86400_000, estimateMicros: SEO_COST_ESTIMATE_MICROS.ranked_keywords },
   /** Keywords a competitor ranks for and the blog's domain does not. */
-  competitor_gap: { endpoint: "/v3/dataforseo_labs/google/domain_intersection/live", ttlMs: 14 * 86400_000, estimateMicros: 30_000 },
+  competitor_gap: { endpoint: "/v3/dataforseo_labs/google/domain_intersection/live", ttlMs: 14 * 86400_000, estimateMicros: SEO_COST_ESTIMATE_MICROS.competitor_gap },
 };
 
 const stable = (value: unknown): string => Array.isArray(value)
@@ -186,7 +189,8 @@ export const seoEditorialSettingsFields = {
   locationCode: z.number().int().positive().optional(),
   languageCode: z.string().trim().min(2).max(10).optional(),
   timezone: z.string().trim().min(1).max(64).optional(),
-  competitorDomains: z.array(z.string().trim().toLowerCase().max(253)).max(20).optional(),
+  /** Up to MAX_COMPETITORS domains; URLs are reduced to their domain. */
+  competitorDomains: competitorDomainsSchema.optional(),
   audience: z.string().trim().max(2000).nullable().optional(),
   brandVoice: z.string().trim().max(2000).nullable().optional(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]).optional(),
@@ -225,8 +229,8 @@ export const seoEditorialSettingsSchema = z.object(seoEditorialSettingsFields).s
 export async function updateSeoEditorialSettings(blogId: string, input: unknown) {
   const parsed = seoEditorialSettingsSchema.parse(input);
   // Brand assets must be ones uploaded to this blog.
-  const current = parsed.thumbnailTypography
-    ? await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { thumbnailTypography: true } })
+  const current = parsed.thumbnailTypography || parsed.timezone
+    ? await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { thumbnailTypography: true, timezone: true } })
     : null;
   const data = {
     ...parsed,
@@ -236,6 +240,8 @@ export async function updateSeoEditorialSettings(blogId: string, input: unknown)
     ...(parsed.inlineImageReferenceUrls ? { inlineImageReferenceUrls: normalizeStyleReferences(blogId, parsed.inlineImageReferenceUrls) } : {}),
   };
   await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...data }, update: data });
+  // Writing dates are 09:00 in the blog's timezone: move the waiting ones to the new zone.
+  if (current?.timezone && parsed.timezone && current.timezone !== parsed.timezone) await schedulePendingDrafts(blogId, true);
   return getSeoSettingsSummary(blogId);
 }
 

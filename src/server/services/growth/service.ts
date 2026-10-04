@@ -29,9 +29,10 @@ import { articleHref, articlePrefixFor, enforceArticleLinks, rankLinkTargets, ur
 import { queueRelatedArticleLinks } from "./backlinks";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 import { daysForPace } from "@/lib/autopilot/writing-days";
+import { competitorDomain } from "@/lib/autopilot/competitors";
 
 const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
-const PROMPT_VERSION = "article-v1";
+const PROMPT_VERSION = "article-v2";
 
 export const planItemInputSchema = z.object({
   keyword: z.string().trim().min(3).max(160),
@@ -195,7 +196,7 @@ function researchMetrics(snapshot: Prisma.JsonValue | null) {
 
 /** Researched URLs the article may cite: never a competitor's page. */
 function externalSources(serpBrief: unknown, competitorDomains: string[]) {
-  const competitors = competitorDomains.map(domain => domain.toLowerCase().replace(/^www\./, ""));
+  const competitors = competitorDomains.map(domain => competitorDomain(domain) ?? domain.toLowerCase().replace(/^www\./, ""));
   return new Set([...urlsIn(serpBrief)].filter(url => {
     try {
       const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
@@ -214,7 +215,7 @@ Answer the search intent directly, use concrete explanations and avoid generic A
 Do not invent statistics, quotes, product capabilities or first-hand experiences. If evidence is absent, explain without fabricating specifics.
 Use only <strong>, <em>, <code>, <br> and <a href="..."> inside paragraph strings.
 internalLinks lists published articles of this blog (title, topic, summary). Link 2-4 of them where a sentence naturally touches their topic and the reader would want to go deeper: short descriptive anchor text taken from that sentence (never "click here" or a bare keyword), spread across the body, each article at most once, never in headings. Skip any that do not fit; fewer good links beat forced ones. Preserve each href exactly. If internalLinks is empty, add no internal links. Never invent an internal URL.
-topic carries the research behind this article: cover secondaryKeywords naturally where they fit, and serve the stated intent (informational: explain; commercial: compare options and help choose). When serpBrief is present, organic lists the pages Google ranks today: cover what they cover and answer it better, without copying their wording or structure. Answer the relevant peopleAlsoAsk questions inside the article, using a question as a heading when it deserves its own section, and touch on relatedSearches the reader would expect. When featuredSnippet is present, answer the core question in a concise 40-60 word paragraph right after the introduction.
+topic carries the research behind this article: cover secondaryKeywords naturally where they fit, and serve the stated intent (informational: explain; commercial: compare options and help choose). When serpBrief is present, organic lists the pages Google ranks today: cover what they cover and answer it better, without copying their wording or structure. Answer the relevant peopleAlsoAsk questions inside the article, using a question as a heading when it deserves its own section, and touch on relatedSearches the reader would expect. When featuredSnippet is present, answer the core question in a concise 40-60 word paragraph right after the introduction. When serpBrief.hasAiOverview is true, Google shows an AI summary for this search: open each section with a direct, self-contained answer in one or two sentences that make sense when quoted alone, then expand.
 External links may only use URLs supplied in serpBrief, never pages on the domains in competitors. Do not mention SEO, keywords, prompts or this workflow in the article.
 Inline images are optional and must explain a particular section. Request no more than maxInlineImages. The cover must be visually distinct from inline images and contain no text or logos.
 coverTitle is drawn on the thumbnail, not read in a list: ${COVER_TITLE_MIN_WORDS} to ${COVER_TITLE_MAX_WORDS} words naming the subject, in the article's language. It is not the title shortened and it never ends mid-thought or in an ellipsis. Prefer the plain subject ("Content batching for teams") over a clipped title ("The Complete Guide to").`,

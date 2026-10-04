@@ -7,13 +7,15 @@ import { requireBlogPermission } from "@/src/server/services/blogs/access";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
+import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
+import { schedulePendingDrafts } from "@/src/server/services/growth/planning";
 import { articlePathsSchema, imageSizeSchema, logoPositionSchema, thumbnailColorsSchema, thumbnailFormatSchema, thumbnailTypographySchema } from "./service";
 
 const settingsSchema = z.object({
   credentialId: z.string().min(1).nullable(), enabled: z.boolean(),
   targetDomain: z.string().trim().toLowerCase().max(253).regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, "Enter a domain like example.com").nullable(),
   locationCode: z.number().int().positive(), languageCode: z.string().trim().min(2).max(10),
-  timezone: z.string().trim().min(1).max(64), competitorDomains: z.array(z.string().trim().toLowerCase().max(253)).max(20),
+  timezone: z.string().trim().min(1).max(64), competitorDomains: competitorDomainsSchema,
   audience: z.string().trim().max(2000).nullable(), brandVoice: z.string().trim().max(2000).nullable(),
   publishingMode: z.enum(["draft", "review", "auto_publish"]),
   thumbnailEnabled: z.boolean(), inlineImagesEnabled: z.boolean(),
@@ -101,7 +103,7 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
     const values = {
       ...spending, targetDomain: data.targetDomain,
       locationCode: data.locationCode, languageCode: data.languageCode, timezone: data.timezone,
-      competitorDomains: data.competitorDomains.filter(Boolean), audience: data.audience || null,
+      competitorDomains: data.competitorDomains, audience: data.audience || null,
       brandVoice: data.brandVoice || null, publishingMode: data.publishingMode,
       thumbnailEnabled: data.thumbnailEnabled, inlineImagesEnabled: data.inlineImagesEnabled,
       thumbnailFormat: data.thumbnailFormat, thumbnailColors: data.thumbnailColors, thumbnailTypography: data.thumbnailTypography,
@@ -116,7 +118,10 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       articlePaths: data.articlePaths,
       maxInlineImages: data.maxInlineImages,
     };
+    const previous = await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { timezone: true } });
     await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...values }, update: values });
+    // Writing dates are 09:00 in the blog's timezone: move the waiting ones to the new zone.
+    if (previous?.timezone && previous.timezone !== values.timezone) await schedulePendingDrafts(blogId, true);
     revalidatePath(`/dashboard/blogs/${blogId}/autopilot`);
     return { success: true };
   } catch (error) { return { error: apiError(error).error }; }

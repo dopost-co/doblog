@@ -35,7 +35,7 @@ export function WritingDaysPicker({ value, onChange, disabled }: {
       </div>
       <p className="text-xs text-muted-foreground">
         {value.length
-          ? `${value.length} ${value.length === 1 ? "article" : "articles"} a week, written in the morning (UTC).`
+          ? `${value.length} ${value.length === 1 ? "article" : "articles"} a week, written at 09:00 in the blog's timezone (Settings → Advanced).`
           : "Choose at least one day."}
       </p>
     </div>

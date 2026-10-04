@@ -14,6 +14,7 @@ import { difficultyCeiling, rankKeywordCandidates, type KeywordCandidate, type K
 import { normalizeKeyword } from "./content";
 import { schedulePendingDrafts } from "./planning";
 import { daysForPace, normalizeWritingDays } from "@/lib/autopilot/writing-days";
+import { MAX_COMPETITORS, competitorDomain } from "@/lib/autopilot/competitors";
 
 const DISCOVERY_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
 const MAX_SITEMAP_BYTES = 2 * 1024 * 1024;
@@ -24,7 +25,7 @@ export const discoverySettingsSchema = z.object({
   sitemapUrl: z.string().trim().max(2048).optional(),
   frequency: z.enum(["weekly", "monthly"]),
   topicsPerRun: z.number().int().min(3).max(20),
-  /** UTC weekdays to write on (0 = Sunday … 6 = Saturday). */
+  /** Weekdays to write on (0 = Sunday … 6 = Saturday), at 09:00 in the blog's timezone. */
   writingDays: z.array(z.number().int().min(0).max(6)).min(1, "Choose at least one day").max(7).refine(days => new Set(days).size === days.length, "Each day can be chosen once").optional(),
   /** Older clients: how many drafts per week; converted to evenly spread days. */
   draftsPerWeek: z.number().int().min(1).max(7).optional(),
@@ -276,10 +277,95 @@ export function ideasNeeded(draftsPerWeek: number, waiting: number, perRun: numb
   return Math.max(0, Math.min(perRun, draftsPerWeek * IDEA_BACKLOG_WEEKS - waiting));
 }
 
+async function researchDomain(blogId: string) {
+  const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { targetDomain: true } });
+  if (!settings?.targetDomain) throw new ApiError(409, "Add the website address in Autopilot first");
+  return settings.targetDomain;
+}
+
+type RankedItem = KeywordMetrics & { keyword: string };
+const isKeyword = (item: KeywordMetrics): item is RankedItem => typeof item.keyword === "string";
+
+/**
+ * What the blog's website ranks for in Google's top 30, with the ranking URL.
+ * Same request as Autopilot's research, so either one reuses the other's cache.
+ */
+export async function rankedKeywordsReport(blogId: string, { fromPosition = 1, toPosition = REFRESH_POSITIONS.to, minimumSearchVolume = 0, limit = 50 } = {}) {
+  const domain = await researchDomain(blogId);
+  const result = await runSeoOperation(blogId, "ranked_keywords", rankedKeywordsRequest(domain));
+  const items = ((result.data as ResearchItems).items ?? []).filter(isKeyword).filter(item => {
+    const position = typeof item.position === "number" ? item.position : null;
+    return position !== null && position >= fromPosition && position <= toPosition
+      && (typeof item.searchVolume === "number" ? item.searchVolume : 0) >= minimumSearchVolume;
+  });
+  return {
+    domain, cacheHit: result.cacheHit, actualCostUsd: result.actualCostUsd, snapshotAt: result.snapshotAt,
+    matching: items.length,
+    items: items.slice(0, limit).map(item => ({
+      keyword: item.keyword, position: item.position, url: item.url,
+      searchVolume: item.searchVolume ?? null, difficulty: item.difficulty ?? null, intent: item.intent ?? null,
+    })),
+  };
+}
+
+/**
+ * Searches a competitor wins in Google's top 20 that the blog's website does
+ * not rank for, ranked like Autopilot ranks ideas (topics already covered and
+ * the competitor's brand searches left out).
+ */
+export async function competitorGapReport(blogId: string, competitor: string, { limit = 50 } = {}) {
+  const target = competitorDomain(competitor);
+  if (!target) throw new ApiError(400, "Use a competitor domain like rival.com");
+  const domain = await researchDomain(blogId);
+  if (target === domain.replace(/^www\./, "")) throw new ApiError(400, "That is this blog's own website");
+  const settings = await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { languageCode: true } });
+  const language = settings?.languageCode ?? "en";
+  const [result, posts, planItems, targets] = await Promise.all([
+    runSeoOperation(blogId, "competitor_gap", competitorGapRequest(target, domain)),
+    prisma.post.findMany({ where: { blogId, language }, select: { title: true } }),
+    prisma.contentPlanItem.findMany({ where: { blogId, language }, select: { primaryKeyword: true, title: true } }),
+    prisma.postSeoTarget.findMany({ where: { blogId, language }, select: { primaryKeyword: true } }),
+  ]);
+  const gaps = (result.data as ResearchItems).items ?? [];
+  const covered = new Set([...posts.map(post => post.title), ...planItems.flatMap(item => [item.primaryKeyword, item.title || ""]), ...targets.map(item => item.primaryKeyword)]
+    .map(normalizeKeyword).filter(Boolean));
+  // Without the site's own rankings the default ceiling applies: no extra paid call.
+  const candidates = rankKeywordCandidates({ ideas: [], gaps, covered, competitorDomains: [target], maxDifficulty: difficultyCeiling([]), limit });
+  return {
+    domain, competitor: target, cacheHit: result.cacheHit, actualCostUsd: result.actualCostUsd, snapshotAt: result.snapshotAt,
+    found: gaps.length,
+    items: candidates.map(({ keyword, searchVolume, difficulty, intent, cpc, competitorUrl, opportunity }) => ({ keyword, searchVolume, difficulty, intent, cpc, competitorUrl: competitorUrl ?? null, opportunity })),
+  };
+}
+
+/** The competitor domains Autopilot studies; older settings may hold URLs or more than the limit. */
+export function competitorSites(saved: readonly string[]) {
+  return [...new Set(saved.map(competitorDomain).filter((value): value is string => Boolean(value)))].slice(0, MAX_COMPETITORS);
+}
+
 type ResearchItems = { items?: KeywordMetrics[] };
 
 /** Keywords on page two or three of Google: the existing page is worth improving rather than writing a new one. */
-const REFRESH_POSITIONS = { from: 11, to: 30 };
+export const REFRESH_POSITIONS = { from: 11, to: 30 };
+
+// Shared with the MCP tools so both reuse the same cached research.
+/** What the domain ranks for in the top 30, biggest searches first. */
+export function rankedKeywordsRequest(domain: string) {
+  return {
+    target: domain, limit: 300, item_types: ["organic"],
+    filters: [["ranked_serp_element.serp_item.rank_group", "<=", REFRESH_POSITIONS.to]],
+    order_by: ["keyword_data.keyword_info.search_volume,desc"],
+  };
+}
+
+/** Searches the competitor wins in the top 20 that the domain does not rank for. */
+export function competitorGapRequest(competitor: string, domain: string) {
+  return {
+    target1: competitor, target2: domain, intersections: false, limit: 100, item_types: ["organic"],
+    filters: [["keyword_data.keyword_info.search_volume", ">=", 10], "and", ["first_domain_serp_element.rank_group", "<=", 20]],
+    order_by: ["keyword_data.keyword_info.search_volume,desc"],
+  };
+}
 
 /**
  * Search data for planning: keyword ideas around the seeds, what the site
@@ -287,8 +373,7 @@ const REFRESH_POSITIONS = { from: 11, to: 30 };
  * Each source is optional; a failure only adds a warning.
  */
 async function keywordResearch(blogId: string, domain: string, competitorDomains: string[], seeds: string[], covered: string[], warnings: string[]) {
-  const competitors = competitorDomains.map(value => { try { return normalizeWebsite(value); } catch { return null; } })
-    .filter((value): value is string => Boolean(value)).slice(0, 2);
+  const competitors = competitorSites(competitorDomains);
   const run = async (label: string, task: () => Promise<{ data: unknown }>) => {
     try { return ((await task()).data as ResearchItems).items ?? []; }
     catch (error) {
@@ -301,16 +386,8 @@ async function keywordResearch(blogId: string, domain: string, competitorDomains
       keywords: seeds, limit: 200, include_serp_info: false,
       filters: [["keyword_info.search_volume", ">=", 10]], order_by: ["keyword_info.search_volume,desc"],
     })),
-    run("Your site's rankings", () => runSeoOperation(blogId, "ranked_keywords", {
-      target: domain, limit: 300, item_types: ["organic"],
-      filters: [["ranked_serp_element.serp_item.rank_group", "<=", REFRESH_POSITIONS.to]],
-      order_by: ["keyword_data.keyword_info.search_volume,desc"],
-    })),
-    ...competitors.map(competitor => run(`Keyword gap with ${competitor}`, () => runSeoOperation(blogId, "competitor_gap", {
-      target1: competitor, target2: domain, intersections: false, limit: 100, item_types: ["organic"],
-      filters: [["keyword_data.keyword_info.search_volume", ">=", 10], "and", ["first_domain_serp_element.rank_group", "<=", 20]],
-      order_by: ["keyword_data.keyword_info.search_volume,desc"],
-    }))),
+    run("Your site's rankings", () => runSeoOperation(blogId, "ranked_keywords", rankedKeywordsRequest(domain))),
+    ...competitors.map(competitor => run(`Keyword gap with ${competitor}`, () => runSeoOperation(blogId, "competitor_gap", competitorGapRequest(competitor, domain)))),
   ]);
   const rankingKeywords = ranked.filter(item => typeof item.keyword === "string").map(item => ({
     keyword: item.keyword as string, position: item.position as number | undefined, url: item.url as string | undefined, searchVolume: item.searchVolume as number | undefined,
@@ -410,14 +487,13 @@ async function runClaimedDiscovery(
     if (!blog) throw new ApiError(404, "Blog not found");
     const ownSite = await discoverSitemap(settings.targetDomain, settings.sitemapUrl);
     warnings.push(...ownSite.warnings);
-    const competitorSites = (await Promise.all(settings.competitorDomains.slice(0, 2).map(async domain => {
+    const competitorPaths = (await Promise.all(competitorSites(settings.competitorDomains).map(async normalized => {
       try {
-        const normalized = normalizeWebsite(domain);
         const site = await discoverSitemap(normalized, null, 3);
         warnings.push(...site.warnings.map(message => `${normalized}: ${message}`));
         return { domain: normalized, paths: pathLabels(site.pageUrls, 120) };
       } catch (error) {
-        warnings.push(`${domain}: ${error instanceof Error ? error.message : "could not be analyzed"}`);
+        warnings.push(`${normalized}: ${error instanceof Error ? error.message : "could not be analyzed"}`);
         return null;
       }
     }))).filter((site): site is { domain: string; paths: string[] } => Boolean(site));
@@ -430,7 +506,7 @@ async function runClaimedDiscovery(
       publication: { name: blog.name, description: blog.description, audience: settings.audience, voice: settings.brandVoice },
       website: { domain: settings.targetDomain, paths: pathLabels(ownSite.pageUrls, 220) },
       existingPosts: posts.map(post => ({ title: post.title, slug: post.slug, excerpt: post.excerpt })),
-      competitors: competitorSites,
+      competitors: competitorPaths,
     };
     const analysis = await analyzeSite(openai, baseContext);
     const covered = [...posts.map(post => post.title), ...planItems.flatMap(item => [item.primaryKeyword, item.title || ""]), ...targets.map(target => target.primaryKeyword)];
@@ -483,7 +559,11 @@ async function runClaimedDiscovery(
         nextDiscoveryAt: settings.discoveryEnabled ? nextDiscoveryDate(settings.discoveryFrequency, now) : null,
       } }),
     ]);
-    return { runId: run.id, added: created.count, analyzedPages: ownSite.pageUrls.length, warnings: [...new Set(warnings)].slice(0, 10) };
+    return {
+      runId: run.id, added: created.count, analyzedPages: ownSite.pageUrls.length, warnings: [...new Set(warnings)].slice(0, 10),
+      // Searches on Google's page two or three: improving the ranking article beats writing a new one.
+      refreshCandidates: research?.refreshCandidates ?? [],
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Opportunity discovery failed";
     await prisma.$transaction([

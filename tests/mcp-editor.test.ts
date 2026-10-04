@@ -28,7 +28,7 @@ describe("MCP rich content", () => {
       await client.connect(clientTransport);
       const { tools } = await client.listTools();
       expect(tools.find(tool => tool.name === "get_editor_guide")?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
-      for (const name of ["seo_get_settings", "seo_get_usage", "seo_discover_opportunities", "seo_analyze_intent", "seo_build_brief"]) {
+      for (const name of ["seo_get_settings", "seo_get_usage", "seo_discover_opportunities", "seo_analyze_intent", "seo_build_brief", "seo_ranked_keywords", "seo_competitor_gap"]) {
         expect(tools.some(tool => tool.name === name)).toBe(true);
       }
       const result = await client.callTool({ name: "get_editor_guide", arguments: {} });

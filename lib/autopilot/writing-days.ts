@@ -1,6 +1,6 @@
 /**
- * Autopilot writes on chosen weekdays. Days are UTC weekdays as stored:
- * 0 = Sunday … 6 = Saturday (Date#getUTCDay).
+ * Autopilot writes on chosen weekdays, at 09:00 in the blog's timezone:
+ * 0 = Sunday … 6 = Saturday.
  */
 export const WEEKDAYS = [
   { value: 1, short: "M", name: "Monday" },

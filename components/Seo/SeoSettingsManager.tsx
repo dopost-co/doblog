@@ -22,6 +22,8 @@ import { ImagePreviewDialog } from "@/components/Growth/ImagePreviewDialog";
 import { RefreshCoversDialog } from "@/components/Growth/RefreshCoversDialog";
 import { isLogoPosition, type LogoPosition } from "@/lib/autopilot/logo";
 import { SEARCH_MARKETS, defaultSearchMarket } from "@/lib/autopilot/search-markets";
+import { MAX_COMPETITORS } from "@/lib/autopilot/competitors";
+import { KEYWORD_IDEAS_ESTIMATE_USD } from "@/lib/autopilot/seo-costs";
 import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, imageSize, isImageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 
 type Credential = { id: string; label: string; loginHint: string };
@@ -150,6 +152,14 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   const [credentialId, setCredentialId] = useState(settings?.credentialId || credentials[0]?.id || "");
 
   const managed = plan === "subscription";
+  const savedCompetitors = settings?.competitorDomains ?? [];
+  const extraCompetitors = savedCompetitors.slice(MAX_COMPETITORS);
+  // Suggestions are loaded on focus: the server's and the browser's timezone lists can differ.
+  const [timeZones, setTimeZones] = useState<string[]>([]);
+  const loadTimeZones = () => {
+    if (timeZones.length) return;
+    try { setTimeZones(Intl.supportedValuesOf("timeZone")); } catch { /* Old browsers: free text only. */ }
+  };
   const savedArticlePaths = settings?.articlePaths && typeof settings.articlePaths === "object" ? settings.articlePaths as Record<string, string> : {};
   const connected = managed || credentials.length > 0;
   const activeCredential = credentials.find((item) => item.id === credentialId);
@@ -170,7 +180,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
     const result = await saveBlogSeoSettings(blogId, {
       credentialId: managed ? null : credentialId || null, enabled, targetDomain: nullable("targetDomain"),
       locationCode: Number(form.get("locationCode")), languageCode: String(form.get("languageCode")), timezone: String(form.get("timezone")),
-      competitorDomains: String(form.get("competitors") || "").split(/[\n,]/).map((v) => v.trim()).filter(Boolean),
+      competitorDomains: Array.from({ length: MAX_COMPETITORS }, (_, index) => String(form.get(`competitor:${index}`) || "").trim()).filter(Boolean),
       audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
       thumbnailEnabled, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled,
       thumbnailFormat, thumbnailColors: [...coverColors], thumbnailTypography: typography,
@@ -321,7 +331,31 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
             Advanced
           </summary>
           <div className="grid gap-4 pb-6 md:pl-[13rem]">
-            <Area label="Competitors" name="competitors" defaultValue={settings?.competitorDomains.join("\n") || ""} placeholder={"competitor-one.com\ncompetitor-two.com"} />
+            <div className="grid gap-3">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Competitors</p>
+                <p className="text-xs text-muted-foreground">
+                  Up to {MAX_COMPETITORS} sites that write about your topics. Autopilot looks for searches they win and you don&apos;t, and never links to them.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {Array.from({ length: MAX_COMPETITORS }, (_, index) => (
+                  <Field
+                    key={index}
+                    label={`Competitor ${index + 1}`}
+                    name={`competitor:${index}`}
+                    defaultValue={savedCompetitors[index] ?? ""}
+                    placeholder="rival.com"
+                    autoComplete="off"
+                  />
+                ))}
+              </div>
+              {extraCompetitors.length > 0 && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Only the first {MAX_COMPETITORS} are used. Saving removes {extraCompetitors.join(", ")}.
+                </p>
+              )}
+            </div>
             <Field label="Article URL path" name="articleUrlPrefix" defaultValue={settings?.articleUrlPrefix ?? "/blog"} placeholder="/blog" hint="Used for internal links, for example /blog/article-slug." />
             {languages.length > 1 && (
               <div className="grid gap-3">
@@ -355,12 +389,15 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
                 </Select>
                 <p className="text-xs text-muted-foreground">Country whose Google searches set keyword volume and difficulty.</p>
               </div>
-              <Field label="Timezone" name="timezone" defaultValue={settings?.timezone ?? "Europe/Madrid"} />
+              <div className="grid gap-1.5">
+                <Field label="Timezone" name="timezone" list="autopilot-timezones" autoComplete="off" onFocus={loadTimeZones} defaultValue={settings?.timezone ?? "Europe/Madrid"} hint="Autopilot writes at 09:00 here on your writing days." />
+                <datalist id="autopilot-timezones">{timeZones.map((zone) => <option key={zone} value={zone} />)}</datalist>
+              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               {/* Read-only rather than disabled, so the saved limits are still submitted. */}
-              <Field label="Per run (USD)" name="perRunBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.perRunBudgetUsdMicros, 0.25)} />
-              <Field label="Per day (USD)" name="dailyBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} />
+              <Field label="Per search call (USD)" name="perRunBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.perRunBudgetUsdMicros, 0.25)} hint={`Each DataForSEO request. Keyword ideas cost about $${KEYWORD_IDEAS_ESTIMATE_USD}; below that Autopilot skips them.`} />
+              <Field label="Per day (USD)" name="dailyBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.dailyBudgetUsdMicros, 1)} hint="Days and months follow UTC, like DataForSEO billing." />
               <Field label="Per month (USD)" name="monthlyBudgetUsd" type="number" step="any" min="0.001" readOnly={!canSpend} defaultValue={usd(settings?.monthlyBudgetUsdMicros, 20)} hint={canSpend ? undefined : "Set by the blog owner."} />
             </div>
           </div>
