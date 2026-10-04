@@ -272,7 +272,8 @@ export async function claimContentPlanDraft(blogId: string, itemId: string, trig
     if (item.postId) throw new ApiError(409, "This item already has a draft");
     if (item.status === "generating") throw new ApiError(409, "This draft is already being generated");
     const updated = await tx.contentPlanItem.updateMany({
-      where: { id: item.id, blogId, postId: null, status: { in: ["planned", "failed"] } },
+      // "ready" without a post: its article was deleted, so it can be written again.
+      where: { id: item.id, blogId, postId: null, status: { in: ["planned", "failed", "ready"] } },
       data: { status: "generating", lastError: null },
     });
     if (updated.count !== 1) throw new ApiError(409, "This item is not ready to generate");
