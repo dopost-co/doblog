@@ -93,3 +93,26 @@ describe("Uploading brand assets as base64", () => {
   });
 });
 
+
+describe("Autopilot images over MCP", () => {
+  const tools = async (scopes: string[]) => {
+    const { createMcpServer } = await import("@/lib/integrations/mcp");
+    const server = createMcpServer({ blogId: "blog-1", publicBlogId: "public-1", scopes } as never);
+    return Object.keys((server as unknown as { _registeredTools: Record<string, unknown> })._registeredTools);
+  };
+
+  it("offers cover redraws and topic removal to clients allowed to use them", async () => {
+    const all = await tools(["content:read", "content:write", "media:write", "seo:write"]);
+    expect(all).toEqual(expect.arrayContaining(["growth_refresh_covers", "growth_regenerate_cover", "growth_remove_topic", "seo_update_settings"]));
+    const writer = await tools(["content:read", "content:write", "media:write"]);
+    expect(writer).toContain("growth_regenerate_cover");
+    expect(writer).not.toContain("growth_refresh_covers");
+    expect(await tools(["content:read"])).not.toContain("growth_regenerate_cover");
+  });
+
+  it("accepts image sizes in seo_update_settings", async () => {
+    const { seoEditorialSettingsSchema } = await import("@/src/server/services/seo/service");
+    expect(seoEditorialSettingsSchema.safeParse({ thumbnailSize: "standard", inlineImageSize: "original" }).success).toBe(true);
+    expect(seoEditorialSettingsSchema.safeParse({ thumbnailSize: "1200x630" }).success).toBe(false);
+  });
+});
