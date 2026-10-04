@@ -7,7 +7,7 @@ import { requireBlogPermission } from "@/src/server/services/blogs/access";
 import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
-import { articlePathsSchema, logoPositionSchema, thumbnailColorsSchema, thumbnailFormatSchema, thumbnailTypographySchema } from "./service";
+import { articlePathsSchema, imageSizeSchema, logoPositionSchema, thumbnailColorsSchema, thumbnailFormatSchema, thumbnailTypographySchema } from "./service";
 
 const settingsSchema = z.object({
   credentialId: z.string().min(1).nullable(), enabled: z.boolean(),
@@ -19,6 +19,7 @@ const settingsSchema = z.object({
   thumbnailEnabled: z.boolean(), inlineImagesEnabled: z.boolean(),
   thumbnailFormat: thumbnailFormatSchema, thumbnailColors: thumbnailColorsSchema, thumbnailTypography: thumbnailTypographySchema,
   logoUrl: z.string().max(2048).nullable(), thumbnailLogoPosition: logoPositionSchema, inlineLogoPosition: logoPositionSchema,
+  thumbnailSize: imageSizeSchema, inlineImageSize: imageSizeSchema,
   internalLinksEnabled: z.boolean(), backlinksEnabled: z.boolean(),
   thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2), inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2),
   thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
@@ -106,6 +107,7 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       thumbnailFormat: data.thumbnailFormat, thumbnailColors: data.thumbnailColors, thumbnailTypography: data.thumbnailTypography,
       logoUrl: normalizeLogoUrl(blogId, data.logoUrl),
       thumbnailLogoPosition: data.thumbnailLogoPosition, inlineLogoPosition: data.inlineLogoPosition,
+      thumbnailSize: data.thumbnailSize, inlineImageSize: data.inlineImageSize,
       internalLinksEnabled: data.internalLinksEnabled, backlinksEnabled: data.backlinksEnabled,
       thumbnailReferenceUrls: normalizeStyleReferences(blogId, data.thumbnailReferenceUrls),
       inlineImageReferenceUrls: normalizeStyleReferences(blogId, data.inlineImageReferenceUrls),

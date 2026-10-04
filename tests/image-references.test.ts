@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
+import { imageSize } from "@/lib/autopilot/image-sizes";
 
 vi.mock("@/lib/r2", () => ({
   r2Client: { send: vi.fn() },
@@ -74,7 +76,7 @@ describe("Image generation with references", () => {
     const cover = vi.fn().mockResolvedValue(image);
     const made = await makeCover({ images: { edit: vi.fn(), generate: cover } } as never, {
       format: "generated", prompt: "A cover", style: "Like a kid draw black and white with bg transparent", references: [], runId: "run-1",
-      colors: [], typography: {} as never, title: "T", warnings: [],
+      colors: [], typography: {} as never, title: "T", warnings: [], size: imageSize("original"),
     });
     expect(cover).toHaveBeenCalledWith(expect.objectContaining({ background: "transparent", output_format: "webp", prompt: expect.stringContaining("Never draw a checkerboard") }));
     expect(made.mimeType).toBe("image/webp");
@@ -82,8 +84,19 @@ describe("Image generation with references", () => {
     const plain = vi.fn().mockResolvedValue(image);
     await makeCover({ images: { edit: vi.fn(), generate: plain } } as never, {
       format: "generated", prompt: "A cover", style: "Warm watercolor", references: [], runId: "run-1",
-      colors: [], typography: {} as never, title: "T", warnings: [],
+      colors: [], typography: {} as never, title: "T", warnings: [], size: imageSize("original"),
     });
     expect(plain.mock.calls[0][0]).not.toHaveProperty("background");
+  });
+
+  it("draws at the nearest model size and crops to the chosen preset", async () => {
+    const { makeInlineImage } = await import("@/src/server/services/growth/images");
+    const drawn = await sharp({ create: { width: 1536, height: 1024, channels: 3, background: "#336699" } }).webp().toBuffer();
+    const generate = vi.fn().mockResolvedValue({ data: [{ b64_json: drawn.toString("base64") }] });
+    const made = await makeInlineImage({ images: { edit: vi.fn(), generate } } as never, {
+      prompt: "A chart", references: [], runId: "run-1", size: imageSize("standard"),
+    });
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ size: "1536x1024", prompt: expect.stringContaining("16:9 landscape") }));
+    expect(await sharp(made.bytes).metadata()).toMatchObject({ width: 1200, height: 675, format: "webp" });
   });
 });

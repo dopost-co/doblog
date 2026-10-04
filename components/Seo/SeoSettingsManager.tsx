@@ -22,6 +22,7 @@ import { ImagePreviewDialog } from "@/components/Growth/ImagePreviewDialog";
 import { RefreshCoversDialog } from "@/components/Growth/RefreshCoversDialog";
 import { isLogoPosition, type LogoPosition } from "@/lib/autopilot/logo";
 import { SEARCH_MARKETS, defaultSearchMarket } from "@/lib/autopilot/search-markets";
+import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, imageSize, isImageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
@@ -30,6 +31,7 @@ type Settings = {
   thumbnailEnabled: boolean; inlineImagesEnabled: boolean;
   thumbnailFormat: string; thumbnailColors: string[]; thumbnailTypography: unknown;
   logoUrl: string | null; thumbnailLogoPosition: string; inlineLogoPosition: string;
+  thumbnailSize: string; inlineImageSize: string;
   thumbnailReferenceUrls: string[]; inlineImageReferenceUrls: string[];
   internalLinksEnabled: boolean; backlinksEnabled: boolean;
   thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
@@ -54,6 +56,29 @@ function Field({ label, name, hint, ...props }: { label: string; name: string; h
       <Label htmlFor={name}>{label}</Label>
       <Input id={name} name={name} {...props} />
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+/** Output size of AI images: a preset with its use, e.g. "Standard · 16:9 · 1200×675". */
+function ImageSizeSelect({ id, label, value, onChange, disabled }: {
+  id: string; label: string; value: ImageSizeId; onChange: (value: ImageSizeId) => void; disabled?: boolean;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Select value={value} onValueChange={(next) => isImageSize(next) && onChange(next)} disabled={disabled}>
+        <SelectTrigger id={id} className="w-full sm:max-w-80"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {IMAGE_SIZES.map((size) => (
+            <SelectItem key={size.id} value={size.id}>
+              <span className="font-medium">{size.tag}</span>
+              <span className="text-muted-foreground">{size.ratio} · {size.width}×{size.height}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">{imageSize(value).hint}</p>
     </div>
   );
 }
@@ -112,6 +137,8 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   }
   const [thumbnailLogoPosition, setThumbnailLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.thumbnailLogoPosition) ? settings.thumbnailLogoPosition : "none");
   const [inlineLogoPosition, setInlineLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.inlineLogoPosition) ? settings.inlineLogoPosition : "none");
+  const [thumbnailSize, setThumbnailSize] = useState<ImageSizeId>(isImageSize(settings?.thumbnailSize) ? settings.thumbnailSize : DEFAULT_IMAGE_SIZE);
+  const [inlineImageSize, setInlineImageSize] = useState<ImageSizeId>(isImageSize(settings?.inlineImageSize) ? settings.inlineImageSize : DEFAULT_IMAGE_SIZE);
   const formRef = useRef<HTMLFormElement>(null);
   /** Current text of a style field (they are uncontrolled), for previews. */
   const fieldValue = (name: string) => (formRef.current?.elements.namedItem(name) as HTMLTextAreaElement | null)?.value.trim() || null;
@@ -132,7 +159,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
     save: persist,
     value: {
       enabled, credentialId, thumbnailEnabled, thumbnailFormat, coverColors, typography, logoUrl, thumbnailLogoPosition, inlineLogoPosition,
-      inlineImagesEnabled, internalLinksEnabled, backlinksEnabled, thumbnailReferences, inlineReferences,
+      thumbnailSize, inlineImageSize, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled, thumbnailReferences, inlineReferences,
     },
   });
 
@@ -147,7 +174,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
       audience: nullable("audience"), brandVoice: nullable("brandVoice"), publishingMode: settings?.publishingMode ?? "draft",
       thumbnailEnabled, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled,
       thumbnailFormat, thumbnailColors: [...coverColors], thumbnailTypography: typography,
-      logoUrl, thumbnailLogoPosition, inlineLogoPosition,
+      logoUrl, thumbnailLogoPosition, inlineLogoPosition, thumbnailSize, inlineImageSize,
       thumbnailReferenceUrls: thumbnailReferences, inlineImageReferenceUrls: inlineReferences,
       thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
       articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
@@ -208,6 +235,9 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
         <Section title="Thumbnail">
           <SettingToggle id="thumbnail-enabled" label="Generate a thumbnail" checked={thumbnailEnabled} onChange={setThumbnailEnabled} disabled={pending} />
           {thumbnailEnabled && <ThumbnailFormatPicker value={thumbnailFormat} onChange={setThumbnailFormat} disabled={pending} />}
+          {thumbnailEnabled && (thumbnailFormat === "generated"
+            ? <ImageSizeSelect id="thumbnailSize" label="Size" value={thumbnailSize} onChange={setThumbnailSize} disabled={pending} />
+            : <p className="text-xs text-muted-foreground">Brand cards are always Standard · 16:9 · 1200×675.</p>)}
           {thumbnailEnabled && thumbnailFormat !== "generated" && (
             <BrandCardEditor
               format={thumbnailFormat} colors={coverColors} onChange={setCoverColors}
@@ -238,6 +268,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
                 settings={() => ({
                   format: thumbnailFormat, colors: [...coverColors], typography, style: fieldValue("thumbnailStyle"),
                   referenceUrls: thumbnailReferences, logoUrl, logoPosition: logoUrl ? thumbnailLogoPosition : "none",
+                  size: thumbnailSize,
                 })}
               />
               <RefreshCoversDialog blogId={blogId} usesAi={thumbnailFormat !== "template"} disabled={pending} />
@@ -249,6 +280,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
           <SettingToggle id="inline-images-enabled" label="Add images inside the article" checked={inlineImagesEnabled} onChange={setInlineImagesEnabled} disabled={pending} />
           <div className={inlineImagesEnabled ? "grid gap-4" : "hidden"}>
             <Area label="Style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
+            <ImageSizeSelect id="inlineImageSize" label="Size" value={inlineImageSize} onChange={setInlineImageSize} disabled={pending} />
             <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
           </div>
           {inlineImagesEnabled && <StyleReferencesPicker blogId={blogId} value={inlineReferences} onChange={setInlineReferences} disabled={pending} />}
@@ -270,6 +302,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
               settings={() => ({
                 style: fieldValue("inlineImageStyle"), referenceUrls: inlineReferences,
                 logoUrl, logoPosition: logoUrl ? inlineLogoPosition : "none",
+                size: inlineImageSize,
               })}
             />
           )}

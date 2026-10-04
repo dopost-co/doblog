@@ -113,7 +113,7 @@ describe("Autopilot spending stays with the owner", () => {
     competitorDomains: [], audience: "Founders", brandVoice: null, publishingMode: "review",
     thumbnailEnabled: true, inlineImagesEnabled: false, thumbnailFormat: "generated", thumbnailColors: [],
     thumbnailTypography: { font: "inter", size: "large", bold: true, align: "left" },
-    logoUrl: null, thumbnailLogoPosition: "none", inlineLogoPosition: "none", internalLinksEnabled: true, backlinksEnabled: false,
+    logoUrl: null, thumbnailLogoPosition: "none", inlineLogoPosition: "none", thumbnailSize: "standard", inlineImageSize: "standard", internalLinksEnabled: true, backlinksEnabled: false,
     thumbnailReferenceUrls: [], inlineImageReferenceUrls: [], thumbnailStyle: null, inlineImageStyle: null,
     articleUrlPrefix: "/blog", articlePaths: {}, maxInlineImages: 2, perRunBudgetUsd: 50, dailyBudgetUsd: 500, monthlyBudgetUsd: 5000,
   };

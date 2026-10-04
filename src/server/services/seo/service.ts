@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { IMAGE_SIZES, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isManagedPlan, resolveDataForSeoAccess } from "@/src/server/services/providers/credentials";
@@ -118,6 +119,8 @@ export async function getSeoSettingsSummary(blogId: string) {
     logoUrl: settings.logoUrl,
     thumbnailLogoPosition: settings.thumbnailLogoPosition,
     inlineLogoPosition: settings.inlineLogoPosition,
+    thumbnailSize: settings.thumbnailSize,
+    inlineImageSize: settings.inlineImageSize,
     thumbnailColors: settings.thumbnailColors,
     thumbnailTypography: coverTypography(settings.thumbnailTypography),
     thumbnailStyle: settings.thumbnailStyle,
@@ -151,6 +154,8 @@ export async function getSeoSettingsSummary(blogId: string) {
 
 export const thumbnailFormatSchema = z.enum(THUMBNAIL_FORMATS.map((format) => format.id) as [ThumbnailFormat, ...ThumbnailFormat[]]);
 export const logoPositionSchema = z.enum(["none", ...LOGO_POSITIONS]);
+/** Output size preset for AI images: standard (16:9), social (1.91:1), original (3:2), classic (4:3), square or portrait (2:3). */
+export const imageSizeSchema = z.enum(IMAGE_SIZES.map((size) => size.id) as [ImageSizeId, ...ImageSizeId[]]);
 /** Brand gradient for template thumbnails: two or three #rrggbb colors (empty uses the default). */
 /** Brand card text: font, largest size, weight and alignment. */
 export const thumbnailTypographySchema = z.object({
@@ -189,6 +194,8 @@ export const seoEditorialSettingsFields = {
   thumbnailFormat: thumbnailFormatSchema.optional(),
   thumbnailLogoPosition: logoPositionSchema.optional(),
   inlineLogoPosition: logoPositionSchema.optional(),
+  thumbnailSize: imageSizeSchema.optional(),
+  inlineImageSize: imageSizeSchema.optional(),
   /** URLs from upload_image_file with purpose "logo" / "style_reference"; null or [] clears them. */
   logoUrl: z.string().max(2048).nullable().optional(),
   thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2).optional(),

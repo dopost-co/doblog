@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
+import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, imageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 import { THUMBNAIL_FORMATS, coverTypography, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { blogOpenAI } from "@/src/server/services/usage/openai";
 import { LOGO_MISSING, loadLogo, loadStyleReferences, normalizeLogoUrl, normalizeStyleReferences } from "./image-references";
@@ -19,6 +20,7 @@ export const imagePreviewSchema = z.object({
   referenceUrls: z.array(z.string().max(2048)).max(2).default([]),
   logoUrl: z.string().max(2048).nullable().default(null),
   logoPosition: z.enum(["none", ...LOGO_POSITIONS]).default("none"),
+  size: z.enum(IMAGE_SIZES.map((size) => size.id) as [ImageSizeId, ...ImageSizeId[]]).default(DEFAULT_IMAGE_SIZE),
 }).strict();
 
 /**
@@ -46,6 +48,7 @@ export async function previewImage(blogId: string, raw: unknown) {
   const request = {
     prompt: imageSubject(input.kind, post), style: input.style, references, runId: "preview",
     logo: logo ? { bytes: logo, position: input.logoPosition } : null,
+    size: imageSize(input.size),
   };
   /**
    * The preview stores nothing, so an article with no headline gets one written

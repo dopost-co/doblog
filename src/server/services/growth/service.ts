@@ -21,6 +21,7 @@ import {
 } from "./content";
 import { schedulePendingDrafts } from "./planning";
 import { LOGO_MISSING, loadLogo, loadStyleReferences } from "./image-references";
+import { imageSize } from "@/lib/autopilot/image-sizes";
 import { makeCover, makeInlineImage, type MadeImage } from "./images";
 import { isLogoPosition } from "@/lib/autopilot/logo";
 import { coverTypography, isThumbnailFormat, thumbnailColors } from "@/lib/autopilot/thumbnail-templates";
@@ -413,6 +414,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
             colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),
             title: storedCoverTitle(article.coverTitle) ?? article.title, warnings,
             logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
+            size: imageSize(settings?.thumbnailSize),
           });
           coverImage = await saveImage({ blogId, postId, runId: claimed.run.id, alt: article.coverImage.alt, kind: "cover" }, cover);
         } catch (error) {
@@ -424,6 +426,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
           const made = await makeInlineImage(openai, {
             prompt: image.prompt, style: settings?.inlineImageStyle, references: inlineReferences, runId: claimed.run.id,
             logo: logo && isLogoPosition(settings?.inlineLogoPosition) ? { bytes: logo, position: settings.inlineLogoPosition } : null,
+            size: imageSize(settings?.inlineImageSize),
           });
           const url = await saveImage({ blogId, postId, runId: claimed.run.id, alt: image.alt, caption: image.caption, kind: "inline" }, made);
           inlineImages.push({ afterHeading: image.afterHeading, url, alt: image.alt, caption: image.caption });

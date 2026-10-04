@@ -10,6 +10,7 @@ import { uploadBlogImage } from "@/src/server/services/media/upload";
 import { resolveCoverTitle } from "./cover-title";
 import { LOGO_MISSING, loadLogo, loadStyleReferences } from "./image-references";
 import { imageSubject } from "./image-subject";
+import { imageSize } from "@/lib/autopilot/image-sizes";
 import { makeCover } from "./images";
 
 /** Deliveries after the first one; QStash backs off between them. */
@@ -125,6 +126,7 @@ export async function refreshPostCover(blogId: string, postId: string) {
     format, colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),
     title: cover.title, warnings,
     logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
+    size: imageSize(settings?.thumbnailSize),
   });
 
   const uploaded = await uploadBlogImage(blogId, image.bytes, image.mimeType);

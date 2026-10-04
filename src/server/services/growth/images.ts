@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { ApiError } from "@/lib/integrations/errors";
 import { LOGO_MARGIN, LOGO_MAX_HEIGHT, LOGO_MAX_WIDTH, type LogoPosition } from "@/lib/autopilot/logo";
 import type { CoverTypography, ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
+import { compositionFor, modelSizeFor, type ImageSize, type ModelImageSize } from "@/lib/autopilot/image-sizes";
 import { renderCoverPng } from "./cover-render";
 
 /**
@@ -45,6 +46,8 @@ type ImageRequest = {
   references: Uploadable[];
   runId: string;
   logo?: Logo;
+  /** Final size of the image; drawn at the nearest model size, then cropped to it. */
+  size: ImageSize;
 };
 
 /**
@@ -55,7 +58,7 @@ type ImageRequest = {
  */
 export async function requestImage(
   openai: Pick<OpenAI, "images">, prompt: string, references: Uploadable[], runId: string,
-  { format = "webp", size = "1536x1024", transparent = false }: { format?: ImageFormat; size?: "1536x1024" | "1024x1024"; transparent?: boolean } = {},
+  { format = "webp", size = "1536x1024", transparent = false }: { format?: ImageFormat; size?: ModelImageSize; transparent?: boolean } = {},
 ) {
   const options = {
     model: IMAGE_MODEL, prompt, size, quality: "medium", n: 1,
@@ -73,7 +76,7 @@ export async function requestImage(
 }
 
 /** Asks the image model for one illustration and returns its bytes. */
-async function illustrate(openai: OpenAI, request: ImageRequest, output: { format: ImageFormat; size: "1536x1024" | "1024x1024"; shape: string }) {
+async function illustrate(openai: OpenAI, request: Omit<ImageRequest, "size">, output: { format: ImageFormat; size: ModelImageSize; shape: string }) {
   const transparent = wantsTransparentBackground(request.style) && supportsTransparency(IMAGE_MODEL);
   const prompt = [
     request.prompt,
@@ -87,6 +90,15 @@ async function illustrate(openai: OpenAI, request: ImageRequest, output: { forma
   const encoded = result.data?.[0]?.b64_json;
   if (!encoded) throw new ApiError(502, "The image provider returned no image");
   return { bytes: Buffer.from(encoded, "base64"), mimeType: `image/${format}` as const, prompt, revisedPrompt: result.data?.[0]?.revised_prompt || null };
+}
+
+/** An AI image at the request's exact size: drawn at the nearest model size, then cropped from the centre. */
+async function illustrateAt(openai: OpenAI, request: ImageRequest) {
+  const image = await illustrate(openai, request, { format: "webp", size: modelSizeFor(request.size), shape: compositionFor(request.size) });
+  const { width, height } = request.size;
+  if (modelSizeFor(request.size) === `${width}x${height}`) return image;
+  const format = image.mimeType === "image/png" ? "png" : "webp";
+  return { ...image, bytes: await sharp(image.bytes).resize(width, height, { fit: "cover" }).toFormat(format).toBuffer() };
 }
 
 /**
@@ -112,7 +124,8 @@ export async function withLogo(image: MadeImage, logo: Logo): Promise<MadeImage>
 
 /**
  * The article's thumbnail in the blog's format: an AI image, a brand card with
- * the title, or a brand card with an AI illustration. If the illustration
+ * the title, or a brand card with an AI illustration. Only the AI image takes
+ * the chosen size; brand cards are always COVER_SIZE (16:9). If the illustration
  * fails, the brand card is still made with the title alone.
  */
 export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
@@ -120,7 +133,7 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
 }): Promise<MadeImage> {
   if (request.format === "generated") {
     if (!openai) throw new ApiError(412, "Add an OpenAI API key in Settings → Providers to use AI features");
-    const image = await illustrate(openai, request, { format: "webp", size: "1536x1024", shape: "Landscape composition for a blog article." });
+    const image = await illustrateAt(openai, request);
     return withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
   }
   let illustration: Awaited<ReturnType<typeof illustrate>> | null = null;
@@ -143,6 +156,6 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
 
 /** An image inside the article: always an AI illustration. */
 export async function makeInlineImage(openai: OpenAI, request: ImageRequest): Promise<MadeImage> {
-  const image = await illustrate(openai, request, { format: "webp", size: "1536x1024", shape: "Landscape composition for a blog article." });
+  const image = await illustrateAt(openai, request);
   return withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
 }

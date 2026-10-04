@@ -34,8 +34,8 @@ describe("logo on post images", () => {
     expect(result.warnings).toEqual([]);
     const [r, g, b] = await pixel(result.image, 80, 80);
     expect(Math.abs(r - red.r) + Math.abs(g - red.g) + Math.abs(b - red.b)).toBeLessThan(15);
-    // The opposite corner stays untouched.
-    expect(await pixel(result.image, 1450, 950)).toEqual([255, 255, 255]);
+    // The opposite corner stays untouched, at the Standard 1200×675 size.
+    expect(await pixel(result.image, 1150, 640)).toEqual([255, 255, 255]);
   });
 
   it("says so when the logo file can't be read instead of leaving it out silently", async () => {

@@ -18,6 +18,7 @@ export type PreviewSettings = {
   referenceUrls: string[];
   logoUrl: string | null;
   logoPosition: string;
+  size?: string;
 };
 
 /**

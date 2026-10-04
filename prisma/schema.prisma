@@ -123,6 +123,9 @@ model BlogSeoSettings {
   thumbnailLogoPosition  String   @default("top-left")
   /// Images inside the article carry no logo unless one is placed by hand.
   inlineLogoPosition     String   @default("none")
+  /// Output size preset for AI images (see lib/autopilot/image-sizes.ts); brand cards stay 16:9.
+  thumbnailSize          String   @default("standard")
+  inlineImageSize        String   @default("standard")
   thumbnailStyle         String?
   // Up to two uploaded images whose style generated images follow.
   thumbnailReferenceUrls String[] @default([])
