@@ -24,7 +24,7 @@ import { isLogoPosition, type LogoPosition } from "@/lib/autopilot/logo";
 import { SEARCH_MARKETS, defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { MAX_COMPETITORS } from "@/lib/autopilot/competitors";
 import { KEYWORD_IDEAS_ESTIMATE_USD } from "@/lib/autopilot/seo-costs";
-import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, imageSize, isImageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
+import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, MAX_INLINE_IMAGES, imageSize, isImageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
@@ -189,7 +189,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
       thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
       articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
       articlePaths: Object.fromEntries(languages.map((code) => [code, String(form.get(`articlePath:${code}`) || "")])),
-      maxInlineImages: Number(form.get("maxInlineImages") ?? settings?.maxInlineImages ?? 3),
+      maxInlineImages: Number(form.get("maxInlineImages") ?? Math.min(settings?.maxInlineImages ?? 2, MAX_INLINE_IMAGES)),
       perRunBudgetUsd: Number(form.get("perRunBudgetUsd")), dailyBudgetUsd: Number(form.get("dailyBudgetUsd")), monthlyBudgetUsd: Number(form.get("monthlyBudgetUsd")),
     });
     if (result.error) { toast.error(result.error); return false; }
@@ -291,7 +291,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
           <div className={inlineImagesEnabled ? "grid gap-4" : "hidden"}>
             <Area label="Style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
             <ImageSizeSelect id="inlineImageSize" label="Size" value={inlineImageSize} onChange={setInlineImageSize} disabled={pending} />
-            <Field label="Images per article" name="maxInlineImages" type="number" min="0" max="8" className="sm:max-w-32" defaultValue={String(settings?.maxInlineImages ?? 3)} />
+            <Field label="Images per article" name="maxInlineImages" type="number" min="0" max={MAX_INLINE_IMAGES} className="sm:max-w-32" defaultValue={String(Math.min(settings?.maxInlineImages ?? 2, MAX_INLINE_IMAGES))} hint={`Each article gets this many, up to ${MAX_INLINE_IMAGES}, in different sections. The thumbnail is not counted.`} />
           </div>
           {inlineImagesEnabled && <StyleReferencesPicker blogId={blogId} value={inlineReferences} onChange={setInlineReferences} disabled={pending} />}
           {inlineImagesEnabled && logoUrl && (

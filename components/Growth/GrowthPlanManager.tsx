@@ -23,7 +23,11 @@ type PlanItem = {
   intent: string | null;
   source: string;
   rationale: string | null;
-  opportunitySnapshot: { priority?: string; metrics?: { searchVolume?: number; difficulty?: number } | null } | null;
+  secondaryKeywords: string[];
+  opportunitySnapshot: {
+    priority?: string;
+    metrics?: { searchVolume?: number | null; difficulty?: number | null; source?: string; competitorUrl?: string } | null;
+  } | null;
   status: string;
   scheduledFor: string | null;
   lastError: string | null;
@@ -33,6 +37,39 @@ type PlanItem = {
   translations: Array<{ id: string; language: string; status: string }>;
   runs: Array<{ id: string; status: string; stage: string; error: string | null; createdAt: string; completedAt: string | null }>;
 };
+
+const PRIORITY_LABEL: Record<string, string> = { high: "High priority", medium: "Medium priority", low: "Low priority" };
+
+function hostOf(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
+/** The search research behind an idea: what it targets and why the numbers say it's worth it. */
+function IdeaResearch({ item }: { item: PlanItem }) {
+  const metrics = item.opportunitySnapshot?.metrics;
+  const priority = item.opportunitySnapshot?.priority;
+  const competitor = metrics?.source === "competitor_gap" && metrics.competitorUrl ? hostOf(metrics.competitorUrl) : null;
+  const facts = [
+    priority && PRIORITY_LABEL[priority],
+    typeof metrics?.searchVolume === "number" && `${metrics.searchVolume.toLocaleString()} searches/month`,
+    typeof metrics?.difficulty === "number" && `Difficulty ${metrics.difficulty}/100`,
+  ].filter(Boolean);
+  return (
+    <div className="space-y-1 text-xs text-muted-foreground">
+      <p>
+        <span className="font-medium text-foreground">Keyword:</span> {item.primaryKeyword}
+        {item.secondaryKeywords.length > 0 && <> · also covers {item.secondaryKeywords.join(", ")}</>}
+      </p>
+      {(facts.length > 0 || competitor || !metrics) && (
+        <p>
+          {facts.join(" · ")}
+          {competitor && <>{facts.length > 0 && " · "}Won by <a href={metrics!.competitorUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">{competitor}</a></>}
+          {!metrics && item.source === "discovery" && <>{facts.length > 0 && " · "}No search data</>}
+        </p>
+      )}
+    </div>
+  );
+}
 
 const STATUS_STYLE = {
   planned: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
@@ -233,15 +270,8 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                       {item.intent && <span className="text-xs capitalize text-muted-foreground">{item.intent}</span>}
                     </div>
                     <h3 className="font-medium">{item.post?.title || item.title || item.primaryKeyword}</h3>
-                    {item.post?.title && <p className="text-sm text-muted-foreground">Target: {item.primaryKeyword}</p>}
                     {item.rationale && <p className="max-w-2xl text-sm text-muted-foreground">{item.rationale}</p>}
-                    {item.opportunitySnapshot?.metrics && (
-                      <p className="text-xs text-muted-foreground">
-                        {typeof item.opportunitySnapshot.metrics.searchVolume === "number" && <>Monthly searches: {item.opportunitySnapshot.metrics.searchVolume.toLocaleString()}</>}
-                        {typeof item.opportunitySnapshot.metrics.searchVolume === "number" && typeof item.opportunitySnapshot.metrics.difficulty === "number" && " · "}
-                        {typeof item.opportunitySnapshot.metrics.difficulty === "number" && <>Difficulty: {item.opportunitySnapshot.metrics.difficulty}</>}
-                      </p>
-                    )}
+                    <IdeaResearch item={item} />
                     <p className="text-xs text-muted-foreground">Writing: {generationText} · Publishing: {publicationText}</p>
                     {(item.lastError || item.runs[0]?.error) && <p className="max-w-2xl text-sm text-destructive">{item.lastError || item.runs[0]?.error}</p>}
                   </div>

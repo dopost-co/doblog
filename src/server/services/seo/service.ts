@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { IMAGE_SIZES, type ImageSizeId } from "@/lib/autopilot/image-sizes";
+import { IMAGE_SIZES, MAX_INLINE_IMAGES, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isManagedPlan, resolveDataForSeoAccess } from "@/src/server/services/providers/credentials";
@@ -147,7 +147,7 @@ export async function getSeoSettingsSummary(blogId: string) {
     imagePolicy: [
       settings.thumbnailEnabled ? "Create one distinct thumbnail when authoring a complete article." : "Do not create a thumbnail.",
       settings.inlineImagesEnabled
-        ? "Add zero to maxInlineImages images inside the content only when each one explains something useful; the thumbnail does not count toward this maximum and must not be reused as an inline image."
+        ? "Add maxInlineImages images inside the content, each explaining a different section; the thumbnail does not count toward this number and must not be reused as an inline image."
         : "Do not add images inside the content.",
     ].join(" "),
     budgetsUsd: { perRun: microsToUsd(settings.perRunBudgetUsdMicros), daily: microsToUsd(settings.dailyBudgetUsdMicros), monthly: microsToUsd(settings.monthlyBudgetUsdMicros) },
@@ -210,7 +210,7 @@ export const seoEditorialSettingsFields = {
   thumbnailStyle: z.string().trim().max(1000).nullable().optional(),
   inlineImagesEnabled: z.boolean().optional(),
   inlineImageStyle: z.string().trim().max(1000).nullable().optional(),
-  maxInlineImages: z.number().int().min(0).max(8).optional(),
+  maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES).optional(),
   articleUrlPrefix: z.string().trim().startsWith("/").max(200).optional(),
   articlePaths: articlePathsSchema.optional(),
   /** Autopilot articles link to related published articles. */

@@ -38,3 +38,6 @@ export function compositionFor(size: ImageSize) {
   const cropped = modelSizeFor(size).split("x").map(Number).reduce((w, h) => w / h) !== size.width / size.height;
   return `${size.ratio} ${shape} composition.${cropped ? " Keep the subject centred with some space around it, as the edges are trimmed to fit." : ""}`;
 }
+
+/** Most images Autopilot draws inside one article (each takes a while and costs AI credits). */
+export const MAX_INLINE_IMAGES = 4;

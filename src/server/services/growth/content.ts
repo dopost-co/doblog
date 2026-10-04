@@ -1,3 +1,4 @@
+import { MAX_INLINE_IMAGES } from "@/lib/autopilot/image-sizes";
 import sanitizeHtml from "sanitize-html";
 import { z } from "zod";
 
@@ -35,7 +36,7 @@ export const articleDraftSchema = z.object({
     prompt: z.string().min(20).max(1800),
     alt: z.string().min(3).max(240),
     caption: z.string().max(300),
-  }).strict()).max(2),
+  }).strict()).max(MAX_INLINE_IMAGES),
 }).strict();
 
 export type ArticleDraft = z.infer<typeof articleDraftSchema>;
@@ -80,17 +81,45 @@ function safeInlineHtml(value: string) {
 
 export type GeneratedInlineImage = { afterHeading: string; url: string; alt: string; caption: string };
 
+/**
+ * Which section each image goes after: the one it names, otherwise a free
+ * section spread through the article, so a heading the model reworded never
+ * leaves an image out.
+ */
+export function placeInlineImages<T extends { afterHeading: string }>(headings: string[], images: T[]) {
+  const placed = new Map<number, T[]>();
+  if (!headings.length) return placed;
+  const used = new Set<number>();
+  const unmatched: T[] = [];
+  for (const image of images) {
+    const index = headings.findIndex((heading, i) => !used.has(i) && normalizeKeyword(heading) === normalizeKeyword(image.afterHeading));
+    if (index === -1) { unmatched.push(image); continue; }
+    used.add(index);
+    placed.set(index, [...placed.get(index) ?? [], image]);
+  }
+  unmatched.forEach((image, order) => {
+    const free = headings.map((_, i) => i).filter(i => !used.has(i));
+    const pool = free.length ? free : headings.map((_, i) => i);
+    // Evenly spaced through the remaining sections.
+    const index = pool[Math.min(pool.length - 1, Math.floor(((order + 1) * pool.length) / (unmatched.length + 1)))];
+    used.add(index);
+    placed.set(index, [...placed.get(index) ?? [], image]);
+  });
+  return placed;
+}
+
 export function buildEditorContent(article: ArticleDraft, images: GeneratedInlineImage[] = []) {
+  const placed = placeInlineImages(article.sections.map(section => section.heading), images);
   const blocks: Array<{ type: string; data: Record<string, unknown> }> = [];
   for (const paragraph of article.introduction) blocks.push({ type: "paragraph", data: { text: safeInlineHtml(paragraph) } });
-  for (const section of article.sections) {
+  for (const [index, section] of article.sections.entries()) {
     blocks.push({ type: "header", data: { text: safeInlineHtml(section.heading), level: section.level } });
     for (const paragraph of section.paragraphs) blocks.push({ type: "paragraph", data: { text: safeInlineHtml(paragraph) } });
     if (section.bullets.length) blocks.push({
       type: "list",
       data: { style: "unordered", meta: {}, items: section.bullets.map(content => ({ content: safeInlineHtml(content), meta: {}, items: [] })) },
     });
-    for (const image of images.filter(item => normalizeKeyword(item.afterHeading) === normalizeKeyword(section.heading))) {
+    for (const image of placed.get(index) ?? []) {
       blocks.push({ type: "image", data: {
         file: { url: image.url }, caption: safeInlineHtml(image.caption || image.alt), alt: image.alt,
         withBorder: false, withBackground: false, stretched: false,

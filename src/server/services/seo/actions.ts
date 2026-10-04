@@ -8,6 +8,7 @@ import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
+import { MAX_INLINE_IMAGES } from "@/lib/autopilot/image-sizes";
 import { schedulePendingDrafts } from "@/src/server/services/growth/planning";
 import { articlePathsSchema, imageSizeSchema, logoPositionSchema, thumbnailColorsSchema, thumbnailFormatSchema, thumbnailTypographySchema } from "./service";
 
@@ -27,7 +28,7 @@ const settingsSchema = z.object({
   thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
   articleUrlPrefix: z.string().trim().startsWith("/", "Start the article path with /").max(200),
   articlePaths: articlePathsSchema,
-  maxInlineImages: z.number().int().min(0).max(8), perRunBudgetUsd: z.number().min(0.001).max(100),
+  maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES, `Up to ${MAX_INLINE_IMAGES} images per article`), perRunBudgetUsd: z.number().min(0.001).max(100),
   dailyBudgetUsd: z.number().min(0.001).max(1000), monthlyBudgetUsd: z.number().min(0.001).max(10000),
 }).strict().superRefine((value, ctx) => {
   if (value.enabled && !value.targetDomain) ctx.addIssue({ code: "custom", message: "Add your domain before enabling SEO research" });
