@@ -29,7 +29,7 @@ describe("Blog languages", () => {
 
 describe("Translatable text changes", () => {
   const post = {
-    title: "Hello", excerpt: null, metaTitle: null, metaDescription: null, ogTitle: null, ogDescription: null, keywords: null,
+    title: "Hello", coverTitle: null, excerpt: null, metaTitle: null, metaDescription: null, ogTitle: null, ogDescription: null, keywords: null,
     content: { time: 1, blocks: [{ type: "paragraph", data: { text: "Hi" } }] },
   };
 

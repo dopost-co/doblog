@@ -8,6 +8,8 @@ export const maxDuration = 300;
 const payloadSchema = z.object({
   blogId: z.string().min(1).max(128),
   postId: z.string().min(1).max(128),
+  /** Also replace translations whose cover was set by hand. */
+  includeManual: z.boolean().optional(),
 });
 
 /**
@@ -25,10 +27,10 @@ export async function POST(request: Request) {
   const parsed = payloadSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
-  const { blogId, postId } = parsed.data;
+  const { blogId, postId, includeManual } = parsed.data;
   const retried = Number(request.headers.get("upstash-retried") ?? 0);
   try {
-    const result = await refreshPostCover(blogId, postId);
+    const result = await refreshPostCover(blogId, postId, { includeManual });
     return NextResponse.json({ handled: true, url: result.url });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

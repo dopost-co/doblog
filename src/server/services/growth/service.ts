@@ -20,7 +20,7 @@ import {
   type GeneratedInlineImage,
 } from "./content";
 import { schedulePendingDrafts } from "./planning";
-import { LOGO_MISSING, loadLogo, loadStyleReferences } from "./image-references";
+import { LOGO_MISSING, loadLogo, loadStyleReferences, uploadCoverIllustration } from "./image-references";
 import { imageSize } from "@/lib/autopilot/image-sizes";
 import { makeCover, makeInlineImage, type MadeImage } from "./images";
 import { isLogoPosition } from "@/lib/autopilot/logo";
@@ -226,7 +226,7 @@ coverTitle is drawn on the thumbnail, not read in a list: ${COVER_TITLE_MIN_WORD
   return { article: response.output_parsed, usage: response.usage };
 }
 
-type SaveArgs = { blogId: string; postId: string; runId: string; alt: string; caption?: string; kind: "cover" | "inline" };
+type SaveArgs = { blogId: string; postId: string; runId: string; alt: string; caption?: string; kind: "cover" | "inline"; illustrationUrl?: string | null };
 
 /** Stores a made image and records it as a media asset of the post. */
 async function saveImage(args: SaveArgs, image: MadeImage) {
@@ -237,7 +237,7 @@ async function saveImage(args: SaveArgs, image: MadeImage) {
     revisedPrompt: image.revisedPrompt ?? null,
     altText: args.alt, caption: args.caption || null, mimeType: uploaded.mimeType,
     byteSize: uploaded.size, sha256: createHash("sha256").update(image.bytes).digest("hex"),
-    provider: image.model ? "openai" : "zenex", model: image.model,
+    provider: image.model ? "openai" : "zenex", model: image.model, illustrationUrl: args.illustrationUrl ?? null,
   } });
   return uploaded.url;
 }
@@ -416,7 +416,11 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
             logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
             size: imageSize(settings?.thumbnailSize),
           });
-          coverImage = await saveImage({ blogId, postId, runId: claimed.run.id, alt: article.coverImage.alt, kind: "cover" }, cover);
+          // Kept so translations get the same card art with their own headline (localizeGroupCovers).
+          const illustrationUrl = cover.illustration
+            ? await uploadCoverIllustration(blogId, cover.illustration.bytes, cover.illustration.mimeType).catch(() => null)
+            : null;
+          coverImage = await saveImage({ blogId, postId, runId: claimed.run.id, alt: article.coverImage.alt, kind: "cover", illustrationUrl }, cover);
         } catch (error) {
           warnings.push(`The cover image could not be generated: ${error instanceof Error ? error.message : "unknown error"}`);
         }

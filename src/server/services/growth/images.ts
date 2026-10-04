@@ -24,6 +24,8 @@ export type MadeImage = {
 };
 
 type Logo = { bytes: Buffer; position: LogoPosition } | null;
+/** The AI art drawn inside a brand card, kept so every language's card shares it. */
+export type CoverIllustration = { bytes: Buffer; mimeType: string; prompt: string | null; revisedPrompt?: string | null };
 type ImageFormat = "webp" | "png" | "jpeg";
 
 const TRANSPARENT = /transpar(?:en|ê)|trasparen|sin fondo|sem fundo|no background|without (?:a )?background|cut-?out/i;
@@ -133,17 +135,23 @@ export async function withLogo(image: MadeImage, logo: Logo): Promise<MadeImage>
  * the title, or a brand card with an AI illustration. Only the AI image takes
  * the chosen size; brand cards are always COVER_SIZE (16:9). If the illustration
  * fails, the brand card is still made with the title alone.
+ *
+ * A brand card's illustration can be passed in (`illustration`) to draw the
+ * same card in another language without a new AI image; the one used is
+ * returned so callers can reuse it.
  */
 export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
   format: ThumbnailFormat; colors: string[]; typography: CoverTypography; title: string; warnings: string[];
-}): Promise<MadeImage> {
+  illustration?: CoverIllustration | null;
+}): Promise<MadeImage & { illustration: CoverIllustration | null }> {
   if (request.format === "generated") {
     if (!openai) throw new ApiError(412, "Add an OpenAI API key in Settings → Providers to use AI features");
     const image = await illustrateAt(openai, request);
-    return withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
+    return { ...await withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null), illustration: null };
   }
-  let illustration: Awaited<ReturnType<typeof illustrate>> | null = null;
-  if (request.format === "template_illustration" && openai) {
+  let illustration: CoverIllustration | null = request.format === "template_illustration" ? request.illustration ?? null : null;
+  const reused = Boolean(illustration);
+  if (request.format === "template_illustration" && !illustration && openai) {
     try {
       illustration = await illustrate(openai, request, { format: "jpeg", size: "1024x1024", shape: "Square composition with one clear subject." });
     } catch (error) {
@@ -154,10 +162,11 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
     title: request.title, colors: request.colors, typography: request.typography,
     illustration: illustration ? `data:${illustration.mimeType};base64,${illustration.bytes.toString("base64")}` : null,
   });
-  return withLogo({
+  const card = await withLogo({
     bytes: png, mimeType: "image/png", origin: "template",
-    prompt: illustration?.prompt ?? null, revisedPrompt: illustration?.revisedPrompt, model: illustration ? IMAGE_MODEL : null,
+    prompt: illustration?.prompt ?? null, revisedPrompt: illustration?.revisedPrompt, model: illustration && !reused ? IMAGE_MODEL : null,
   }, request.logo ?? null);
+  return { ...card, illustration };
 }
 
 /** An image inside the article: always an AI illustration. */

@@ -406,6 +406,8 @@ model MediaAsset {
   sha256         String
   provider       String?
   model          String?
+  /// For a brand-card cover: the stored AI illustration on it, so the card is redrawn per language with the same art.
+  illustrationUrl String?
   createdAt      DateTime @default(now())
 
   blog          Blog           @relation(fields: [blogId], references: [id], onDelete: Cascade)

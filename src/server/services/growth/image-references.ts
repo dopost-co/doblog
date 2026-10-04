@@ -11,7 +11,8 @@ import { imageExtension } from "@/src/server/services/media/upload";
  * brand logo. Each kind lives in its own folder of the blog's media storage
  * and is read back straight from storage, never fetched by URL.
  */
-export type BrandAssetKind = "references" | "brand";
+/** "illustrations" holds the AI art of brand cards, reused for each language's card. */
+export type BrandAssetKind = "references" | "brand" | "illustrations";
 
 /** Style references per image kind (thumbnail, in-article). */
 export const MAX_STYLE_REFERENCES = 2;
@@ -115,4 +116,15 @@ export const LOGO_MISSING = "The logo could not be loaded, so this image has no 
 export async function loadLogo(blogId: string, url: string | null | undefined) {
   if (!url) return null;
   return (await readAsset(blogId, "brand", url))?.bytes ?? null;
+}
+
+export async function uploadCoverIllustration(blogId: string, bytes: Buffer, mimeType: string) {
+  return uploadBrandAsset(blogId, "illustrations", bytes, mimeType);
+}
+
+/** A brand card's stored illustration; null when it is missing or not this blog's. */
+export async function loadCoverIllustration(blogId: string, url: string | null | undefined) {
+  if (!url) return null;
+  const asset = await readAsset(blogId, "illustrations", url);
+  return asset ? { bytes: asset.bytes, mimeType: asset.type } : null;
 }

@@ -9,6 +9,17 @@ import { resolveBlogOpenAiAccess } from "@/src/server/services/providers/credent
 import { TranslationService } from "./TranslationService";
 import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
 import { localizeArticleLinks } from "./translated-links";
+import { localizeGroupCovers } from "@/src/server/services/growth/cover-refresh";
+import { storedCoverTitle } from "@/lib/autopilot/cover-title";
+
+/** Brand-card covers in each translation's language; a failure never fails the translation. */
+async function localizeCovers(blogId: string, translationGroupId: string) {
+  try {
+    await localizeGroupCovers(blogId, translationGroupId);
+  } catch (error) {
+    console.error("[Translations] cover-localize-failed", { translationGroupId, error: error instanceof Error ? error.message : String(error) });
+  }
+}
 
 const include = {
   categories: { include: { category: true } },
@@ -43,24 +54,26 @@ export function rewriteLinks<T>(value: T, rewrites: Record<string, string> | und
 }
 
 /** The language-specific text of a post; everything else is shared by its translations. */
-type PostText = Pick<Post, "title" | "content" | "excerpt" | "metaTitle" | "metaDescription" | "ogTitle" | "ogDescription" | "keywords" | "language">;
+type PostText = Pick<Post, "title" | "coverTitle" | "content" | "excerpt" | "metaTitle" | "metaDescription" | "ogTitle" | "ogDescription" | "keywords" | "language">;
 
 /** Translates the language-specific text of a post. */
 export async function translatePostText(translator: TranslationService, source: PostText, targetLanguage: string) {
   const from = source.language;
   const text = (value: string | null) => (value ? translator.translateText(value, targetLanguage, from) : Promise.resolve(null));
-  const [content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords] = await Promise.all([
+  const [content, title, coverTitle, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords] = await Promise.all([
     translator.translatePostContent(source.content as unknown as OutputData, targetLanguage, from),
     translator.translateText(source.title, targetLanguage, from),
+    // The thumbnail headline, so a brand card is drawn in this language (see localizeGroupCovers).
+    text(source.coverTitle),
     text(source.excerpt), text(source.metaTitle), text(source.metaDescription),
     text(source.ogTitle), text(source.ogDescription), text(source.keywords),
   ]);
-  return { content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords };
+  return { content, title, coverTitle: storedCoverTitle(coverTitle), excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords };
 }
 
 /** Whether a write changed text that translations are made from (Editor.js timestamps are ignored). */
 export function translatableTextChanged(before: Omit<PostText, "language">, after: Omit<PostText, "language">) {
-  const fields = ["title", "excerpt", "metaTitle", "metaDescription", "ogTitle", "ogDescription", "keywords"] as const;
+  const fields = ["title", "coverTitle", "excerpt", "metaTitle", "metaDescription", "ogTitle", "ogDescription", "keywords"] as const;
   if (fields.some((field) => (before[field] ?? null) !== (after[field] ?? null))) return true;
   const blocks = (content: Prisma.JsonValue) => JSON.stringify((content as { blocks?: unknown } | null)?.blocks ?? null);
   return blocks(before.content) !== blocks(after.content);
@@ -81,7 +94,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
 
   // Billed to the blog owner's own key on lifetime plans, to the platform on subscriptions.
   const translator = new TranslationService(await resolveBlogOpenAiAccess(blogId), blogId);
-  const { content, title, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords } = await translatePostText(translator, source, targetLanguage);
+  const { content, title, coverTitle, excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords } = await translatePostText(translator, source, targetLanguage);
 
   // Callers that map paths themselves (MCP `paths`) keep that; otherwise links follow translated articles.
   const linkedContent = linkRewrites
@@ -98,6 +111,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
         language: targetLanguage,
         slug: source.slug,
         title,
+        coverTitle,
         content: linkedContent as unknown as Prisma.InputJsonValue,
         excerpt,
         metaTitle,
@@ -120,6 +134,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
   });
   // A translation that goes live straight away gets links from related articles too.
   if (created.status === "published") queueRelatedArticleLinks(created.id);
+  await localizeCovers(blogId, translationGroupId);
   return created;
 }
 
@@ -177,7 +192,7 @@ export async function syncTranslationGroup(postId: string, version?: string) {
 
   const translations = await prisma.post.findMany({
     where: { blogId: source.blogId, translationGroupId: source.translationGroupId, id: { not: source.id } },
-    select: { id: true, language: true, status: true },
+    select: { id: true, language: true, status: true, coverImage: true },
   });
   const retranslate = source.translationSyncPending;
   let translator: TranslationService | null = null;
@@ -192,6 +207,14 @@ export async function syncTranslationGroup(postId: string, version?: string) {
     publishedAt: source.publishedAt,
     authorId: source.authorId,
   };
+  // A brand card has text, so each translation has its own drawn from the same
+  // art: it is kept unless the text changed, then redrawn by localizeCovers.
+  const cards = new Set((await prisma.mediaAsset.findMany({
+    where: { blogId: source.blogId, kind: "cover", origin: "template", url: { in: [source.coverImage, ...translations.map((translation) => translation.coverImage)].filter((url): url is string => Boolean(url)) } },
+    select: { url: true },
+  })).map((card) => card.url));
+  const keepsOwnCard = (coverImage: string | null) =>
+    !retranslate && Boolean(source.coverImage && cards.has(source.coverImage) && coverImage && cards.has(coverImage));
   const updated: string[] = [];
   const failed: { language: string; error: string }[] = [];
   for (const translation of translations) {
@@ -202,6 +225,7 @@ export async function syncTranslationGroup(postId: string, version?: string) {
         where: { id: translation.id },
         data: {
           ...shared,
+          ...(keepsOwnCard(translation.coverImage) ? { coverImage: translation.coverImage } : {}),
           ...(text ? { ...text, content: text.content as unknown as Prisma.InputJsonValue } : {}),
           translationSyncPending: false,
           categories: { deleteMany: {}, create: source.categories.map(({ categoryId }) => ({ categoryId })) },
@@ -233,5 +257,6 @@ export async function syncTranslationGroup(postId: string, version?: string) {
     await prisma.post.updateMany({ where: { id: source.id, updatedAt: source.updatedAt }, data: { translationSyncPending: false } });
   }
   if (failed.length) console.error("[Translations] sync-failed", { postId, failed });
+  await localizeCovers(source.blogId, source.translationGroupId!);
   return { updated, created, failed };
 }
