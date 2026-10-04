@@ -67,6 +67,12 @@ describe("Image generation with references", () => {
     expect(wantsTransparentBackground("Flat icon, no background")).toBe(true);
     expect(wantsTransparentBackground("Editorial watercolor, warm palette")).toBe(false);
     expect(wantsTransparentBackground(null)).toBe(false);
+    // Negated mentions ask for the opposite.
+    expect(wantsTransparentBackground("Minimal line art and a completely solid white background (#FFFFFF) covering the entire canvas. No transparency, no alpha channel, no cutout, and no shadows.")).toBe(false);
+    expect(wantsTransparentBackground("Fondo blanco, sin transparencias")).toBe(false);
+    expect(wantsTransparentBackground("Avoid cutouts; keep a white background")).toBe(false);
+    expect(wantsTransparentBackground("Sticker style cut-out, not a photo")).toBe(true);
+    expect(wantsTransparentBackground("No shadows, transparent background")).toBe(true);
 
     // JPEG has no alpha, so a transparent request becomes PNG.
     const generate = vi.fn().mockResolvedValue(image);
@@ -86,7 +92,7 @@ describe("Image generation with references", () => {
       format: "generated", prompt: "A cover", style: "Warm watercolor", references: [], runId: "run-1",
       colors: [], typography: {} as never, title: "T", warnings: [], size: imageSize("original"),
     });
-    expect(plain.mock.calls[0][0]).not.toHaveProperty("background");
+    expect(plain.mock.calls[0][0]).toHaveProperty("background", "opaque");
   });
 
   it("draws at the nearest model size and crops to the chosen preset", async () => {

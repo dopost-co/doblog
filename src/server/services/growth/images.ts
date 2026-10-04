@@ -26,12 +26,17 @@ export type MadeImage = {
 type Logo = { bytes: Buffer; position: LogoPosition } | null;
 type ImageFormat = "webp" | "png" | "jpeg";
 
+const TRANSPARENT = /transpar(?:en|ê)|trasparen|sin fondo|sem fundo|no background|without (?:a )?background|cut-?out/i;
+/** "no transparency", "sin transparencia", "avoid cutouts"…: a negation within a few words before the term. */
+const NEGATED_TRANSPARENT = /\b(?:no|not|non|never|avoid|without|sin|nada de|sem|nunca)\b[^.,;:\n]{0,40}?(?:transpar\w*|trasparen\w*|cut-?outs?|alpha)/gi;
 /**
  * Whether a style asks for a see-through background. Asked only in the prompt,
  * the model paints a fake checkerboard; with this the API returns real alpha.
+ * Negated mentions ("no transparency, no cutout") ask for the opposite.
  */
 export function wantsTransparentBackground(style: string | null | undefined) {
-  return !!style && /transpar(?:en|ê)|trasparen|sin fondo|sem fundo|no background|without (?:a )?background|cut-?out/i.test(style);
+  if (!style) return false;
+  return TRANSPARENT.test(style.replace(NEGATED_TRANSPARENT, " "));
 }
 
 /** gpt-image-2 rejects transparent backgrounds; the 1.x models and later ones accept them. */
@@ -64,7 +69,8 @@ export async function requestImage(
     model: IMAGE_MODEL, prompt, size, quality: "medium", n: 1,
     // Transparency needs a format with alpha: JPEG becomes PNG.
     output_format: transparent && format === "jpeg" ? "png" : format,
-    ...(transparent ? { background: "transparent" as const } : {}),
+    // Opaque when not asked for, so the model never decides on alpha itself (gpt-image-2 only does opaque).
+    ...(transparent ? { background: "transparent" as const } : supportsTransparency(IMAGE_MODEL) ? { background: "opaque" as const } : {}),
   } as const;
   if (!references.length) return openai.images.generate(options);
   try {
