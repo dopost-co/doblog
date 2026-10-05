@@ -41,6 +41,32 @@ export const articleDraftSchema = z.object({
 
 export type ArticleDraft = z.infer<typeof articleDraftSchema>;
 
+/**
+ * Brings a stale freshness year ("best tools in 2024") up to the current one.
+ * Only the last few years are touched, as older ones are more likely history
+ * than a dated "this year"; meant for titles and metadata, not body text.
+ */
+export function refreshStaleYears(value: string, now = new Date()) {
+  const current = now.getUTCFullYear();
+  return value.replace(/(?<!\d)(20\d\d)(?!\d)/g, (year) => {
+    const age = current - Number(year);
+    return age >= 1 && age <= 3 ? String(current) : year;
+  });
+}
+
+/** An article draft whose title, headings and metadata never present a past year as current. */
+export function refreshArticleYears(article: ArticleDraft, now = new Date()): ArticleDraft {
+  const refresh = (value: string) => refreshStaleYears(value, now);
+  return {
+    ...article,
+    title: refresh(article.title), coverTitle: refresh(article.coverTitle), suggestedSlug: refresh(article.suggestedSlug),
+    excerpt: refresh(article.excerpt), metaTitle: refresh(article.metaTitle), metaDescription: refresh(article.metaDescription),
+    sections: article.sections.map((section) => ({ ...section, heading: refresh(section.heading) })),
+    conclusionHeading: refresh(article.conclusionHeading),
+    inlineImages: article.inlineImages.map((image) => ({ ...image, afterHeading: refresh(image.afterHeading) })),
+  };
+}
+
 
 const stripHtml = (value: string) => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -67,7 +93,7 @@ export function contentText(content: unknown): string {
 
 
 
-function safeInlineHtml(value: string) {
+export function safeInlineHtml(value: string) {
   return sanitizeHtml(value, {
     allowedTags: ["a", "strong", "em", "code", "br"],
     allowedAttributes: { a: ["href", "title", "rel"] },

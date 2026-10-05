@@ -100,11 +100,46 @@ function isInternal(href: string, siteHosts: ReadonlySet<string>) {
   try { return siteHosts.has(new URL(href).host.replace(/^www\./, "")); } catch { return false; }
 }
 
+/** An internal address reduced for matching: the path alone on the blog's own site, without query, fragment, trailing slash or case. */
+function internalKey(href: string, siteHosts: ReadonlySet<string>) {
+  let path = href;
+  try {
+    const url = new URL(href);
+    if (siteHosts.has(url.host.replace(/^www\./, ""))) path = url.pathname;
+  } catch { /* Already a path. */ }
+  return normalizeUrl(path).toLowerCase();
+}
+
+const lastSegment = (key: string) => key.slice(key.lastIndexOf("/") + 1);
+
+/**
+ * Finds which offered article a model-written internal address means. Models
+ * often write the full URL, add a trailing slash or drop a language prefix
+ * ("/blog/slug" for "/es/blog/slug"); those still mean the offered article.
+ */
+function internalResolver(internal: ReadonlySet<string>, siteHosts: ReadonlySet<string>) {
+  const byKey = new Map<string, string>();
+  const bySlug = new Map<string, string | null>();
+  for (const href of internal) {
+    const key = internalKey(href, siteHosts);
+    byKey.set(key, href);
+    const slug = lastSegment(key);
+    // An ambiguous slug matches nothing.
+    if (slug) bySlug.set(slug, bySlug.has(slug) && bySlug.get(slug) !== href ? null : href);
+  }
+  return (href: string) => {
+    const key = internalKey(href, siteHosts);
+    return byKey.get(key) ?? bySlug.get(lastSegment(key)) ?? null;
+  };
+}
+
+const escapeAttribute = (value: string) => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 /**
  * Keeps only links the model was allowed to use: internal links to the offered
- * articles (each once, up to MAX_INTERNAL_LINKS) and external links from the
- * research. Anything else keeps its text and loses the link. Headings and FAQ
- * questions never carry links.
+ * articles (each once, up to MAX_INTERNAL_LINKS, written with the offered
+ * address) and external links from the research. Anything else keeps its text
+ * and loses the link. Headings and FAQ questions never carry links.
  */
 export function enforceArticleLinks(article: ArticleDraft, allowed: {
   internal: ReadonlySet<string>;
@@ -112,14 +147,16 @@ export function enforceArticleLinks(article: ArticleDraft, allowed: {
   siteHosts: ReadonlySet<string>;
 }): ArticleDraft {
   const used = new Set<string>();
+  const resolve = internalResolver(allowed.internal, allowed.siteHosts);
   const unlink = (value: string) => value.replace(ANCHOR, "$2");
   const filter = (value: string) => value.replace(ANCHOR, (anchor, attributes: string, text: string) => {
     const href = hrefOf(attributes);
     if (!href) return text;
     if (isInternal(href, allowed.siteHosts)) {
-      if (!allowed.internal.has(href) || used.has(href) || used.size >= MAX_INTERNAL_LINKS) return text;
-      used.add(href);
-      return anchor;
+      const target = resolve(href);
+      if (!target || used.has(target) || used.size >= MAX_INTERNAL_LINKS) return text;
+      used.add(target);
+      return `<a${attributes.replace(/href\s*=\s*(["'])(.*?)\1/i, `href="${escapeAttribute(target)}"`)}>${text}</a>`;
     }
     return allowed.external.has(normalizeUrl(href)) ? anchor : text;
   });

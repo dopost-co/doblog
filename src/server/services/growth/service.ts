@@ -16,6 +16,8 @@ import {
   articleDraftSchema,
   buildEditorContent,
   normalizeKeyword,
+  refreshArticleYears,
+  refreshStaleYears,
   type ArticleDraft,
   type GeneratedInlineImage,
 } from "./content";
@@ -31,7 +33,7 @@ import { queueTranslationSync } from "@/src/server/services/translations/auto-sy
 import { daysForPace } from "@/lib/autopilot/writing-days";
 import { competitorDomain } from "@/lib/autopilot/competitors";
 
-const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
+export const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
 const PROMPT_VERSION = "article-v3";
 
 export const planItemInputSchema = z.object({
@@ -168,7 +170,7 @@ function siteHosts(targetDomain: string | null | undefined, hrefs: string[]) {
  * Published articles the new one may link to, most related first. Reads only
  * what the model needs (never full content) from the latest published posts.
  */
-async function linkTargets(blogId: string, item: { language: string; primaryKeyword: string; secondaryKeywords: string[]; cluster: string | null }, articleUrlPrefix: string) {
+export async function linkTargets(blogId: string, item: { language: string; primaryKeyword: string; secondaryKeywords: string[]; cluster: string | null }, articleUrlPrefix: string) {
   const posts = await prisma.post.findMany({
     where: { blogId, language: item.language, status: "published" },
     orderBy: { publishedAt: "desc" }, take: 300,
@@ -227,10 +229,10 @@ coverTitle is drawn on the thumbnail, not read in a list: ${COVER_TITLE_MIN_WORD
   return { article: response.output_parsed, usage: response.usage };
 }
 
-type SaveArgs = { blogId: string; postId: string; runId: string; alt: string; caption?: string; kind: "cover" | "inline"; illustrationUrl?: string | null };
+type SaveArgs = { blogId: string; postId: string; runId: string | null; alt: string; caption?: string; kind: "cover" | "inline"; illustrationUrl?: string | null };
 
 /** Stores a made image and records it as a media asset of the post. */
-async function saveImage(args: SaveArgs, image: MadeImage) {
+export async function saveImage(args: SaveArgs, image: MadeImage) {
   const uploaded = await uploadBlogImage(args.blogId, image.bytes, image.mimeType);
   await prisma.mediaAsset.create({ data: {
     blogId: args.blogId, postId: args.postId, generationRunId: args.runId,
@@ -345,7 +347,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
       today: new Date().toISOString().slice(0, 10),
       publication: { name: blog.name, description: blog.description },
       topic: {
-        primaryKeyword: claimed.item.primaryKeyword, preferredTitle: claimed.item.title,
+        primaryKeyword: claimed.item.primaryKeyword, preferredTitle: claimed.item.title && refreshStaleYears(claimed.item.title),
         notes: claimed.item.notes, language: claimed.item.language,
         secondaryKeywords: claimed.item.secondaryKeywords, intent: claimed.item.intent,
         cluster: claimed.item.cluster, whyThisTopic: claimed.item.rationale,
@@ -364,8 +366,8 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
     };
     await prisma.generationRun.update({ where: { id: claimed.run.id }, data: { stage: "writing", inputSnapshot: json(input) } });
     const generated = await generateArticle(openai, input);
-    // Only the offered articles and researched sources may be linked; anything else loses its link.
-    const article = enforceArticleLinks(generated.article as ArticleDraft, {
+    // Stale years become the current one; only the offered articles and researched sources may be linked.
+    const article = enforceArticleLinks(refreshArticleYears(generated.article as ArticleDraft), {
       internal: new Set(targets.map((target) => target.href)),
       external: externalSources(serpBrief, settings?.competitorDomains ?? []),
       siteHosts: siteHosts(settings?.targetDomain, targets.map((target) => target.href)),

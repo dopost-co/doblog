@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEditorContent, contentText, normalizeKeyword, type ArticleDraft } from "@/src/server/services/growth/content";
+import { buildEditorContent, contentText, normalizeKeyword, refreshStaleYears, type ArticleDraft } from "@/src/server/services/growth/content";
 import { rankLinkTargets } from "@/src/server/services/growth/internal-links";
 
 describe("growth content memory", () => {
@@ -54,5 +54,19 @@ describe("generated Editor.js content", () => {
     const headingIndex = content.blocks.findIndex(block => block.type === "header" && block.data.text === "A simple workflow");
     const imageIndex = content.blocks.findIndex(block => block.type === "image");
     expect(imageIndex).toBeGreaterThan(headingIndex);
+  });
+});
+
+describe("Years in titles", () => {
+  const now = new Date("2026-10-05T07:00:00Z");
+
+  it("brings a recent past year up to the current one", () => {
+    expect(refreshStaleYears("Las mejores herramientas para programar Instagram en 2024", now)).toBe("Las mejores herramientas para programar Instagram en 2026");
+    expect(refreshStaleYears("best-tools-2025", now)).toBe("best-tools-2026");
+  });
+
+  it("keeps the current year, older history, future years and longer numbers", () => {
+    expect(refreshStaleYears("Qué cambió de 2019 a 2026 y qué llega en 2027", now)).toBe("Qué cambió de 2019 a 2026 y qué llega en 2027");
+    expect(refreshStaleYears("Más de 120240 usuarios", now)).toBe("Más de 120240 usuarios");
   });
 });

@@ -11,7 +11,7 @@ import { resolveBlogOpenAiKey } from "@/src/server/services/providers/credential
 import { runSeoOperation } from "@/src/server/services/seo/service";
 import { blogOpenAI } from "@/src/server/services/usage/openai";
 import { difficultyCeiling, rankKeywordCandidates, type KeywordCandidate, type KeywordMetrics } from "@/src/server/services/seo/opportunity";
-import { normalizeKeyword } from "./content";
+import { normalizeKeyword, refreshStaleYears } from "./content";
 import { schedulePendingDrafts } from "./planning";
 import { daysForPace, normalizeWritingDays } from "@/lib/autopilot/writing-days";
 import { MAX_COMPETITORS, competitorDomain } from "@/lib/autopilot/competitors";
@@ -570,7 +570,7 @@ async function runClaimedDiscovery(
     const data = ideas.map((idea: OpportunityIdea, index) => ({
         createdAt: new Date(createdAt + index),
         blogId, primaryKeyword: idea.keyword, normalizedKeyword: normalizeKeyword(idea.keyword),
-        secondaryKeywords: idea.secondaryKeywords, title: idea.title, intent: idea.intent,
+        secondaryKeywords: idea.secondaryKeywords, title: refreshStaleYears(idea.title), intent: idea.intent,
         cluster: idea.cluster, language: settings.languageCode, source: "discovery", rationale: idea.rationale,
         opportunitySnapshot: json({ priority: idea.priority, sourcePaths: idea.sourcePaths, metrics: metrics.get(normalizeKeyword(idea.keyword)) || null }),
       }));

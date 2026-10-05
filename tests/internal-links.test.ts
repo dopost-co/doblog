@@ -53,6 +53,14 @@ describe("Links in generated articles", () => {
     expect(result.introduction[0]).toBe("See this, that and more.");
   });
 
+  it("keeps offered articles written as full URLs, with a trailing slash or without the language prefix", () => {
+    const localized = { ...allowed, internal: new Set(["/es/blog/batching", "/es/blog/timing", "/es/blog/tools"]) };
+    const result = enforceArticleLinks(article(
+      `See <a href="https://www.example.com/es/blog/batching/" rel="noopener">batching</a>, <a href="/blog/timing">timing</a> and <a href="/es/blog/Tools?ref=x">tools</a>.`,
+    ), localized);
+    expect(result.introduction[0]).toBe(`See <a href="/es/blog/batching" rel="noopener">batching</a>, <a href="/es/blog/timing">timing</a> and <a href="/es/blog/tools">tools</a>.`);
+  });
+
   it("never keeps links in headings or FAQ questions", () => {
     const result = enforceArticleLinks(article("Plain text.", `Using <a href="/blog/a">guides</a>`), allowed);
     expect(result.sections[0].heading).toBe("Using guides");

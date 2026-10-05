@@ -14,6 +14,9 @@ import { COVER_REFRESH_LIMIT, countRefreshableCovers, queueCoverRefresh, refresh
 import { competitorGapReport, discoverContentOpportunities, discoverySettingsSchema, rankedKeywordsReport, saveDiscoverySettings, setAutopilotActive } from "@/src/server/services/growth/discovery";
 import { MAX_COMPETITORS } from "@/lib/autopilot/competitors";
 import { uploadBrandAsset } from "@/src/server/services/growth/image-references";
+import { enrichPost } from "@/src/server/services/growth/enrich";
+import { MAX_INLINE_IMAGES } from "@/lib/autopilot/image-sizes";
+import { prisma } from "@/lib/prisma";
 import { analyzeWebsite, applySiteAnalysis } from "@/src/server/services/onboarding/site-analysis";
 import { createBlogForConnection, createBlogInputSchema } from "@/src/server/services/blogs/connection-setup";
 
@@ -196,6 +199,22 @@ export function createMcpServer(principal: ApiPrincipal) {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     }, async (input: Record<string, unknown>) => blogTool(input, { scopes: ["content:write", "media:write"] }, (blogId, rest) =>
       refreshPostCover(blogId, String(rest.postId), { includeManual: rest.includeManual === true })));
+  }
+  if (principal.scopes.includes("content:write") && principal.scopes.includes("media:write")) {
+    server.registerTool("growth_enrich_post", {
+      description: `Give an existing article what Autopilot gives new ones, without rewriting its text: internal links to related published articles (up to about 4 in total, at exact phrases already in the text) and explanatory images in the blog's post image style, inserted at the end of the sections they explain, until it has \`images\` images (default: the blog's images per article, max ${MAX_INLINE_IMAGES}). links: false adds only images; images: 0 adds only links. Translations are updated by the normal sync. Editing a published post needs content:publish. Spends AI credits per image.`,
+      inputSchema: withBlog({
+        postId: z.string().min(1).max(128),
+        images: z.number().int().min(0).max(MAX_INLINE_IMAGES).optional(),
+        links: z.boolean().default(true),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    }, async (input: Record<string, unknown>) => blogTool(input, { scopes: ["content:write", "media:write"] }, async (blogId, rest, blog) => {
+      const post = await prisma.post.findFirst({ where: { id: String(rest.postId), blogId }, select: { status: true } });
+      if (!post) throw new ApiError(404, "Post not found");
+      if (post.status !== "draft") requireScope(blog, "content:publish");
+      return enrichPost(blogId, String(rest.postId), { images: typeof rest.images === "number" ? rest.images : undefined, links: rest.links !== false });
+    }));
   }
   if (principal.scopes.includes("media:write")) {
     server.registerTool("upload_image_file", {
