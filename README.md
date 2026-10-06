@@ -172,9 +172,15 @@ npm run build
 - `scripts/mcp-stdio.mjs`: standalone local-to-remote MCP bridge.
 - `components/Integrations/`: dashboard settings and reusable MCP documentation.
 - `app/docs/`: in-app public and private API guides.
+- `src/server/services/publishing/`: copies published articles to a blog's website (adapters, the sync engine and Web integration actions); `lib/publishing/` holds the signed protocol, platforms and Markdown output.
+- `connectors/`: the WordPress plugin and PrestaShop module. After changing them, run `npm run connectors:build` to refresh the zips in `public/downloads/`.
 - `tests/`: automated regression/security tests.
 
 REST endpoint routing, MCP tool registration and the OpenAPI document use one operation catalog. The dashboard’s core post/category/author mutations call the same service. Existing bulk import and paid translation workflows remain session-only.
+
+### Publishing to websites
+
+Each blog chooses where its articles live (Settings → Web integration, or onboarding). WordPress, PrestaShop, GitHub and webhook destinations get a copy of every published article; "read live from Zenex" keeps today's API delivery. Every content write calls `invalidateContent`, which requests a sync of the blog's destination after the response; the `publish-scheduled` QStash sweep (every 15 minutes) retries failed copies and compares everything every 6 hours. Destinations on private addresses (localhost, LAN) are only reachable outside production, or with `ZENEX_ALLOW_PRIVATE_DESTINATIONS=true`.
 
 ## References and support
 

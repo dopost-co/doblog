@@ -12,6 +12,7 @@ import { LOGO_MISSING, loadCoverIllustration, loadLogo, loadStyleReferences, upl
 import { imageSubject } from "./image-subject";
 import { imageSize } from "@/lib/autopilot/image-sizes";
 import { makeCover, type CoverIllustration, type MadeImage } from "./images";
+import { requestPublishSync } from "@/src/server/services/publishing/sync";
 
 /** Deliveries after the first one; QStash backs off between them. */
 export const COVER_REFRESH_RETRIES = 2;
@@ -157,6 +158,7 @@ export async function refreshPostCover(blogId: string, postId: string, { include
     const image = await makeCover(openai, { ...base, prompt, runId: "cover-refresh", title: post.title, warnings });
     const url = await storeCover(blogId, post, image);
     await prisma.post.updateMany({ where: { id: { in: members.map((member) => member.id) } }, data: { coverImage: url } });
+    requestPublishSync(blogId);
     return { url, coverTitle: null, warnings };
   }
 
@@ -175,6 +177,7 @@ export async function refreshPostCover(blogId: string, postId: string, { include
     await prisma.post.update({ where: { id: member.id }, data: { coverImage: url, ...(cover.written ? { coverTitle: cover.written } : {}) } });
     if (member.id === post.id) result = { url, coverTitle: cover.written };
   }
+  requestPublishSync(blogId);
   return { ...result, warnings };
 }
 
@@ -219,6 +222,7 @@ export async function localizeGroupCovers(blogId: string, translationGroupId: st
     });
     await prisma.post.update({ where: { id: post.id }, data: { coverImage: await storeCover(blogId, post, image, { illustrationUrl: card.illustrationUrl }) } });
   }
+  requestPublishSync(blogId);
   return { localized: pending.length, warnings };
 }
 

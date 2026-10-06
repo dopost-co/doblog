@@ -27,6 +27,9 @@ import {
 } from "@/lib/autopilot/options";
 import { ONBOARDING_STEPS, resolveVisibleStep, visibleSteps, type OnboardingField, type OnboardingFlowId, type OnboardingValues } from "@/lib/onboarding/steps";
 import { completeOnboardingStep } from "@/src/server/services/onboarding/actions";
+import { DeliveryMethodCards, SitePlatformCards } from "@/components/Website/PlatformPicker";
+import { OnboardingConnect } from "@/components/Website/OnboardingConnect";
+import { destinationName, fixedMethod, isSitePlatform } from "@/lib/publishing/platforms";
 
 /** Starting answer for choice fields, so every card question has a selection. */
 const FIELD_DEFAULTS: Record<string, string> = {
@@ -38,6 +41,7 @@ const FIELD_DEFAULTS: Record<string, string> = {
   thumbnailStyleChoice: "editorial-illustration",
   inlineImagesEnabled: "true",
   inlineStyleChoice: "diagram",
+  deliveryMethod: "github",
 };
 
 function celebrate() {
@@ -137,6 +141,13 @@ function ChoiceCards({ options, value, onChange, disabled }: {
 
 function browserTimeZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; }
+}
+
+/** "WordPress", "GitHub", "your server": what the connect step connects. */
+function connectName(values: OnboardingValues) {
+  const platform = String(values.sitePlatform ?? "");
+  if (!isSitePlatform(platform)) return "your website";
+  return destinationName({ platform, method: fixedMethod(platform) ?? String(values.deliveryMethod ?? "") });
 }
 
 /** The bare domain typed in a website field, to compare it with an analysis. */
@@ -303,6 +314,7 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
       if (result.competitors.length) next.competitors = result.competitors.slice(0, MAX_COMPETITORS).map((item) => item.domain);
       if (result.thumbnailStyle) Object.assign(next, { thumbnailStyleChoice: "other", thumbnailStyleCustom: result.thumbnailStyle });
       if (result.inlineImageStyle) Object.assign(next, { inlineStyleChoice: "other", inlineStyleCustom: result.inlineImageStyle });
+      if (result.platform && !current.sitePlatform) next.sitePlatform = result.platform;
       return next;
     });
   }
@@ -347,7 +359,8 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
     <form onSubmit={submit} className="w-full max-w-xl space-y-8">
       <div className="space-y-1.5">
         <h1 className="text-2xl font-semibold tracking-tight">
-          {step.id === "website-analysis" || step.id === "autopilot-website-analysis" ? `Getting to know ${domainOf(values.website)}` : step.title}
+          {step.id === "website-analysis" || step.id === "autopilot-website-analysis" ? `Getting to know ${domainOf(values.website)}`
+            : step.id === "site-connect" ? `Connect ${connectName(values)}` : step.title}
         </h1>
         {"description" in step && step.description && !(flow === "new-blog" && step.id === "blogs") && <p className="text-sm text-muted-foreground">{step.description}</p>}
       </div>
@@ -409,6 +422,17 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
             suggestions={currentAnalysis?.competitors ?? []}
             disabled={pending}
           />
+        ) : step.id === "site-platform" ? (
+          <SitePlatformCards
+            value={(values.sitePlatform as string) || null}
+            onChange={(sitePlatform) => setValues((current) => ({ ...current, sitePlatform }))}
+            detected={currentAnalysis?.platform ?? null}
+            disabled={pending}
+          />
+        ) : step.id === "site-delivery" ? (
+          <DeliveryMethodCards value={values.deliveryMethod as string} onChange={(deliveryMethod) => setValues((current) => ({ ...current, deliveryMethod }))} disabled={pending} />
+        ) : step.id === "site-connect" ? (
+          blogId ? <OnboardingConnect blogId={blogId} onConnected={() => save()} /> : null
         ) : step.id === "content-mode" ? (
           <ChoiceCards options={CONTENT_MODE_OPTIONS} value={values.contentMode as string} onChange={(contentMode) => setValues((current) => ({ ...current, contentMode }))} disabled={pending} />
         ) : step.id === "autopilot-thumbnails" ? (
@@ -584,7 +608,7 @@ export function OnboardingFlow({ flow, initialStep, initialValues, initialBlogId
           </Button>
         ) : <span />}
         <Button type="submit" disabled={pending || analyzing} className="min-w-28">
-          {pending ? "Saving…" : analyzing ? "Analyzing…" : index === steps.length - 1 ? "Finish" : "Continue"}
+          {pending ? "Saving…" : analyzing ? "Analyzing…" : step.id === "site-connect" ? "I’ll do it later" : index === steps.length - 1 ? "Finish" : "Continue"}
         </Button>
       </div>
     </form>

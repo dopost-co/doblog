@@ -11,6 +11,7 @@ import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks
 import { localizeArticleLinks } from "./translated-links";
 import { localizeGroupCovers } from "@/src/server/services/growth/cover-refresh";
 import { storedCoverTitle } from "@/lib/autopilot/cover-title";
+import { requestPublishSync } from "@/src/server/services/publishing/sync";
 
 /** Brand-card covers in each translation's language; a failure never fails the translation. */
 async function localizeCovers(blogId: string, translationGroupId: string) {
@@ -135,6 +136,7 @@ export async function createPostTranslation(blogId: string, postId: string, targ
   // A translation that goes live straight away gets links from related articles too.
   if (created.status === "published") queueRelatedArticleLinks(created.id);
   await localizeCovers(blogId, translationGroupId);
+  requestPublishSync(blogId);
   return created;
 }
 
@@ -258,5 +260,6 @@ export async function syncTranslationGroup(postId: string, version?: string) {
   }
   if (failed.length) console.error("[Translations] sync-failed", { postId, failed });
   await localizeCovers(source.blogId, source.translationGroupId!);
+  requestPublishSync(source.blogId);
   return { updated, created, failed };
 }

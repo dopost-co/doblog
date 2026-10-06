@@ -3,6 +3,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyScheduledRequest } from "@/lib/qstash";
 import { publishDueScheduledPosts, rearmScheduledPosts, syncPostSchedule } from "@/src/server/services/scheduling/service";
+import { syncDueDestinations } from "@/src/server/services/publishing/sync";
+
+/** The sweep also copies articles to connected websites, which can take a while. */
+export const maxDuration = 300;
 
 const payloadSchema = z.object({ postId: z.string().min(1).max(128).optional() });
 
@@ -38,7 +42,12 @@ export async function POST(request: Request) {
       if (current?.status === "scheduled") await syncPostSchedule(post.id, null);
     }
     const rearm = post ? { rearmed: 0 } : await rearmScheduledPosts();
-    return NextResponse.json({ handled: true, ...result, ...rearm });
+    // The sweep also retries copies on connected websites and catches anything a write missed.
+    const copies = post ? null : await syncDueDestinations().catch((error) => {
+      console.error("[Publishing] sweep-failed", { error: error instanceof Error ? error.message : String(error) });
+      return null;
+    });
+    return NextResponse.json({ handled: true, ...result, ...rearm, ...(copies ? { copies } : {}) });
   } catch (error) {
     console.error("[Scheduling] callback-failed", { error: error instanceof Error ? error.message : String(error) });
     // A 5xx makes QStash retry the delivery.

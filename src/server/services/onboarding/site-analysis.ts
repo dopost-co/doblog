@@ -9,6 +9,7 @@ import { languages as supportedLanguages } from "@/lib/languages";
 import { MAX_COMPETITORS, competitorDomain } from "@/lib/autopilot/competitors";
 import { SEARCH_MARKETS, defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { MAX_GRADIENT_COLORS } from "@/lib/autopilot/thumbnail-templates";
+import { detectPlatform } from "@/lib/publishing/platforms";
 import { blogOpenAI } from "@/src/server/services/usage/openai";
 import type { AnalysisEvent, AnalysisStageId, SiteAnalysis } from "@/lib/onboarding/analysis";
 import { assertPublicHost, competitorVoiceSchema, competitorVoiceInstruction, fetchPublicHtml, pageText } from "@/src/server/services/growth/brand";
@@ -80,6 +81,7 @@ export function homepageFacts(html: string, base: URL) {
     headings: [...html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)].map(match => pageText(match[1], 160)).filter(Boolean).slice(0, 25),
     images: [...new Set(images.filter((url): url is string => Boolean(url) && !/\.(svg|ico|gif)(\?|$)/i.test(url!) && !/(pixel|tracking|favicon|spacer)/i.test(url!)))].slice(0, 12),
     colors: [...colorCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([color]) => color),
+    platform: detectPlatform(html),
   };
 }
 
@@ -222,6 +224,7 @@ export async function analyzeWebsite(
     return { url, text, facts: homepageFacts(html, url) };
   }, value => value.facts.title || value.url.hostname, true);
   if (!homepage) throw new ApiError(502, "The website could not be read");
+  analysis.platform = homepage.facts.platform;
 
   const sitemap = await stage("sitemap", () => discoverSitemap(domain, null, 4), value => value.pageUrls.length ? `${value.pageUrls.length} pages found` : "No sitemap; using the homepage");
   analysis.pages = sitemap?.pageUrls.length ?? 0;

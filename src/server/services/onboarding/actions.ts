@@ -16,6 +16,8 @@ import { syncSeoLanguage } from "@/src/server/services/seo/service";
 import { defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { analyzeCompetitorBrandVoice, competitorVoiceInstruction } from "@/src/server/services/growth/brand";
 import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
+import { isSitePlatform } from "@/lib/publishing/platforms";
+import { saveSitePlatform } from "@/src/server/services/publishing/actions";
 
 /** The blog being set up, once the blog step has created it. */
 type Context = { userId: string; blogId: string | null };
@@ -133,6 +135,18 @@ const STEP_HANDLERS: Partial<Record<OnboardingStepId, Handler>> = {
       create: { blogId: blog.id, targetDomain },
       update: { targetDomain, sitemapUrl: null },
     });
+  },
+  "site-platform": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const platform = single(values.sitePlatform);
+    if (!isSitePlatform(platform)) throw new ApiError(400, "Choose what your website is built with");
+    await saveSitePlatform(blog.id, platform);
+  },
+  "site-delivery": async (context, values) => {
+    const blog = await onboardingBlog(context);
+    const destination = await prisma.publishDestination.findUnique({ where: { blogId: blog.id }, select: { platform: true } });
+    if (!destination || !isSitePlatform(destination.platform)) throw new ApiError(409, "Choose what your website is built with first");
+    await saveSitePlatform(blog.id, destination.platform, single(values.deliveryMethod));
   },
   "autopilot-competitors": async (context, values) => {
     const blog = await onboardingBlog(context);

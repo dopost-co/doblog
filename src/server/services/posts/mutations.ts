@@ -12,6 +12,7 @@ import { ApiError, apiError } from "@/lib/integrations/errors";
 import { createPostTranslation } from "@/src/server/services/translations/post-translation";
 import { resolveOpenAiAccess } from "@/src/server/services/providers/credentials";
 import type { PostStatus } from "@/lib/integrations/schemas";
+import { requestPublishSync } from "@/src/server/services/publishing/sync";
 
 export async function createPost(data: {
   blogId: string;
@@ -104,6 +105,7 @@ export async function translatePost(postId: string, targetLanguage: string) {
     const post = await createPostTranslation(source.blogId, postId, targetLanguage);
     updateTag(`blog-${source.blogId}-posts`);
     revalidatePath(`/dashboard/blogs/${source.blogId}`);
+    requestPublishSync(source.blogId);
     return { success: true, post };
   } catch (error) {
     console.error("Error translating post:", error);
@@ -300,6 +302,7 @@ export async function syncPostTranslations(postId: string) {
 
     updateTag(`blog-${currentPost.blogId}-posts`);
     revalidatePath(`/dashboard/blogs/${currentPost.blogId}`);
+    requestPublishSync(currentPost.blogId);
     return {
       success: true,
       syncedCount: syncedPosts.length,

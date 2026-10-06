@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import NextImage from "next/image";
@@ -65,6 +66,8 @@ interface PostFormProps {
   /** Language of new posts: the blog's main language. */
   defaultLanguage?: string;
   initialScheduleAt?: string;
+  /** The website published articles are copied to, and where this post's copy stands. */
+  website?: { site: string; state: string | null; url: string | null; error: string | null } | null;
 }
 
 type PostStatus = "draft" | "scheduled" | "published";
@@ -74,7 +77,7 @@ function toLocalInput(date: Date) {
   return format(date, "yyyy-MM-dd'T'HH:mm");
 }
 
-export function PostForm({ blogId, post, categories, tags, authors, existingTranslations = [], initialScheduleAt, defaultLanguage = "en" }: PostFormProps) {
+export function PostForm({ blogId, post, categories, tags, authors, existingTranslations = [], initialScheduleAt, defaultLanguage = "en", website = null }: PostFormProps) {
   const router = useRouter();
   const isEditing = !!post;
 
@@ -227,7 +230,7 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
     } else {
       markSaved();
       toast.success(
-        status === "published" ? "Post published"
+        status === "published" ? (website ? `Post published · sending to ${website.site}` : "Post published")
           : status === "scheduled" ? "Post scheduled"
             : isEditing ? "Post saved" : "Draft created",
       );
@@ -517,6 +520,23 @@ export function PostForm({ blogId, post, categories, tags, authors, existingTran
               </SelectContent>
             </Select>
           </div>
+
+          {website && (
+            <div className="flex items-center gap-4">
+              <Label className="text-muted-foreground w-[120px] shrink-0">Website</Label>
+              <p className="min-w-0 flex-1 truncate px-3 text-sm text-muted-foreground">
+                {post?.status === "published" && website.state === "synced" && website.url ? (
+                  <a href={website.url} target="_blank" rel="noopener noreferrer" className="text-foreground underline-offset-4 hover:underline">View on {website.site} ↗</a>
+                ) : post?.status === "published" && website.state === "failed" ? (
+                  <Link href={`/dashboard/blogs/${blogId}/settings/web-integration`} className="text-destructive underline-offset-4 hover:underline" title={website.error ?? undefined}>Couldn’t copy it to {website.site}</Link>
+                ) : status === "published" || status === "scheduled" ? (
+                  `Copied to ${website.site} when it’s published`
+                ) : (
+                  `Drafts stay in Zenex; publishing copies it to ${website.site}`
+                )}
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-4">
             <Label className="text-muted-foreground w-[120px] shrink-0">

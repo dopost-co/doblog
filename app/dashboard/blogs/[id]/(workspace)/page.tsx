@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getBlogById } from "@/src/server/services/blogs/queries";
 import { getBlogAccess } from "@/src/server/services/blogs/access";
 import { getPostsByBlogId, getAvailableLanguagesByTranslationGroupIds } from "@/src/server/services/posts/queries";
+import { getPublicationStates } from "@/src/server/services/publishing/queries";
+import { destinationName } from "@/lib/publishing/platforms";
 import { PageHeader } from "@/components/PageHeader/PageHeader";
 import { PostCard } from "@/components/PostCard/PostCard";
 import { Button } from "@/components/ui/button";
@@ -45,6 +47,8 @@ export default async function BlogPostsPage({
   const languagesByGroup = await getAvailableLanguagesByTranslationGroupIds(
     posts.flatMap((post) => post.translationGroupId ? [post.translationGroupId] : [])
   );
+  const copies = await getPublicationStates(id, posts.map((post) => post.id));
+  const copySite = copies.destination?.connected ? destinationName(copies.destination) : null;
   const pageHref = (pageNumber: number) => {
     const query = new URLSearchParams({ page: String(pageNumber) });
     if (status) query.set("status", status);
@@ -90,6 +94,7 @@ export default async function BlogPostsPage({
                   author={post.author ? { id: post.author.id, name: post.author.name } : null}
                   featured={post.featured}
                   canEdit={access.can("content.write")}
+                  copy={copySite ? { site: copySite, state: copies.states[post.id]?.state ?? null, url: copies.states[post.id]?.url ?? null, error: copies.states[post.id]?.error ?? null } : null}
                 />
               );
             })}

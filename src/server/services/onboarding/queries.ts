@@ -19,7 +19,7 @@ export async function resolveUserFlow(userId: string, email: string | null | und
 
 /** Blog-related answers already saved, so a resumed onboarding shows them again. */
 export async function blogOnboardingValues(blogId: string) {
-  const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { name: true, languages: true, autoSyncTranslations: true, contentMode: true, seoSettings: true } });
+  const blog = await prisma.blog.findFirst({ where: { id: blogId, deletedAt: null }, select: { name: true, languages: true, autoSyncTranslations: true, contentMode: true, seoSettings: true, publishDestination: { select: { platform: true, method: true } } } });
   if (!blog) return {};
   const settings = blog.seoSettings;
   const audiencePreset = AUTOPILOT_AUDIENCE_OPTIONS.find((option) => option.value === settings?.audience);
@@ -42,6 +42,10 @@ export async function blogOnboardingValues(blogId: string) {
     ...(settings?.competitorDomains.length ? { competitors: settings.competitorDomains } : {}),
     ...(settings?.writingDays.length ? { writingDays: settings.writingDays.map(String) } : {}),
     ...(blog.contentMode ? { contentMode: blog.contentMode } : {}),
+    ...(blog.publishDestination ? {
+      sitePlatform: blog.publishDestination.platform,
+      ...(blog.publishDestination.method !== "plugin" ? { deliveryMethod: blog.publishDestination.method } : {}),
+    } : {}),
     ...(settings ? {
       thumbnailEnabled: String(settings.thumbnailEnabled),
       inlineImagesEnabled: String(settings.inlineImagesEnabled),

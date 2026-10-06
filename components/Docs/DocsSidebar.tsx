@@ -17,6 +17,7 @@ const navigation: NavItem[] = [
       { title: "Introduction", href: "/docs" },
       { title: "Next.js", href: "/docs/nextjs" },
       { title: "Astro", href: "/docs/astro" },
+      { title: "Publishing to your website", href: "/docs/webhooks" },
     ],
   },
   {

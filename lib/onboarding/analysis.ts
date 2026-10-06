@@ -1,3 +1,5 @@
+import type { SitePlatform } from "@/lib/publishing/platforms";
+
 /** Stages of the website analysis in onboarding, in the order they start. */
 export const ANALYSIS_STAGES = [
   { id: "read", label: "Reading your website" },
@@ -12,6 +14,8 @@ export type AnalysisEvent = { stage: AnalysisStageId; status: "running" | "done"
 
 export type SiteAnalysis = {
   domain: string;
+  /** What the site is built with, when its markup tells (lib/publishing/platforms.ts). */
+  platform?: SitePlatform | null;
   summary: string | null;
   /** Main language of the site's copy, when it is one the blog can use. */
   language: string | null;

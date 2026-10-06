@@ -7,6 +7,7 @@ import { z } from "zod";
 import { revalidatePath, updateTag } from "next/cache";
 import { forbiddenMessage, getBlogAccess } from "@/src/server/services/blogs/access";
 import { v4 as uuidv4 } from "uuid";
+import { requestPublishSync } from "@/src/server/services/publishing/sync";
 
 const importPostSchema = z.object({
   title: z.string().min(1),
@@ -121,6 +122,7 @@ export async function importPostsInBulk(data: {
 
     updateTag(`blog-${data.blogId}-posts`);
     revalidatePath(`/dashboard/blogs/${data.blogId}`);
+    requestPublishSync(data.blogId);
     return {
       success: true,
       results,

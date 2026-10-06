@@ -1,3 +1,5 @@
+import { fixedMethod, isCodePlatform, isSitePlatform } from "@/lib/publishing/platforms";
+
 /**
  * Onboarding steps. To add a step, add an entry here, list it in the flows
  * that should show it (ONBOARDING_FLOWS) and, if it saves anything, add a
@@ -39,6 +41,14 @@ const hasWebsite = (values: OnboardingValues): boolean => Boolean(answer(values,
  * later. Typing a website never hides the step being typed in.
  */
 const skippedWebsite = (values: OnboardingValues): boolean => answer(values, "websiteSkipped") === "true";
+const hasPlatform = (values: OnboardingValues): boolean => hasWebsite(values) && isSitePlatform(answer(values, "sitePlatform"));
+/** WordPress and PrestaShop always need connecting; sites in code only when they get copies. */
+const needsConnecting = (values: OnboardingValues): boolean => {
+  const platform = answer(values, "sitePlatform");
+  if (!hasPlatform(values) || !isSitePlatform(platform)) return false;
+  const method = fixedMethod(platform) ?? answer(values, "deliveryMethod");
+  return method === "plugin" || method === "github" || method === "webhook";
+};
 
 export const ONBOARDING_STEPS = [
   {
@@ -66,6 +76,19 @@ export const ONBOARDING_STEPS = [
     when: (values, flow) => hasWebsite(values) && (flow === "autopilot-setup" || !skippedWebsite(values)),
     title: "Getting to know your website",
     fields: [],
+  },
+  {
+    id: "site-platform",
+    when: hasWebsite,
+    title: "What is your website built with?",
+    description: "Zenex publishes your articles there and keeps them up to date.",
+    fields: [{ name: "sitePlatform", label: "Website platform", required: true, maxLength: 20 }],
+  },
+  {
+    id: "site-delivery",
+    when: (values) => hasPlatform(values) && isCodePlatform(answer(values, "sitePlatform")),
+    title: "How should articles reach your site?",
+    fields: [{ name: "deliveryMethod", label: "How articles arrive", required: true, maxLength: 20 }],
   },
   {
     id: "blog-languages",
@@ -180,6 +203,13 @@ export const ONBOARDING_STEPS = [
     description: "You can change this later from Autopilot.",
     fields: [{ name: "publishingMode", label: "Publishing mode", required: true, maxLength: 20 }],
   },
+  {
+    id: "site-connect",
+    when: needsConnecting,
+    title: "Connect your website",
+    description: "The last step. You can also do it later in Settings → Web integration.",
+    fields: [],
+  },
 ] as const satisfies readonly OnboardingStep[];
 
 export type OnboardingStepId = typeof ONBOARDING_STEPS[number]["id"];
@@ -193,8 +223,8 @@ export type OnboardingValues = Record<string, string | string[]>;
  * - autopilot-setup: a blog created before onboarding asked about Autopilot.
  */
 export const ONBOARDING_FLOWS = {
-  "new-user": ["profile", "blogs", "blog-website", "website-analysis", "blog-languages", "content-mode", "autopilot-website", "autopilot-website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
-  "new-blog": ["blogs", "blog-website", "website-analysis", "blog-languages", "content-mode", "autopilot-website", "autopilot-website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
+  "new-user": ["profile", "blogs", "blog-website", "website-analysis", "blog-languages", "site-platform", "site-delivery", "content-mode", "autopilot-website", "autopilot-website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing", "site-connect"],
+  "new-blog": ["blogs", "blog-website", "website-analysis", "blog-languages", "site-platform", "site-delivery", "content-mode", "autopilot-website", "autopilot-website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing", "site-connect"],
   "invited-user": ["profile"],
   "autopilot-setup": ["autopilot-website", "website-analysis", "autopilot-audience", "autopilot-voice", "autopilot-competitors", "autopilot-thumbnails", "autopilot-thumbnail-style", "autopilot-inline-images", "autopilot-inline-style", "autopilot-frequency", "autopilot-publishing"],
 } as const satisfies Record<string, readonly OnboardingStepId[]>;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Languages, Loader2, MoreHorizontal, Sparkles, Star, Trash2, Undo2 } from "lucide-react";
+import { AlertCircle, Check, Globe, Languages, Loader2, MoreHorizontal, Sparkles, Star, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,8 @@ interface PostCardProps {
   author?: { id: string; name: string } | null;
   /** Viewers open the post but get no publish, delete or translate actions. */
   canEdit?: boolean;
+  /** Where the copy on the blog's website stands, when the blog copies articles to one. */
+  copy?: { site: string; state: string | null; url: string | null; error: string | null } | null;
 }
 
 export function PostCard({
@@ -57,6 +59,7 @@ export function PostCard({
   categories,
   author,
   canEdit = true,
+  copy = null,
 }: PostCardProps) {
   const router = useRouter();
   const [currentStatus, setCurrentStatus] = useState(status);
@@ -175,6 +178,22 @@ export function PostCard({
               </div>
             </div>
           </Link>
+
+          {copy && currentStatus === "published" && (
+            copy.state === "synced" && copy.url ? (
+              <a href={copy.url} target="_blank" rel="noopener noreferrer" className="hidden items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline md:inline-flex">
+                <Globe className="size-3.5" /> On {copy.site}
+              </a>
+            ) : copy.state === "failed" ? (
+              <span title={copy.error ?? undefined} className="hidden items-center gap-1 text-xs text-destructive md:inline-flex">
+                <AlertCircle className="size-3.5" /> Not on {copy.site}
+              </span>
+            ) : (
+              <span className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex">
+                <Loader2 className="size-3.5 animate-spin" /> Sending to {copy.site}
+              </span>
+            )
+          )}
 
           <span className={`hidden rounded-full px-2 py-1 text-xs sm:inline-flex ${statusBadge.className}`}>
             {statusBadge.label}

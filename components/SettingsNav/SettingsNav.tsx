@@ -13,6 +13,7 @@ export function SettingsNav({ blogId, showAccount }: { blogId: string; showAccou
     { href: `${basePath}/members`, label: "Members" },
     { href: `${basePath}/authors`, label: "Authors" },
     { href: `${basePath}/categories`, label: "Categories" },
+    { href: `${basePath}/web-integration`, label: "Web integration" },
     ...(showAccount ? [
       { href: `${basePath}/providers`, label: "Providers" },
       { href: `${basePath}/usage`, label: "Usage" },

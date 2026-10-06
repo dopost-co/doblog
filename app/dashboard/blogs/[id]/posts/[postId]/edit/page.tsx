@@ -8,6 +8,8 @@ import { getTagsByBlogId } from "@/src/server/services/tags/queries";
 import { getAuthorsByBlogId } from "@/src/server/services/authors/queries";
 import { PostForm } from "@/components/PostForm/PostForm";
 import { PostReadOnly } from "@/components/PostReadOnly/PostReadOnly";
+import { getPublicationStates } from "@/src/server/services/publishing/queries";
+import { destinationName } from "@/lib/publishing/platforms";
 
 /** Regenerating a cover with AI runs as a server action on this page. */
 export const maxDuration = 300;
@@ -57,10 +59,11 @@ export default async function EditPostPage({
       language: t.language,
     }));
 
-  const [categories, tags, authors] = await Promise.all([
+  const [categories, tags, authors, copies] = await Promise.all([
     getCategoriesByBlogId(id),
     getTagsByBlogId(id),
     getAuthorsByBlogId(id),
+    getPublicationStates(id, [post.id]),
   ]);
 
   return (
@@ -68,6 +71,7 @@ export default async function EditPostPage({
       <main className="mx-auto w-full max-w-[800px] px-6 py-12">
         <PostForm
           blogId={id}
+          website={copies.destination?.connected ? { site: destinationName(copies.destination), ...(copies.states[post.id] ?? { state: null, url: null, error: null }) } : null}
           post={{
             id: post.id,
             title: post.title,

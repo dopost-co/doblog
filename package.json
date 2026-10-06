@@ -12,7 +12,8 @@
     "mcp:stdio": "node scripts/mcp-stdio.mjs",
     "qstash:configure-scheduled-publishing": "node --env-file=.env scripts/configure-scheduled-publishing.mjs",
     "qstash:configure-content-discovery": "node --env-file=.env scripts/configure-content-discovery.mjs",
-    "qstash:configure-growth-drafts": "node --env-file=.env scripts/configure-growth-drafts.mjs"
+    "qstash:configure-growth-drafts": "node --env-file=.env scripts/configure-growth-drafts.mjs",
+    "connectors:build": "bash scripts/build-connectors.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",

@@ -5,6 +5,7 @@ import { getCategoriesByBlogId } from "@/src/server/services/categories/queries"
 import { getTagsByBlogId } from "@/src/server/services/tags/queries";
 import { getAuthorsByBlogId } from "@/src/server/services/authors/queries";
 import { PostForm } from "@/components/PostForm/PostForm";
+import { getCopySite } from "@/src/server/services/publishing/queries";
 
 export default async function NewPostPage({
   params,
@@ -31,16 +32,17 @@ export default async function NewPostPage({
     redirect(`/dashboard/blogs/${id}`);
   }
 
-  const [categories, tags, authors] = await Promise.all([
+  const [categories, tags, authors, copySite] = await Promise.all([
     getCategoriesByBlogId(id),
     getTagsByBlogId(id),
     getAuthorsByBlogId(id),
+    getCopySite(id),
   ]);
 
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto w-full max-w-[800px] px-6 py-12">
-        <PostForm blogId={id} categories={categories} tags={tags} authors={authors} initialScheduleAt={initialScheduleAt} defaultLanguage={blog.languages[0]} />
+        <PostForm blogId={id} categories={categories} tags={tags} authors={authors} initialScheduleAt={initialScheduleAt} defaultLanguage={blog.languages[0]} website={copySite ? { site: copySite, state: null, url: null, error: null } : null} />
       </main>
     </div>
   );

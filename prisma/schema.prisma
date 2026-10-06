@@ -68,6 +68,7 @@ model Blog {
   discoveryRuns           ContentDiscoveryRun[]
   mediaAssets             MediaAsset[]
   postSeoTargets          PostSeoTarget[]
+  publishDestination      PublishDestination?
 
   @@index([userId])
   @@index([userId, deletedAt])
@@ -497,6 +498,70 @@ model PostTag {
   @@unique([postId, tagId])
   @@index([postId])
   @@index([tagId])
+}
+
+// Where a blog's articles live. "api" means the site reads them from Zenex;
+// every other method copies published articles to the site (lib/publishing).
+model PublishDestination {
+  id              String    @id @default(cuid())
+  blogId          String    @unique
+  /// wordpress | prestashop | nextjs | astro | other
+  platform        String
+  /// plugin (WordPress/PrestaShop) | github | webhook | api
+  method          String
+  /// The public website, e.g. https://example.com.
+  siteUrl         String?
+  /// Non-secret settings: the endpoint that answered, GitHub repo, branch and folders, languages.
+  config          Json      @default("{}")
+  /// Signing key or access token, encrypted with INTEGRATION_ENCRYPTION_KEY.
+  secret          String?
+  /// pending (not connected yet) | connected | error
+  status          String    @default("pending")
+  statusMessage   String?
+  /// What the site reported when it was checked: name, version, languages, article URLs.
+  siteInfo        Json?
+  lastCheckedAt   DateTime?
+  /// Content changed since the last sync; the next run picks it up.
+  syncRequestedAt DateTime?
+  syncLockedUntil DateTime?
+  lastSyncedAt    DateTime?
+  /// Last time every published article was compared with its copy, not only the changed ones.
+  lastFullSyncAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  blog         Blog              @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  publications PostPublication[]
+
+  @@index([syncRequestedAt])
+}
+
+// The copy of one post on a destination. postId has no foreign key: the row
+// outlives a deleted post until its copy is removed from the site.
+model PostPublication {
+  id              String    @id @default(cuid())
+  destinationId   String
+  postId          String
+  language        String
+  remoteId        String?
+  remoteUrl       String?
+  contentHash     String?
+  /// The post's updatedAt that was sent, so unchanged posts are skipped cheaply.
+  sourceUpdatedAt DateTime?
+  /// pending | synced | failed
+  state           String    @default("pending")
+  lastError       String?
+  attempts        Int       @default(0)
+  nextAttemptAt   DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  destination PublishDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@unique([destinationId, postId])
+  @@index([postId])
+  @@index([destinationId, state])
 }
 
 model Author {
