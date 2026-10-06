@@ -18,11 +18,10 @@ export const authOptions: NextAuthConfig = {
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email as string,
-          },
-        });
+        const email = String(credentials.email).trim();
+        // Exact match first; otherwise the same email typed with other capitals.
+        const user = await prisma.user.findUnique({ where: { email } })
+          ?? await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
 
         if (!user) {
           return null;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -22,6 +23,7 @@ import {
   Sun,
   TrendingUp,
 } from "lucide-react";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -193,10 +195,13 @@ function BlogSwitcher({ blog, blogs, onNavigate }: Pick<AppSidebarProps, "blog" 
 
 function UserMenu({ user }: Pick<AppSidebarProps, "user">) {
   const { resolvedTheme, setTheme } = useTheme();
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const email = user.email || "";
   const name = user.name || email.split("@")[0] || "Account";
 
   return (
+    <>
+    <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
     <DropdownMenu>
       <DropdownMenuTrigger className="flex h-12 w-full items-center gap-2 rounded-md px-2 text-left outline-none transition-colors hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
@@ -213,6 +218,10 @@ function UserMenu({ user }: Pick<AppSidebarProps, "user">) {
           {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setPasswordOpen(true)} className="gap-2">
+          <KeyRound className="size-4" />
+          Change password
+        </DropdownMenuItem>
         {user.isAdmin && (
           <DropdownMenuItem asChild>
             <Link href="/dashboard/admin" className="gap-2">
@@ -228,5 +237,6 @@ function UserMenu({ user }: Pick<AppSidebarProps, "user">) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }

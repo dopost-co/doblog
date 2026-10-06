@@ -10,6 +10,7 @@ import { DashboardHeader } from "@/components/DashboardHeader/DashboardHeader";
 import { MonthPicker } from "@/components/Usage/MonthPicker";
 import { PlanSwitcher } from "@/components/Usage/PlanSwitcher";
 import { formatUsd } from "@/components/Usage/format";
+import { CreateUserDialog } from "@/components/Admin/CreateUserDialog";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -54,7 +55,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium">Accounts <span className="text-muted-foreground">({overview.users.length})</span></h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-medium">Accounts <span className="text-muted-foreground">({overview.users.length})</span></h2>
+            <CreateUserDialog />
+          </div>
           <ul className="divide-y rounded-lg border bg-card">
             {overview.users.map((user) => (
               <li key={user.id}>
