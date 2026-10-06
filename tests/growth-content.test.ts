@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEditorContent, contentText, normalizeKeyword, refreshStaleYears, type ArticleDraft } from "@/src/server/services/growth/content";
+import { buildEditorContent, contentText, currentDateNote, normalizeKeyword, slugWithoutYears, refreshStaleYears, type ArticleDraft } from "@/src/server/services/growth/content";
 import { rankLinkTargets } from "@/src/server/services/growth/internal-links";
 
 describe("growth content memory", () => {
@@ -68,5 +68,16 @@ describe("Years in titles", () => {
   it("keeps the current year, older history, future years and longer numbers", () => {
     expect(refreshStaleYears("Qué cambió de 2019 a 2026 y qué llega en 2027", now)).toBe("Qué cambió de 2019 a 2026 y qué llega en 2027");
     expect(refreshStaleYears("Más de 120240 usuarios", now)).toBe("Más de 120240 usuarios");
+  });
+
+  it("keeps recent years out of slugs", () => {
+    expect(slugWithoutYears("comparativa-herramientas-programar-instagram-2024", now)).toBe("comparativa-herramientas-programar-instagram");
+    expect(slugWithoutYears("best-tools-2026-for-teams", now)).toBe("best-tools-for-teams");
+    expect(slugWithoutYears("what-changed-since-1998-and-2009", now)).toBe("what-changed-since-1998-and-2009");
+    expect(slugWithoutYears("iso-27001-checklist", now)).toBe("iso-27001-checklist");
+  });
+
+  it("tells the model the date and year in the prompt itself", () => {
+    expect(currentDateNote(now)).toContain("Today is 2026-10-05, so the current year is 2026.");
   });
 });

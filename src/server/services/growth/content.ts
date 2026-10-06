@@ -54,7 +54,28 @@ export function refreshStaleYears(value: string, now = new Date()) {
   });
 }
 
-/** An article draft whose title, headings and metadata never present a past year as current. */
+/**
+ * Drops recent years from a slug: an article refreshed next year keeps its URL,
+ * and a year in the address cannot go stale. Older years are left as history.
+ */
+export function slugWithoutYears(value: string, now = new Date()) {
+  const current = now.getUTCFullYear();
+  return value
+    .replace(/(?<![\p{L}\p{N}])(20\d\d)(?![\p{L}\p{N}])/gu, (year) => Math.abs(current - Number(year)) <= 5 ? "" : year)
+    .replace(/[-_\s]{2,}/g, "-").replace(/^[-_\s]+|[-_\s]+$/g, "");
+}
+
+/**
+ * States the date in the prompt itself: models default to the year their training
+ * data ends, and a date buried in the input JSON is easy for them to overlook.
+ */
+export function currentDateNote(now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const year = now.getUTCFullYear();
+  return `Today is ${today}, so the current year is ${year}. Your training data is older than that: never treat an earlier year as the present, and whenever text names the current year ("best tools in ${year}", "in ${year}, ..."), write ${year}.`;
+}
+
+/** An article draft whose title, headings, image texts and metadata never present a past year as current. */
 export function refreshArticleYears(article: ArticleDraft, now = new Date()): ArticleDraft {
   const refresh = (value: string) => refreshStaleYears(value, now);
   return {
@@ -62,8 +83,12 @@ export function refreshArticleYears(article: ArticleDraft, now = new Date()): Ar
     title: refresh(article.title), coverTitle: refresh(article.coverTitle), suggestedSlug: refresh(article.suggestedSlug),
     excerpt: refresh(article.excerpt), metaTitle: refresh(article.metaTitle), metaDescription: refresh(article.metaDescription),
     sections: article.sections.map((section) => ({ ...section, heading: refresh(section.heading) })),
+    faqs: article.faqs.map((faq) => ({ ...faq, question: refresh(faq.question) })),
     conclusionHeading: refresh(article.conclusionHeading),
-    inlineImages: article.inlineImages.map((image) => ({ ...image, afterHeading: refresh(image.afterHeading) })),
+    coverImage: { ...article.coverImage, alt: refresh(article.coverImage.alt) },
+    inlineImages: article.inlineImages.map((image) => ({
+      ...image, afterHeading: refresh(image.afterHeading), alt: refresh(image.alt), caption: refresh(image.caption),
+    })),
   };
 }
 
