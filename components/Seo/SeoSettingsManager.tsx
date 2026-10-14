@@ -24,7 +24,7 @@ import { isLogoPosition, type LogoPosition } from "@/lib/autopilot/logo";
 import { SEARCH_MARKETS, defaultSearchMarket } from "@/lib/autopilot/search-markets";
 import { MAX_COMPETITORS } from "@/lib/autopilot/competitors";
 import { KEYWORD_IDEAS_ESTIMATE_USD } from "@/lib/autopilot/seo-costs";
-import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, MAX_INLINE_IMAGES, imageSize, isImageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
+import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, MAX_IMAGE_STYLE_LENGTH, MAX_INLINE_IMAGES, imageSize, isImageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
@@ -85,11 +85,19 @@ function ImageSizeSelect({ id, label, value, onChange, disabled }: {
   );
 }
 
-function Area({ label, name, ...props }: { label: string; name: string } & React.ComponentProps<typeof Textarea>) {
+function Area({ label, name, maxLength, defaultValue, onChange, ...props }: { label: string; name: string } & React.ComponentProps<typeof Textarea>) {
+  const [length, setLength] = useState(String(defaultValue ?? "").length);
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={name}>{label}</Label>
-      <Textarea id={name} name={name} rows={3} {...props} />
+      <Textarea
+        id={name} name={name} rows={3} maxLength={maxLength} defaultValue={defaultValue}
+        onChange={(event) => { setLength(event.target.value.length); onChange?.(event); }}
+        {...props}
+      />
+      {maxLength !== undefined && (
+        <p className="text-right text-xs tabular-nums text-muted-foreground">{(maxLength - length).toLocaleString()} left</p>
+      )}
     </div>
   );
 }
@@ -258,7 +266,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
           )}
           {/* Kept mounted while hidden so its value is saved unchanged. */}
           <div className={thumbnailEnabled && thumbnailFormat !== "template" ? "grid" : "hidden"}>
-            <Area label={thumbnailFormat === "generated" ? "Style" : "Illustration style"} name="thumbnailStyle" defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
+            <Area label={thumbnailFormat === "generated" ? "Style" : "Illustration style"} name="thumbnailStyle" maxLength={MAX_IMAGE_STYLE_LENGTH} defaultValue={settings?.thumbnailStyle || ""} placeholder="Editorial cover art, no text…" />
           </div>
           {thumbnailEnabled && thumbnailFormat !== "template" && <StyleReferencesPicker blogId={blogId} value={thumbnailReferences} onChange={setThumbnailReferences} disabled={pending} />}
           {/* The brand-card editor shows this beside its preview; "generated" has no editor. */}
@@ -289,7 +297,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
         <Section title="Post images">
           <SettingToggle id="inline-images-enabled" label="Add images inside the article" checked={inlineImagesEnabled} onChange={setInlineImagesEnabled} disabled={pending} />
           <div className={inlineImagesEnabled ? "grid gap-4" : "hidden"}>
-            <Area label="Style" name="inlineImageStyle" defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
+            <Area label="Style" name="inlineImageStyle" maxLength={MAX_IMAGE_STYLE_LENGTH} defaultValue={settings?.inlineImageStyle || ""} placeholder="Simple explanatory diagrams…" />
             <ImageSizeSelect id="inlineImageSize" label="Size" value={inlineImageSize} onChange={setInlineImageSize} disabled={pending} />
             <Field label="Images per article" name="maxInlineImages" type="number" min="0" max={MAX_INLINE_IMAGES} className="sm:max-w-32" defaultValue={String(Math.min(settings?.maxInlineImages ?? 2, MAX_INLINE_IMAGES))} hint={`Each article gets this many, up to ${MAX_INLINE_IMAGES}, in different sections. The thumbnail is not counted.`} />
           </div>

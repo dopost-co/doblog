@@ -41,3 +41,6 @@ export function compositionFor(size: ImageSize) {
 
 /** Most images Autopilot draws inside one article (each takes a while and costs AI credits). */
 export const MAX_INLINE_IMAGES = 4;
+
+/** Longest style prompt for covers or in-article images. */
+export const MAX_IMAGE_STYLE_LENGTH = 10_000;

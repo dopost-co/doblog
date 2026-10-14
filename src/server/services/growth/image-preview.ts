@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { LOGO_POSITIONS } from "@/lib/autopilot/logo";
-import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, imageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
+import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, MAX_IMAGE_STYLE_LENGTH, imageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 import { THUMBNAIL_FORMATS, coverTypography, thumbnailColors, type ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { blogOpenAI } from "@/src/server/services/usage/openai";
 import { LOGO_MISSING, loadLogo, loadStyleReferences, normalizeLogoUrl, normalizeStyleReferences } from "./image-references";
@@ -16,7 +16,7 @@ export const imagePreviewSchema = z.object({
   format: z.enum(THUMBNAIL_FORMATS.map((format) => format.id) as [ThumbnailFormat, ...ThumbnailFormat[]]).default("generated"),
   colors: z.array(z.string()).max(3).default([]),
   typography: z.record(z.string(), z.unknown()).default({}),
-  style: z.string().trim().max(10000).nullable().default(null),
+  style: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().default(null),
   referenceUrls: z.array(z.string().max(2048)).max(2).default([]),
   logoUrl: z.string().max(2048).nullable().default(null),
   logoPosition: z.enum(["none", ...LOGO_POSITIONS]).default("none"),

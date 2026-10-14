@@ -8,7 +8,7 @@ import { ApiError, apiError } from "@/lib/integrations/errors";
 import { isManagedPlan } from "@/src/server/services/providers/credentials";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
 import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
-import { MAX_INLINE_IMAGES } from "@/lib/autopilot/image-sizes";
+import { MAX_IMAGE_STYLE_LENGTH, MAX_INLINE_IMAGES } from "@/lib/autopilot/image-sizes";
 import { schedulePendingDrafts } from "@/src/server/services/growth/planning";
 import { articlePathsSchema, imageSizeSchema, logoPositionSchema, thumbnailColorsSchema, thumbnailFormatSchema, thumbnailTypographySchema } from "./service";
 
@@ -25,7 +25,7 @@ const settingsSchema = z.object({
   thumbnailSize: imageSizeSchema, inlineImageSize: imageSizeSchema,
   internalLinksEnabled: z.boolean(), backlinksEnabled: z.boolean(),
   thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2), inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2),
-  thumbnailStyle: z.string().trim().max(10000).nullable(), inlineImageStyle: z.string().trim().max(10000).nullable(),
+  thumbnailStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable(), inlineImageStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable(),
   articleUrlPrefix: z.string().trim().startsWith("/", "Start the article path with /").max(200),
   articlePaths: articlePathsSchema,
   maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES, `Up to ${MAX_INLINE_IMAGES} images per article`), perRunBudgetUsd: z.number().min(0.001).max(100),

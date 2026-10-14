@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { IMAGE_SIZES, MAX_INLINE_IMAGES, type ImageSizeId } from "@/lib/autopilot/image-sizes";
+import { IMAGE_SIZES, MAX_IMAGE_STYLE_LENGTH, MAX_INLINE_IMAGES, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isManagedPlan, resolveDataForSeoAccess } from "@/src/server/services/providers/credentials";
@@ -207,9 +207,9 @@ export const seoEditorialSettingsFields = {
   thumbnailColors: thumbnailColorsSchema.optional(),
   /** Partial updates keep the other saved values. */
   thumbnailTypography: thumbnailTypographySchema.partial().optional(),
-  thumbnailStyle: z.string().trim().max(10000).nullable().optional(),
+  thumbnailStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().optional(),
   inlineImagesEnabled: z.boolean().optional(),
-  inlineImageStyle: z.string().trim().max(10000).nullable().optional(),
+  inlineImageStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().optional(),
   maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES).optional(),
   articleUrlPrefix: z.string().trim().startsWith("/").max(200).optional(),
   articlePaths: articlePathsSchema.optional(),
