@@ -16,7 +16,7 @@ export const imagePreviewSchema = z.object({
   format: z.enum(THUMBNAIL_FORMATS.map((format) => format.id) as [ThumbnailFormat, ...ThumbnailFormat[]]).default("generated"),
   colors: z.array(z.string()).max(3).default([]),
   typography: z.record(z.string(), z.unknown()).default({}),
-  style: z.string().trim().max(1000).nullable().default(null),
+  style: z.string().trim().max(10000).nullable().default(null),
   referenceUrls: z.array(z.string().max(2048)).max(2).default([]),
   logoUrl: z.string().max(2048).nullable().default(null),
   logoPosition: z.enum(["none", ...LOGO_POSITIONS]).default("none"),

@@ -207,9 +207,9 @@ export const seoEditorialSettingsFields = {
   thumbnailColors: thumbnailColorsSchema.optional(),
   /** Partial updates keep the other saved values. */
   thumbnailTypography: thumbnailTypographySchema.partial().optional(),
-  thumbnailStyle: z.string().trim().max(1000).nullable().optional(),
+  thumbnailStyle: z.string().trim().max(10000).nullable().optional(),
   inlineImagesEnabled: z.boolean().optional(),
-  inlineImageStyle: z.string().trim().max(1000).nullable().optional(),
+  inlineImageStyle: z.string().trim().max(10000).nullable().optional(),
   maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES).optional(),
   articleUrlPrefix: z.string().trim().startsWith("/").max(200).optional(),
   articlePaths: articlePathsSchema.optional(),

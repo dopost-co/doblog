@@ -25,7 +25,7 @@ const settingsSchema = z.object({
   thumbnailSize: imageSizeSchema, inlineImageSize: imageSizeSchema,
   internalLinksEnabled: z.boolean(), backlinksEnabled: z.boolean(),
   thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2), inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2),
-  thumbnailStyle: z.string().trim().max(1000).nullable(), inlineImageStyle: z.string().trim().max(1000).nullable(),
+  thumbnailStyle: z.string().trim().max(10000).nullable(), inlineImageStyle: z.string().trim().max(10000).nullable(),
   articleUrlPrefix: z.string().trim().startsWith("/", "Start the article path with /").max(200),
   articlePaths: articlePathsSchema,
   maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES, `Up to ${MAX_INLINE_IMAGES} images per article`), perRunBudgetUsd: z.number().min(0.001).max(100),
