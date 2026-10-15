@@ -143,10 +143,13 @@ export function useUnsavedChanges({ value, save, formRef, enabled = true }: {
   // so those initialization changes can never make an untouched form dirty.
   useEffect(() => {
     const target = formRef?.current ?? document;
-    const events = ["focusin", "pointerdown", "keydown", "click"] as const;
-    for (const event of events) target.addEventListener(event, armBaseline, true);
+    const events = ["pointerdown", "keydown", "click"] as const;
+    const armOnInteraction = (event: Event) => {
+      if (event.isTrusted) armBaseline();
+    };
+    for (const event of events) target.addEventListener(event, armOnInteraction, true);
     return () => {
-      for (const event of events) target.removeEventListener(event, armBaseline, true);
+      for (const event of events) target.removeEventListener(event, armOnInteraction, true);
     };
   }, [armBaseline, formRef]);
 
