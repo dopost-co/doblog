@@ -134,20 +134,32 @@ export function useUnsavedChanges({ value, save, formRef, enabled = true }: {
     saveRef.current = save;
   });
 
-  // Take the initial form snapshot after child controls have run their mount
-  // effects. Components such as Radix Select add their form value during that
-  // phase; reading in a layout effect made an untouched form look dirty.
-  useEffect(() => {
+  const armBaseline = useCallback(() => {
     baseline.current ??= { value: latest.current, form: formSnapshot(formRef?.current) };
   }, [formRef]);
+
+  // Some controls add hidden form fields after mounting. Capture the baseline
+  // immediately before the user's first interaction instead of during mount,
+  // so those initialization changes can never make an untouched form dirty.
+  useEffect(() => {
+    const target = formRef?.current ?? document;
+    const events = ["focusin", "pointerdown", "keydown", "click"] as const;
+    for (const event of events) target.addEventListener(event, armBaseline, true);
+    return () => {
+      for (const event of events) target.removeEventListener(event, armBaseline, true);
+    };
+  }, [armBaseline, formRef]);
 
   useEffect(() => {
     if (!context || !enabled) return;
     return context.register(id, {
-      isDirty: () => !!baseline.current && (latest.current !== baseline.current.value || formSnapshot(formRef?.current) !== baseline.current.form),
+      isDirty: () => {
+        if (!baseline.current) { armBaseline(); return false; }
+        return latest.current !== baseline.current.value || formSnapshot(formRef?.current) !== baseline.current.form;
+      },
       save: () => saveRef.current(),
     });
-  }, [context, enabled, formRef, id]);
+  }, [armBaseline, context, enabled, formRef, id]);
 
   /** Call after saving: the current values become the new baseline. */
   const markSaved = useCallback(() => {
