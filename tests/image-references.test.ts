@@ -60,7 +60,7 @@ describe("Image generation with references", () => {
     expect(fallback).toHaveBeenCalledTimes(1);
   });
 
-  it("asks for a real transparent background when the style wants one", async () => {
+  it("detects transparent styles but keeps gpt-image-2 requests opaque", async () => {
     const { requestImage, wantsTransparentBackground, makeCover } = await import("@/src/server/services/growth/images");
     expect(wantsTransparentBackground("Like a kid draw black and white with bg transparent")).toBe(true);
     expect(wantsTransparentBackground("Ilustración con fondo transparente")).toBe(true);
@@ -74,17 +74,21 @@ describe("Image generation with references", () => {
     expect(wantsTransparentBackground("Sticker style cut-out, not a photo")).toBe(true);
     expect(wantsTransparentBackground("No shadows, transparent background")).toBe(true);
 
-    // JPEG has no alpha, so a transparent request becomes PNG.
+    // gpt-image-2 does not support alpha, so unsupported background and PNG
+    // overrides are omitted even if a caller asks for transparency directly.
     const generate = vi.fn().mockResolvedValue(image);
     await requestImage({ images: { edit: vi.fn(), generate } } as never, "A cover", [], "run-1", { format: "jpeg", size: "1024x1024", transparent: true });
-    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ background: "transparent", output_format: "png" }));
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-image-2", output_format: "jpeg" }));
+    expect(generate.mock.calls[0][0]).not.toHaveProperty("background");
 
     const cover = vi.fn().mockResolvedValue(image);
     const made = await makeCover({ images: { edit: vi.fn(), generate: cover } } as never, {
       format: "generated", prompt: "A cover", style: "Like a kid draw black and white with bg transparent", references: [], runId: "run-1",
       colors: [], typography: {} as never, title: "T", warnings: [], size: imageSize("original"),
     });
-    expect(cover).toHaveBeenCalledWith(expect.objectContaining({ background: "transparent", output_format: "webp", prompt: expect.stringContaining("Never draw a checkerboard") }));
+    expect(cover).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-image-2", output_format: "webp" }));
+    expect(cover.mock.calls[0][0]).not.toHaveProperty("background");
+    expect(cover.mock.calls[0][0].prompt).not.toContain("Never draw a checkerboard");
     expect(made.mimeType).toBe("image/webp");
 
     const plain = vi.fn().mockResolvedValue(image);
@@ -92,7 +96,7 @@ describe("Image generation with references", () => {
       format: "generated", prompt: "A cover", style: "Warm watercolor", references: [], runId: "run-1",
       colors: [], typography: {} as never, title: "T", warnings: [], size: imageSize("original"),
     });
-    expect(plain.mock.calls[0][0]).toHaveProperty("background", "opaque");
+    expect(plain.mock.calls[0][0]).not.toHaveProperty("background");
   });
 
   it("draws at the nearest model size and crops to the chosen preset", async () => {

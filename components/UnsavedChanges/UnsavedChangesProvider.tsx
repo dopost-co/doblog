@@ -132,8 +132,14 @@ export function useUnsavedChanges({ value, save, formRef, enabled = true }: {
   useLayoutEffect(() => {
     latest.current = current;
     saveRef.current = save;
-    baseline.current ??= { value: current, form: formSnapshot(formRef?.current) };
   });
+
+  // Take the initial form snapshot after child controls have run their mount
+  // effects. Components such as Radix Select add their form value during that
+  // phase; reading in a layout effect made an untouched form look dirty.
+  useEffect(() => {
+    baseline.current ??= { value: latest.current, form: formSnapshot(formRef?.current) };
+  }, [formRef]);
 
   useEffect(() => {
     if (!context || !enabled) return;

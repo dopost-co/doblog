@@ -10,7 +10,7 @@ import { renderCoverPng } from "./cover-render";
  * Makes the images of an article without storing them, so generation and
  * previews share exactly the same result. Callers store what they keep.
  */
-export const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1.5";
+export const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 
 export type MadeImage = {
   bytes: Buffer;
@@ -67,12 +67,13 @@ export async function requestImage(
   openai: Pick<OpenAI, "images">, prompt: string, references: Uploadable[], runId: string,
   { format = "webp", size = "1536x1024", transparent = false }: { format?: ImageFormat; size?: ModelImageSize; transparent?: boolean } = {},
 ) {
+  const transparentOutput = transparent && supportsTransparency(IMAGE_MODEL);
   const options = {
     model: IMAGE_MODEL, prompt, size, quality: "medium", n: 1,
     // Transparency needs a format with alpha: JPEG becomes PNG.
-    output_format: transparent && format === "jpeg" ? "png" : format,
+    output_format: transparentOutput && format === "jpeg" ? "png" : format,
     // Opaque when not asked for, so the model never decides on alpha itself (gpt-image-2 only does opaque).
-    ...(transparent ? { background: "transparent" as const } : supportsTransparency(IMAGE_MODEL) ? { background: "opaque" as const } : {}),
+    ...(transparentOutput ? { background: "transparent" as const } : supportsTransparency(IMAGE_MODEL) ? { background: "opaque" as const } : {}),
   } as const;
   if (!references.length) return openai.images.generate(options);
   try {
