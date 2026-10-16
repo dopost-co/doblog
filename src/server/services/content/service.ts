@@ -14,6 +14,7 @@ import { queueTranslationSync } from "@/src/server/services/translations/auto-sy
 import { queueRelatedArticleLinks } from "@/src/server/services/growth/backlinks";
 import { normalizeBlogLanguages } from "@/lib/blog-languages";
 import { syncSeoLanguage } from "@/src/server/services/seo/service";
+import { mergeUploadedImages } from "@/lib/integrations/editor-images";
 
 const itemInput = z.object({ id: schemas.idSchema }).strict();
 export const operationSchemas: Record<OperationName, z.ZodType> = {
@@ -109,39 +110,29 @@ async function writePost(principal: ApiPrincipal, input: unknown, id?: string) {
   return post;
 }
 
-type EditorBlock = { id?: string; type: string; data: Record<string, unknown>; tunes?: Record<string, unknown> };
-
 /** Adds image blocks to the document that exists at commit time; article text is never accepted from the caller. */
 async function addPostImages(principal: ApiPrincipal, input: unknown) {
   const { id, coverImage, ogImage, images = [] } = schemas.addPostImagesSchema.safeExtend({ id: schemas.idSchema }).parse(input);
-  const { previous, post } = await prisma.$transaction(async tx => {
+  const { previous, post, changed } = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${id} AND "blogId" = ${principal.blogId} FOR UPDATE`;
-    const current = await tx.post.findFirst({ where: { id, blogId: principal.blogId } });
+    const current = await tx.post.findFirst({ where: { id, blogId: principal.blogId }, include: postInclude });
     if (!current) throw new ApiError(404, "Post not found");
     if (isLive(current.status)) requireScope(principal, "content:publish");
-    const content = current.content as unknown as { time?: number; version?: string; blocks?: EditorBlock[] };
-    if (!Array.isArray(content?.blocks)) throw new ApiError(409, "This post has no editable Editor.js content");
-    const blocks = content.blocks.map(block => ({ ...block, data: { ...block.data } }));
-    const insertions = images.map((image, order) => ({
-      image, order,
-      at: image.afterBlockId ? blocks.findIndex(item => item.id === image.afterBlockId) + 1 : blocks.length,
-    })).map(item => ({ ...item, at: item.at > 0 ? item.at : blocks.length }))
-      .sort((a, b) => b.at - a.at || b.order - a.order);
-    for (const { image, at } of insertions) {
-      const block: EditorBlock = { type: "image", data: {
-        file: { url: image.url }, alt: image.alt,
-        caption: image.caption || image.alt, withBorder: false, withBackground: false, stretched: false,
-      } };
-      blocks.splice(at, 0, block);
+    const merged = images.length ? mergeUploadedImages(current.content, images) : null;
+    if (images.length && !merged) throw new ApiError(409, "This post has no editable Editor.js content");
+    const nextCover = coverImage !== undefined ? coverImage : current.coverImage;
+    const nextOg = ogImage !== undefined ? ogImage : coverImage !== undefined ? coverImage : current.ogImage;
+    if (!merged?.added && nextCover === current.coverImage && nextOg === current.ogImage) {
+      return { previous: current, post: current, changed: false };
     }
     const updated = await tx.post.update({ where: { id, blogId: principal.blogId }, data: {
-      ...(images.length ? { content: { ...content, time: Date.now(), blocks } as Prisma.InputJsonValue } : {}),
+      ...(merged?.added ? { content: merged.content as Prisma.InputJsonValue } : {}),
       ...(coverImage !== undefined ? { coverImage } : {}),
       ...(ogImage !== undefined ? { ogImage } : coverImage !== undefined ? { ogImage: coverImage } : {}),
     }, include: postInclude });
-    return { previous: current, post: updated };
+    return { previous: current, post: updated, changed: true };
   });
-  await queueTranslationSync(principal.blogId, previous, post);
+  if (changed) await queueTranslationSync(principal.blogId, previous, post);
   return post;
 }
 

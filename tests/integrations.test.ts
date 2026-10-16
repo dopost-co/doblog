@@ -13,6 +13,7 @@ import { imageExtension } from "@/src/server/services/media/upload";
 import { draftExample } from "@/lib/integrations/examples";
 import { connectionConfig } from "@/scripts/mcp-stdio.mjs";
 import { isTrustedAuthorizationOrigin, parseScopes } from "@/lib/integrations/oauth";
+import { mergeUploadedImages } from "@/lib/integrations/editor-images";
 
 describe("integration schemas and secrets", () => {
   it("uses unique 256-bit tokens and stores only a digest", () => {
@@ -35,6 +36,24 @@ describe("integration schemas and secrets", () => {
       { url: "https://media.test/inside.png", afterBlockId: "section-1", alt: "Diagram" },
     ] }).success).toBe(true);
     expect(schema.safeParse({ id: "post", content: { blocks: [] }, images: [{ url: "https://media.test/x.png" }] }).success).toBe(false);
+  });
+  it("merges uploaded images into current text and makes retries harmless", () => {
+    const content = { version: "2.31.0", blocks: [
+      { id: "intro", type: "paragraph", data: { text: "Keep the latest text" } },
+      { id: "section", type: "header", data: { text: "Section", level: 2 } },
+      { type: "image", data: { file: { url: "https://media.test/existing.png" }, alt: "Existing" } },
+    ] };
+    const merged = mergeUploadedImages(content, [
+      { url: "https://media.test/new.png", afterBlockId: "section", alt: "New", caption: "" },
+      { url: "https://media.test/new.png", alt: "Repeated in one request", caption: "" },
+      { url: "https://media.test/existing.png", alt: "Repeated from the article", caption: "" },
+    ]);
+    expect(merged?.added).toBe(1);
+    expect(merged?.content.blocks.map((block) => block.type)).toEqual(["paragraph", "header", "image", "image"]);
+    expect(JSON.stringify(merged?.content)).toContain("Keep the latest text");
+    expect(mergeUploadedImages(merged?.content, [
+      { url: "https://media.test/new.png", afterBlockId: "section", alt: "New", caption: "" },
+    ])?.added).toBe(0);
   });
   it.each([
     { userId: "other" }, { blogId: "other" }, { content: "markdown" },

@@ -163,6 +163,22 @@ describe.runIf(!!connection)("isolated PostgreSQL management integration", () =>
       .toEqual(["paragraph", "header", "image", "paragraph"]);
     expect((await call("POST", `/posts/${data.id}/images`, { content })).status).toBe(400);
   });
+  it("allows cover-only updates without Editor.js content and does not duplicate retried images", async () => {
+    const legacy = await state.db.post.create({ data: {
+      blogId: blog.id, title: "Legacy", slug: "legacy", content: {}, language: "en", translationGroupId: crypto.randomUUID(),
+    } });
+    const cover = "https://media.test/legacy-cover.png";
+    expect((await call("POST", `/posts/${legacy.id}/images`, { coverImage: cover })).status).toBe(201);
+    expect(await state.db.post.findUnique({ where: { id: legacy.id } })).toMatchObject({ coverImage: cover, ogImage: cover });
+
+    const content = { blocks: [{ id: "body", type: "paragraph", data: { text: "Keep" } }] };
+    const { data } = await (await call("POST", "/posts", { ...draftExample, slug: "retry-images", content })).json();
+    const payload = { images: [{ url: "https://media.test/retry.png", afterBlockId: "body", alt: "Retry-safe" }] };
+    expect((await call("POST", `/posts/${data.id}/images`, payload)).status).toBe(201);
+    expect((await call("POST", `/posts/${data.id}/images`, payload)).status).toBe(201);
+    const saved = await state.db.post.findUniqueOrThrow({ where: { id: data.id } });
+    expect((saved.content as { blocks: Array<{ type: string }> }).blocks.filter((block) => block.type === "image")).toHaveLength(1);
+  });
   it("rolls back relation replacements if a unique slug constraint fails", async () => {
     const category = await state.db.category.create({ data: { blogId: blog.id, name: "Keep", slug: "keep" } });
     await call("POST", "/posts", { ...draftExample, slug: "taken" });

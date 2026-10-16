@@ -82,7 +82,7 @@ export async function requestImage(
     // Transparency needs a format with alpha: JPEG becomes PNG.
     output_format: transparentOutput && format === "jpeg" ? "png" : format,
     // Opaque when not asked for, so the model never decides on alpha itself (gpt-image-2 only does opaque).
-    ...(transparentOutput ? { background: "transparent" as const } : supportsTransparency(IMAGE_MODEL) ? { background: "opaque" as const } : {}),
+    ...(transparentOutput ? { background: "transparent" as const } : supportsTransparency(model) ? { background: "opaque" as const } : {}),
   } as const;
   if (!references.length) return openai.images.generate(options);
   try {

@@ -99,6 +99,15 @@ describe("Image generation with references", () => {
     expect(plain.mock.calls[0][0]).not.toHaveProperty("background");
   });
 
+  it("derives background support from the selected model, not the process default", async () => {
+    const { requestImage } = await import("@/src/server/services/growth/images");
+    const generate = vi.fn().mockResolvedValue(image);
+    await requestImage({ images: { edit: vi.fn(), generate } } as never, "A cover", [], "run-1", {
+      model: "gpt-image-1.5", transparent: false,
+    });
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-image-1.5", background: "opaque" }));
+  });
+
   it("draws at the nearest model size and crops to the chosen preset", async () => {
     const { makeInlineImage } = await import("@/src/server/services/growth/images");
     const drawn = await sharp({ create: { width: 1536, height: 1024, channels: 3, background: "#336699" } }).webp().toBuffer();

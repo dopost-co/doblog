@@ -40,7 +40,8 @@ describe("MCP rich content", () => {
           expect(contentSchema).toMatchObject({ description: expect.stringContaining("get_editor_guide") });
           expect(contentSchema).toMatchObject({ description: expect.stringContaining("replaces ALL blocks") });
         }
-        expect(tools.some(tool => tool.name === "add_post_images")).toBe(true);
+        const imageTool = tools.find(tool => tool.name === "add_post_images");
+        expect(imageTool?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: true });
       } else {
         expect(tools.some(tool => tool.name === "create_posts")).toBe(false);
         expect((await client.callTool({ name: "create_posts", arguments: {} })).isError).toBe(true);

@@ -281,7 +281,7 @@ export function createMcpServer(principal: ApiPrincipal) {
       annotations: {
         readOnlyHint: operation.method === "GET",
         destructiveHint: operation.method === "DELETE" || operation.method === "PATCH",
-        idempotentHint: operation.method === "GET",
+        idempotentHint: operation.method === "GET" || operation.name === "add_post_images",
         openWorldHint: false,
       },
     }, async (input) => {
