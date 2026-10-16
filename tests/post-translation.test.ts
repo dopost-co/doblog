@@ -15,7 +15,7 @@ vi.mock("@/src/server/services/translations/TranslationService", () => ({
     translatePostContent = async (content: unknown) => content;
   },
 }));
-import { rewriteLinks, translatePostInto } from "@/src/server/services/translations/post-translation";
+import { rewriteLinks, translatableTextChanged, translatePostInto } from "@/src/server/services/translations/post-translation";
 
 const source = {
   id: "p", blogId: "b", language: "es", translationGroupId: "g", slug: "s", title: "Título", content: { blocks: [] },
@@ -67,6 +67,28 @@ describe("rewriteLinks", () => {
     const out = rewriteLinks(content, { "/es/": "/en/", "/es/productos": "/en/products", "/es/contacto": "/en/contact" });
     expect(out.blocks[0].data.text).toBe('See <a href="/en/products/silla">this</a>, <a href="/en/blog/x">that</a> and <a href="https://example.com">out</a>');
     expect(out.blocks[1].data.link).toBe("/en/contact");
+  });
+});
+
+describe("translation change detection", () => {
+  const post = (blocks: unknown[]) => ({
+    title: "Title", coverTitle: null, content: { blocks }, excerpt: null,
+    metaTitle: null, metaDescription: null, ogTitle: null, ogDescription: null, keywords: null,
+  }) as never;
+
+  it("does not regenerate article text for image-only API updates", () => {
+    const before = post([{ id: "p", type: "paragraph", data: { text: "Keep this text" } }]);
+    const after = post([
+      { id: "p", type: "paragraph", data: { text: "Keep this text" } },
+      { type: "image", data: { file: { url: "https://media.test/new.png" }, caption: "Diagram" } },
+    ]);
+    expect(translatableTextChanged(before, after)).toBe(false);
+  });
+
+  it("still regenerates translations when actual article text changes", () => {
+    const before = post([{ id: "p", type: "paragraph", data: { text: "Old text" } }]);
+    const after = post([{ id: "p", type: "paragraph", data: { text: "New text" } }]);
+    expect(translatableTextChanged(before, after)).toBe(true);
   });
 });
 

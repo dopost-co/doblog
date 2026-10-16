@@ -11,6 +11,7 @@ import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
 import { MAX_IMAGE_STYLE_LENGTH, MAX_INLINE_IMAGES } from "@/lib/autopilot/image-sizes";
 import { schedulePendingDrafts } from "@/src/server/services/growth/planning";
 import { articlePathsSchema, imageSizeSchema, logoPositionSchema, thumbnailColorsSchema, thumbnailFormatSchema, thumbnailTypographySchema } from "./service";
+import { imageModeSchema, imageModelSchema, imageQualitySchema } from "@/lib/autopilot/image-generation";
 
 const settingsSchema = z.object({
   credentialId: z.string().min(1).nullable(), enabled: z.boolean(),
@@ -26,6 +27,9 @@ const settingsSchema = z.object({
   internalLinksEnabled: z.boolean(), backlinksEnabled: z.boolean(),
   thumbnailReferenceUrls: z.array(z.string().max(2048)).max(2), inlineImageReferenceUrls: z.array(z.string().max(2048)).max(2),
   thumbnailStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable(), inlineImageStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable(),
+  imageConceptPrompt: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().default(null),
+  imageModel: imageModelSchema.default("gpt-image-2"), imageQuality: imageQualitySchema.default("medium"), imageMode: imageModeSchema.default("direct"),
+  imageVariants: z.literal(1).default(1), logoWidth: z.number().int().min(80).max(240).default(140), logoMargin: z.number().int().min(0).max(128).default(32),
   articleUrlPrefix: z.string().trim().startsWith("/", "Start the article path with /").max(200),
   articlePaths: articlePathsSchema,
   maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES, `Up to ${MAX_INLINE_IMAGES} images per article`), perRunBudgetUsd: z.number().min(0.001).max(100),
@@ -115,6 +119,9 @@ export async function saveBlogSeoSettings(blogId: string, input: unknown) {
       thumbnailReferenceUrls: normalizeStyleReferences(blogId, data.thumbnailReferenceUrls),
       inlineImageReferenceUrls: normalizeStyleReferences(blogId, data.inlineImageReferenceUrls),
       thumbnailStyle: data.thumbnailStyle || null, inlineImageStyle: data.inlineImageStyle || null,
+      imageConceptPrompt: data.imageConceptPrompt || null,
+      imageModel: data.imageModel, imageQuality: data.imageQuality, imageMode: data.imageMode,
+      imageVariants: data.imageVariants, logoWidth: data.logoWidth, logoMargin: data.logoMargin,
       articleUrlPrefix: `/${data.articleUrlPrefix.split("/").filter(Boolean).join("/")}`,
       articlePaths: data.articlePaths,
       maxInlineImages: data.maxInlineImages,

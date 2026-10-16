@@ -11,7 +11,5 @@ export function isLogoPosition(value: unknown): value is LogoPosition {
   return value === "none" || LOGO_POSITIONS.includes(value as typeof LOGO_POSITIONS[number]);
 }
 
-/** Logo size and margin relative to the image, so it looks the same at any resolution. */
-export const LOGO_MAX_WIDTH = 0.16;
+/** Legacy height guard plus the pixel defaults exposed by the CMS. */
 export const LOGO_MAX_HEIGHT = 0.14;
-export const LOGO_MARGIN = 0.04;

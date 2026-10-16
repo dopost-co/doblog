@@ -72,11 +72,16 @@ export async function translatePostText(translator: TranslationService, source: 
   return { content, title, coverTitle: storedCoverTitle(coverTitle), excerpt, metaTitle, metaDescription, ogTitle, ogDescription, keywords };
 }
 
-/** Whether a write changed text that translations are made from (Editor.js timestamps are ignored). */
+/** Whether a write changed text that translations are made from (timestamps and image-only changes are ignored). */
 export function translatableTextChanged(before: Omit<PostText, "language">, after: Omit<PostText, "language">) {
   const fields = ["title", "coverTitle", "excerpt", "metaTitle", "metaDescription", "ogTitle", "ogDescription", "keywords"] as const;
   if (fields.some((field) => (before[field] ?? null) !== (after[field] ?? null))) return true;
-  const blocks = (content: Prisma.JsonValue) => JSON.stringify((content as { blocks?: unknown } | null)?.blocks ?? null);
+  // Uploading or moving an image must not spend credits retranslating the
+  // whole article. Image blocks carry media metadata; the surrounding article
+  // text is the source of truth for translation.
+  const blocks = (content: Prisma.JsonValue) => JSON.stringify(
+    ((content as { blocks?: Array<{ type?: unknown }> } | null)?.blocks ?? []).filter(block => block?.type !== "image"),
+  );
   return blocks(before.content) !== blocks(after.content);
 }
 

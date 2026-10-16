@@ -9,6 +9,7 @@ import { LOGO_MISSING, loadLogo, loadStyleReferences, normalizeLogoUrl, normaliz
 import { resolveCoverTitle } from "./cover-title";
 import { imageSubject } from "./image-subject";
 import { makeCover, makeInlineImage } from "./images";
+import { DEFAULT_LOGO_MARGIN, DEFAULT_LOGO_WIDTH, imageModelSchema, imageQualitySchema } from "@/lib/autopilot/image-generation";
 
 export const imagePreviewSchema = z.object({
   kind: z.enum(["cover", "inline"]),
@@ -20,7 +21,12 @@ export const imagePreviewSchema = z.object({
   referenceUrls: z.array(z.string().max(2048)).max(2).default([]),
   logoUrl: z.string().max(2048).nullable().default(null),
   logoPosition: z.enum(["none", ...LOGO_POSITIONS]).default("none"),
+  logoWidth: z.number().int().min(80).max(240).default(DEFAULT_LOGO_WIDTH),
+  logoMargin: z.number().int().min(0).max(128).default(DEFAULT_LOGO_MARGIN),
   size: z.enum(IMAGE_SIZES.map((size) => size.id) as [ImageSizeId, ...ImageSizeId[]]).default(DEFAULT_IMAGE_SIZE),
+  conceptPrompt: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().default(null),
+  model: imageModelSchema.default("gpt-image-2"),
+  quality: imageQualitySchema.default("medium"),
 }).strict();
 
 /**
@@ -47,8 +53,10 @@ export async function previewImage(blogId: string, raw: unknown) {
   if (wantsLogo && !logo) warnings.push(LOGO_MISSING);
   const request = {
     prompt: imageSubject(input.kind, post), style: input.style, references, runId: "preview",
-    logo: logo ? { bytes: logo, position: input.logoPosition } : null,
+    logo: logo ? { bytes: logo, position: input.logoPosition, width: input.logoWidth, margin: input.logoMargin } : null,
     size: imageSize(input.size),
+    conceptPrompt: input.conceptPrompt, model: input.model, quality: input.quality,
+    articleTitle: post.title, summary: post.excerpt,
   };
   /**
    * The preview stores nothing, so an article with no headline gets one written

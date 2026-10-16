@@ -21,9 +21,9 @@ async function pixel(bytes: Buffer, x: number, y: number) {
 describe("Logo on generated images", () => {
   it("places the logo in the chosen corner, scaled, with a margin", async () => {
     const result = await withLogo(await base(), { bytes: await logo(), position: "bottom-right" });
-    // 16% of 1200 = 192 px wide (aspect kept: 48 px tall), 48 px margin from the right and bottom.
-    expect(await pixel(result.bytes, 1200 - 48 - 10, 675 - 48 - 10)).toEqual(RED);
-    expect(await pixel(result.bytes, 1200 - 48 - 200, 675 - 48 - 10)).toEqual(WHITE);
+    // Default logo is 140 px wide (35 px tall), with a fixed 32 px margin.
+    expect(await pixel(result.bytes, 1200 - 32 - 10, 675 - 32 - 10)).toEqual(RED);
+    expect(await pixel(result.bytes, 1200 - 32 - 150, 675 - 32 - 10)).toEqual(WHITE);
     expect(await pixel(result.bytes, 10, 10)).toEqual(WHITE);
     const meta = await sharp(result.bytes).metadata();
     expect([meta.width, meta.height, meta.format]).toEqual([1200, 675, "png"]);

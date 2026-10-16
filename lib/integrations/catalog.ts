@@ -2,7 +2,7 @@ import type { ApiScope } from "./scopes";
 
 export const CONTENT_RESOURCES = ["posts", "categories", "tags", "authors"] as const;
 export type ContentResource = typeof CONTENT_RESOURCES[number];
-export type OperationName = `${"list" | "get" | "create" | "update" | "delete"}_${ContentResource}` | "get_blog" | "update_blog" | "upload_image" | "translate_posts";
+export type OperationName = `${"list" | "get" | "create" | "update" | "delete"}_${ContentResource}` | "get_blog" | "update_blog" | "upload_image" | "translate_posts" | "add_post_images";
 export type Operation = { name: OperationName; method: string; path: string; scope: ApiScope; description: string };
 export const OPERATIONS: Operation[] = [
   { name: "upload_image", method: "POST", path: "/media", scope: "media:write", description: "Upload a public JPEG, PNG, GIF, WebP or SVG image as base64 (maximum 700 KiB decoded; SVG is stored as PNG). purpose \"content\" (default) returns a URL usable in coverImage or Editor.js. purpose \"logo\" or \"style_reference\" stores a brand asset for Autopilot images and needs seo:write; then set it with seo_update_settings (logoUrl, thumbnailReferenceUrls or inlineImageReferenceUrls). Do not upload confidential files; images are public even for drafts." },
@@ -16,4 +16,5 @@ export const OPERATIONS: Operation[] = [
     { name: `delete_${resource}`, method: "DELETE", path: `/${resource}/{id}`, scope: "content:delete", description: `Permanently delete ${resource}. Published posts additionally require content:publish. Ask the user before deleting.` },
   ] as Operation[])),
   { name: "translate_posts", method: "POST", path: "/posts/{id}/translations", scope: "content:write", description: "Translate one post into one or more languages with AI, creating a linked translation per language. Translations keep the slug, status, publication date, media, author, categories and tags, so a scheduled post yields translations scheduled for the same time; translating a published or scheduled post therefore also requires content:publish. Existing languages are skipped and a failure in one language does not affect the others. Takes up to a minute per language: translate one post per call and review the result before publishing." },
+  { name: "add_post_images", method: "POST", path: "/posts/{id}/images", scope: "content:write", description: "Attach an uploaded cover and/or multiple inline images in one atomic operation. Inline images are inserted after their current Editor.js block IDs (or appended) without resending or replacing article text. This is the safe operation for image-only build/API updates." },
 ];

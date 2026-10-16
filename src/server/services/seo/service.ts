@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { IMAGE_SIZES, MAX_IMAGE_STYLE_LENGTH, MAX_INLINE_IMAGES, type ImageSizeId } from "@/lib/autopilot/image-sizes";
+import { IMAGE_SIZES, MAX_IMAGE_STYLE_LENGTH, MAX_INLINE_IMAGES, imageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/integrations/errors";
 import { isManagedPlan, resolveDataForSeoAccess } from "@/src/server/services/providers/credentials";
@@ -14,6 +14,7 @@ import { competitorDomainsSchema } from "@/lib/autopilot/competitors";
 import { SEO_COST_ESTIMATE_MICROS } from "@/lib/autopilot/seo-costs";
 import { schedulePendingDrafts } from "@/src/server/services/growth/planning";
 import { normalizeLogoUrl, normalizeStyleReferences } from "@/src/server/services/growth/image-references";
+import { imageGenerationConfigSchema, imageSizeId, imageModelSchema, imageQualitySchema, imageModeSchema } from "@/lib/autopilot/image-generation";
 
 export type SeoOperation = "keyword_ideas" | "search_intent" | "serp_brief" | "ranked_keywords" | "competitor_gap";
 const POLICY: Record<SeoOperation, { endpoint: string; ttlMs: number; estimateMicros: number }> = {
@@ -132,6 +133,28 @@ export async function getSeoSettingsSummary(blogId: string) {
     inlineImageStyle: settings.inlineImageStyle,
     inlineImageReferenceUrls: settings.inlineImageReferenceUrls,
     maxInlineImages: settings.maxInlineImages,
+    imageConceptPrompt: settings.imageConceptPrompt,
+    imageModel: settings.imageModel,
+    imageQuality: settings.imageQuality,
+    imageMode: settings.imageMode,
+    imageVariants: settings.imageVariants,
+    logoWidth: settings.logoWidth,
+    logoMargin: settings.logoMargin,
+    imageGeneration: {
+      stylePrompt: settings.thumbnailStyle,
+      conceptPrompt: settings.imageConceptPrompt,
+      model: settings.imageModel,
+      quality: settings.imageQuality,
+      size: `${imageSize(settings.thumbnailSize).width}x${imageSize(settings.thumbnailSize).height}`,
+      mode: settings.imageMode,
+      variants: settings.imageVariants,
+      logo: {
+        enabled: Boolean(settings.logoUrl && settings.thumbnailLogoPosition !== "none"),
+        position: settings.thumbnailLogoPosition === "none" ? "top-left" : settings.thumbnailLogoPosition,
+        width: settings.logoWidth,
+        margin: settings.logoMargin,
+      },
+    },
     articleUrlPrefix: settings.articleUrlPrefix,
     articlePaths: settings.articlePaths,
     internalLinksEnabled: settings.internalLinksEnabled,
@@ -210,6 +233,15 @@ export const seoEditorialSettingsFields = {
   thumbnailStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().optional(),
   inlineImagesEnabled: z.boolean().optional(),
   inlineImageStyle: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().optional(),
+  imageConceptPrompt: z.string().trim().max(MAX_IMAGE_STYLE_LENGTH).nullable().optional(),
+  imageModel: imageModelSchema.optional(),
+  imageQuality: imageQualitySchema.optional(),
+  imageMode: imageModeSchema.optional(),
+  imageVariants: z.literal(1).optional(),
+  logoWidth: z.number().int().min(80).max(240).optional(),
+  logoMargin: z.number().int().min(0).max(128).optional(),
+  /** MCP-friendly form matching image-generation clients. It applies shared defaults to both image kinds. */
+  imageGeneration: imageGenerationConfigSchema.optional(),
   maxInlineImages: z.number().int().min(0).max(MAX_INLINE_IMAGES).optional(),
   articleUrlPrefix: z.string().trim().startsWith("/").max(200).optional(),
   articlePaths: articlePathsSchema.optional(),
@@ -228,20 +260,43 @@ export const seoEditorialSettingsSchema = z.object(seoEditorialSettingsFields).s
 
 export async function updateSeoEditorialSettings(blogId: string, input: unknown) {
   const parsed = seoEditorialSettingsSchema.parse(input);
+  const { imageGeneration, ...flat } = parsed;
+  const generated = imageGeneration ? {
+    ...(imageGeneration.stylePrompt !== undefined ? {
+      thumbnailStyle: imageGeneration.stylePrompt,
+      inlineImageStyle: imageGeneration.stylePrompt,
+    } : {}),
+    ...(imageGeneration.conceptPrompt !== undefined ? { imageConceptPrompt: imageGeneration.conceptPrompt } : {}),
+    ...(imageGeneration.model ? { imageModel: imageGeneration.model } : {}),
+    ...(imageGeneration.quality ? { imageQuality: imageGeneration.quality } : {}),
+    ...(imageGeneration.size ? {
+      thumbnailSize: imageSizeId(imageGeneration.size),
+      inlineImageSize: imageSizeId(imageGeneration.size),
+    } : {}),
+    ...(imageGeneration.mode ? { imageMode: imageGeneration.mode } : {}),
+    ...(imageGeneration.variants ? { imageVariants: imageGeneration.variants } : {}),
+    ...(imageGeneration.logo ? {
+      thumbnailLogoPosition: imageGeneration.logo.enabled ? imageGeneration.logo.position : "none",
+      inlineLogoPosition: imageGeneration.logo.enabled ? imageGeneration.logo.position : "none",
+      logoWidth: imageGeneration.logo.width,
+      logoMargin: imageGeneration.logo.margin,
+    } : {}),
+  } : {};
+  const normalized = { ...flat, ...generated };
   // Brand assets must be ones uploaded to this blog.
-  const current = parsed.thumbnailTypography || parsed.timezone
+  const current = normalized.thumbnailTypography || normalized.timezone
     ? await prisma.blogSeoSettings.findUnique({ where: { blogId }, select: { thumbnailTypography: true, timezone: true } })
     : null;
   const data = {
-    ...parsed,
-    ...(parsed.thumbnailTypography ? { thumbnailTypography: { ...coverTypography(current?.thumbnailTypography), ...parsed.thumbnailTypography } } : {}),
-    ...(parsed.logoUrl !== undefined ? { logoUrl: normalizeLogoUrl(blogId, parsed.logoUrl) } : {}),
-    ...(parsed.thumbnailReferenceUrls ? { thumbnailReferenceUrls: normalizeStyleReferences(blogId, parsed.thumbnailReferenceUrls) } : {}),
-    ...(parsed.inlineImageReferenceUrls ? { inlineImageReferenceUrls: normalizeStyleReferences(blogId, parsed.inlineImageReferenceUrls) } : {}),
+    ...normalized,
+    ...(normalized.thumbnailTypography ? { thumbnailTypography: { ...coverTypography(current?.thumbnailTypography), ...normalized.thumbnailTypography } } : {}),
+    ...(normalized.logoUrl !== undefined ? { logoUrl: normalizeLogoUrl(blogId, normalized.logoUrl) } : {}),
+    ...(normalized.thumbnailReferenceUrls ? { thumbnailReferenceUrls: normalizeStyleReferences(blogId, normalized.thumbnailReferenceUrls) } : {}),
+    ...(normalized.inlineImageReferenceUrls ? { inlineImageReferenceUrls: normalizeStyleReferences(blogId, normalized.inlineImageReferenceUrls) } : {}),
   };
   await prisma.blogSeoSettings.upsert({ where: { blogId }, create: { blogId, ...data }, update: data });
   // Writing dates are 09:00 in the blog's timezone: move the waiting ones to the new zone.
-  if (current?.timezone && parsed.timezone && current.timezone !== parsed.timezone) await schedulePendingDrafts(blogId, true);
+  if (current?.timezone && normalized.timezone && current.timezone !== normalized.timezone) await schedulePendingDrafts(blogId, true);
   return getSeoSettingsSummary(blogId);
 }
 

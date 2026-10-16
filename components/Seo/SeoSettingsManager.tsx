@@ -25,6 +25,11 @@ import { SEARCH_MARKETS, defaultSearchMarket } from "@/lib/autopilot/search-mark
 import { MAX_COMPETITORS } from "@/lib/autopilot/competitors";
 import { KEYWORD_IDEAS_ESTIMATE_USD } from "@/lib/autopilot/seo-costs";
 import { DEFAULT_IMAGE_SIZE, IMAGE_SIZES, MAX_IMAGE_STYLE_LENGTH, MAX_INLINE_IMAGES, imageSize, isImageSize, type ImageSizeId } from "@/lib/autopilot/image-sizes";
+import {
+  DEFAULT_IMAGE_MODE, DEFAULT_IMAGE_MODEL, DEFAULT_IMAGE_QUALITY, DEFAULT_IMAGE_VARIANTS,
+  DEFAULT_LOGO_MARGIN, DEFAULT_LOGO_WIDTH, IMAGE_MODELS, IMAGE_QUALITIES,
+  type ImageModel, type ImageQuality,
+} from "@/lib/autopilot/image-generation";
 
 type Credential = { id: string; label: string; loginHint: string };
 type Settings = {
@@ -37,6 +42,8 @@ type Settings = {
   thumbnailReferenceUrls: string[]; inlineImageReferenceUrls: string[];
   internalLinksEnabled: boolean; backlinksEnabled: boolean;
   thumbnailStyle: string | null; inlineImageStyle: string | null; maxInlineImages: number;
+  imageConceptPrompt: string | null; imageModel: string; imageQuality: string; imageMode: string; imageVariants: number;
+  logoWidth: number; logoMargin: number;
   articleUrlPrefix: string;
   articlePaths: unknown;
   perRunBudgetUsdMicros: number; dailyBudgetUsdMicros: number; monthlyBudgetUsdMicros: number;
@@ -149,6 +156,8 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
   const [inlineLogoPosition, setInlineLogoPosition] = useState<LogoPosition>(isLogoPosition(settings?.inlineLogoPosition) ? settings.inlineLogoPosition : "none");
   const [thumbnailSize, setThumbnailSize] = useState<ImageSizeId>(isImageSize(settings?.thumbnailSize) ? settings.thumbnailSize : DEFAULT_IMAGE_SIZE);
   const [inlineImageSize, setInlineImageSize] = useState<ImageSizeId>(isImageSize(settings?.inlineImageSize) ? settings.inlineImageSize : DEFAULT_IMAGE_SIZE);
+  const [imageModel, setImageModel] = useState<ImageModel>(IMAGE_MODELS.includes(settings?.imageModel as ImageModel) ? settings!.imageModel as ImageModel : DEFAULT_IMAGE_MODEL);
+  const [imageQuality, setImageQuality] = useState<ImageQuality>(IMAGE_QUALITIES.includes(settings?.imageQuality as ImageQuality) ? settings!.imageQuality as ImageQuality : DEFAULT_IMAGE_QUALITY);
   const formRef = useRef<HTMLFormElement>(null);
   /** Current text of a style field (they are uncontrolled), for previews. */
   const fieldValue = (name: string) => (formRef.current?.elements.namedItem(name) as HTMLTextAreaElement | null)?.value.trim() || null;
@@ -178,6 +187,7 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
     value: {
       enabled, credentialId, thumbnailEnabled, thumbnailFormat, coverColors, typography, logoUrl, thumbnailLogoPosition, inlineLogoPosition,
       thumbnailSize, inlineImageSize, inlineImagesEnabled, internalLinksEnabled, backlinksEnabled, thumbnailReferences, inlineReferences,
+      imageModel, imageQuality,
     },
   });
 
@@ -195,6 +205,10 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
       logoUrl, thumbnailLogoPosition, inlineLogoPosition, thumbnailSize, inlineImageSize,
       thumbnailReferenceUrls: thumbnailReferences, inlineImageReferenceUrls: inlineReferences,
       thumbnailStyle: nullable("thumbnailStyle"), inlineImageStyle: nullable("inlineImageStyle"),
+      imageConceptPrompt: nullable("imageConceptPrompt"), imageModel, imageQuality,
+      imageMode: DEFAULT_IMAGE_MODE, imageVariants: DEFAULT_IMAGE_VARIANTS,
+      logoWidth: Number(form.get("logoWidth") ?? settings?.logoWidth ?? DEFAULT_LOGO_WIDTH),
+      logoMargin: Number(form.get("logoMargin") ?? settings?.logoMargin ?? DEFAULT_LOGO_MARGIN),
       articleUrlPrefix: String(form.get("articleUrlPrefix") || "/blog"),
       articlePaths: Object.fromEntries(languages.map((code) => [code, String(form.get(`articlePath:${code}`) || "")])),
       maxInlineImages: Number(form.get("maxInlineImages") ?? Math.min(settings?.maxInlineImages ?? 2, MAX_INLINE_IMAGES)),
@@ -248,6 +262,8 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
 
         <Section title="Logo">
           <LogoUploader blogId={blogId} value={logoUrl} onChange={changeLogo} disabled={pending} />
+          {logoUrl && <Field label="Logo width" name="logoWidth" type="number" min="80" max="240" className="sm:max-w-32" defaultValue={String(settings?.logoWidth ?? DEFAULT_LOGO_WIDTH)} hint={`80–240 px. The margin stays at ${settings?.logoMargin ?? DEFAULT_LOGO_MARGIN} px.`} />}
+          <input type="hidden" name="logoMargin" value={settings?.logoMargin ?? DEFAULT_LOGO_MARGIN} />
         </Section>
 
         <Section title="Thumbnail">
@@ -286,7 +302,9 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
                 settings={() => ({
                   format: thumbnailFormat, colors: [...coverColors], typography, style: fieldValue("thumbnailStyle"),
                   referenceUrls: thumbnailReferences, logoUrl, logoPosition: logoUrl ? thumbnailLogoPosition : "none",
-                  size: thumbnailSize,
+                  logoWidth: Number(formRef.current?.elements.namedItem("logoWidth") instanceof HTMLInputElement ? (formRef.current.elements.namedItem("logoWidth") as HTMLInputElement).value : settings?.logoWidth ?? DEFAULT_LOGO_WIDTH),
+                  logoMargin: settings?.logoMargin ?? DEFAULT_LOGO_MARGIN, size: thumbnailSize,
+                  conceptPrompt: fieldValue("imageConceptPrompt"), model: imageModel, quality: imageQuality,
                 })}
               />
               <RefreshCoversDialog blogId={blogId} usesAi={thumbnailFormat !== "template"} disabled={pending} />
@@ -320,10 +338,41 @@ export function SeoSettingsManager({ blogId, plan, credentials, settings, langua
               settings={() => ({
                 style: fieldValue("inlineImageStyle"), referenceUrls: inlineReferences,
                 logoUrl, logoPosition: logoUrl ? inlineLogoPosition : "none",
-                size: inlineImageSize,
+                logoWidth: Number(formRef.current?.elements.namedItem("logoWidth") instanceof HTMLInputElement ? (formRef.current.elements.namedItem("logoWidth") as HTMLInputElement).value : settings?.logoWidth ?? DEFAULT_LOGO_WIDTH),
+                logoMargin: settings?.logoMargin ?? DEFAULT_LOGO_MARGIN, size: inlineImageSize,
+                conceptPrompt: fieldValue("imageConceptPrompt"), model: imageModel, quality: imageQuality,
               })}
             />
           )}
+        </Section>
+
+        <Section title="Image generation">
+          <details className="group rounded-lg border bg-card px-4 py-3">
+            <summary className="flex cursor-pointer list-none items-center gap-1 text-sm font-medium">
+              <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
+              Advanced model and concept settings
+            </summary>
+            <div className="mt-4 grid gap-4">
+              <Area label="Concept prompt" name="imageConceptPrompt" maxLength={MAX_IMAGE_STYLE_LENGTH} defaultValue={settings?.imageConceptPrompt || ""} placeholder="Describe how to turn each article into one clear visual concept…" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="imageModel">Model</Label>
+                  <Select value={imageModel} onValueChange={(value) => IMAGE_MODELS.includes(value as ImageModel) && setImageModel(value as ImageModel)} disabled={pending}>
+                    <SelectTrigger id="imageModel"><SelectValue /></SelectTrigger>
+                    <SelectContent>{IMAGE_MODELS.map((model) => <SelectItem key={model} value={model}>{model}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="imageQuality">Quality</Label>
+                  <Select value={imageQuality} onValueChange={(value) => IMAGE_QUALITIES.includes(value as ImageQuality) && setImageQuality(value as ImageQuality)} disabled={pending}>
+                    <SelectTrigger id="imageQuality"><SelectValue /></SelectTrigger>
+                    <SelectContent>{IMAGE_QUALITIES.map((quality) => <SelectItem key={quality} value={quality}>{quality}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Direct mode · one final image per slot. Sizes remain configurable separately for thumbnails and post images above.</p>
+            </div>
+          </details>
         </Section>
 
         <Section title="Links">

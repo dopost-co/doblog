@@ -128,11 +128,21 @@ model BlogSeoSettings {
   thumbnailSize          String   @default("standard")
   inlineImageSize        String   @default("standard")
   thumbnailStyle         String?
+  /// Shared art-direction prompt used to turn an article subject into a concrete image scene.
+  imageConceptPrompt     String?
+  /// Provider options shared by thumbnails and images inside posts.
+  imageModel             String   @default("gpt-image-2")
+  imageQuality           String   @default("medium")
+  imageMode              String   @default("direct")
+  imageVariants          Int      @default(1)
   // Up to two uploaded images whose style generated images follow.
   thumbnailReferenceUrls String[] @default([])
   inlineImagesEnabled    Boolean  @default(true)
   inlineImageStyle       String?
   inlineImageReferenceUrls String[] @default([])
+  /// Logo geometry in final output pixels. The UI exposes width; margin defaults to 32px.
+  logoWidth              Int      @default(140)
+  logoMargin             Int      @default(32)
   maxInlineImages        Int      @default(3)
   articleUrlPrefix       String   @default("/blog")
   // Article path per language when the public site serves languages apart,

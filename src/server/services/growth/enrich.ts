@@ -15,6 +15,7 @@ import { LOGO_MISSING, loadLogo, loadStyleReferences } from "./image-references"
 import { makeInlineImage } from "./images";
 import { safeInlineHtml } from "./content";
 import { CONTENT_MODEL, linkTargets, saveImage } from "./service";
+import { imageModel, imageQuality } from "@/lib/autopilot/image-generation";
 
 /** Internal links an article should end up with, counting the ones it has. */
 const TARGET_LINKS = 4;
@@ -145,8 +146,10 @@ export async function enrichPost(blogId: string, postId: string, options: { imag
     const drawn = await Promise.allSettled(requested.map(async (image) => {
       const made = await makeInlineImage(openai, {
         prompt: image.prompt, style: settings?.inlineImageStyle, references, runId: `enrich:${postId}`,
-        logo: logo && isLogoPosition(settings?.inlineLogoPosition) ? { bytes: logo, position: settings.inlineLogoPosition } : null,
+        logo: logo && isLogoPosition(settings?.inlineLogoPosition) ? { bytes: logo, position: settings.inlineLogoPosition, width: settings?.logoWidth, margin: settings?.logoMargin } : null,
         size: imageSize(settings?.inlineImageSize),
+        conceptPrompt: settings?.imageConceptPrompt, model: imageModel(settings?.imageModel), quality: imageQuality(settings?.imageQuality),
+        articleTitle: post.title, summary: post.excerpt,
       });
       const url = await saveImage({ blogId, postId, runId: null, alt: image.alt, caption: image.caption, kind: "inline" }, made);
       return { afterHeading: image.afterHeading, block: { type: "image", data: {

@@ -142,6 +142,27 @@ describe.runIf(!!connection)("isolated PostgreSQL management integration", () =>
     expect((await call("PATCH", `/posts/${data.id}`, { categoryIds: [] })).status).toBe(200);
     expect(await state.db.postCategory.count({ where: { postId: data.id } })).toBe(0);
   });
+  it("adds a cover and inline images without accepting or replacing article text", async () => {
+    const content = { blocks: [
+      { id: "intro", type: "paragraph", data: { text: "The latest article text" } },
+      { id: "section", type: "header", data: { text: "A section", level: 2 } },
+      { id: "body", type: "paragraph", data: { text: "This must survive image uploads." } },
+    ] };
+    const { data } = await (await call("POST", "/posts", { ...draftExample, content })).json();
+    const cover = "https://media.test/cover.png";
+    const response = await call("POST", `/posts/${data.id}/images`, {
+      coverImage: cover,
+      images: [{ url: "https://media.test/inline.png", afterBlockId: "section", alt: "A useful diagram" }],
+    });
+    expect(response.status).toBe(201);
+    const saved = await state.db.post.findUniqueOrThrow({ where: { id: data.id } });
+    expect(saved).toMatchObject({ coverImage: cover, ogImage: cover });
+    expect(JSON.stringify(saved.content)).toContain("The latest article text");
+    expect(JSON.stringify(saved.content)).toContain("This must survive image uploads.");
+    expect((saved.content as { blocks: Array<{ type: string }> }).blocks.map(block => block.type))
+      .toEqual(["paragraph", "header", "image", "paragraph"]);
+    expect((await call("POST", `/posts/${data.id}/images`, { content })).status).toBe(400);
+  });
   it("rolls back relation replacements if a unique slug constraint fails", async () => {
     const category = await state.db.category.create({ data: { blogId: blog.id, name: "Keep", slug: "keep" } });
     await call("POST", "/posts", { ...draftExample, slug: "taken" });
@@ -204,7 +225,7 @@ describe.runIf(!!connection)("isolated PostgreSQL management integration", () =>
     const transport = new StdioClientTransport({ command: process.execPath, args: [resolve("scripts/mcp-stdio.mjs")], env: { ZENEX_CMS_URL: `http://127.0.0.1:${address.port}`, ZENEX_API_KEY: token }, stderr: "pipe" });
     try {
       await client.connect(transport);
-      expect((await client.listTools()).tools).toHaveLength(30);
+      expect((await client.listTools()).tools).toHaveLength(31);
       const guide = await client.callTool({ name: "get_editor_guide", arguments: {} });
       expect(guide.isError).not.toBe(true);
       expect(guide.structuredContent).toHaveProperty("blocks");

@@ -188,3 +188,33 @@ export function buildEditorContent(article: ArticleDraft, images: GeneratedInlin
   for (const paragraph of article.conclusion) blocks.push({ type: "paragraph", data: { text: safeInlineHtml(paragraph) } });
   return { time: Date.now(), blocks, version: "2.31.0" };
 }
+
+type ExistingBlock = { id?: string; type: string; data: Record<string, unknown>; tunes?: Record<string, unknown> };
+
+/**
+ * Adds generated images to the document that exists now. This is used when a
+ * person or API edited the draft while its images were rendering, so the
+ * completed render can be attached without restoring the older text snapshot.
+ */
+export function mergeGeneratedInlineImages(content: unknown, images: GeneratedInlineImage[]) {
+  const document = content as { time?: number; version?: string; blocks?: ExistingBlock[] } | null;
+  if (!document?.blocks || !Array.isArray(document.blocks)) return content;
+  const blocks = document.blocks.map(block => ({ ...block, data: { ...block.data } }));
+  const existingUrls = new Set(blocks.flatMap(block => {
+    const file = block.type === "image" ? block.data.file as { url?: unknown } | undefined : undefined;
+    return typeof file?.url === "string" ? [file.url] : [];
+  }));
+  const headings = blocks.flatMap((block, index) => block.type === "header" && typeof block.data.text === "string"
+    ? [{ index, level: Number(block.data.level ?? 2), text: stripHtml(block.data.text) }] : []);
+  const insertions = images.filter(image => !existingUrls.has(image.url)).map((image, order) => {
+    const heading = headings.find(item => normalizeKeyword(item.text) === normalizeKeyword(image.afterHeading));
+    if (!heading) return { at: blocks.length, image, order };
+    const next = headings.find(item => item.index > heading.index && item.level <= heading.level);
+    return { at: next?.index ?? blocks.length, image, order };
+  }).sort((a, b) => b.at - a.at || b.order - a.order);
+  for (const { at, image } of insertions) blocks.splice(at, 0, { type: "image", data: {
+    file: { url: image.url }, caption: safeInlineHtml(image.caption || image.alt), alt: image.alt,
+    withBorder: false, withBackground: false, stretched: false,
+  } });
+  return { ...document, time: Date.now(), blocks };
+}

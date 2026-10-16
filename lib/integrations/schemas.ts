@@ -46,6 +46,19 @@ export const postUpdateSchema = nonempty(postCreateSchema.partial().extend({
   language: z.string().refine(isValidLanguageCode, "Invalid language code").optional(),
   status: z.enum(POST_STATUSES).optional(),
 }));
+const contentImage = z.object({
+  url: z.url({ protocol: /^https?$/ }).max(2048),
+  alt: z.string().trim().max(240).default(""),
+  caption: z.string().trim().max(300).default(""),
+  /** Insert immediately after this current Editor.js block. Omit to append. */
+  afterBlockId: z.string().min(1).max(128).optional(),
+}).strict();
+export const addPostImagesSchema = z.object({
+  coverImage: url,
+  /** Set this to the cover too unless an explicit social image is wanted. */
+  ogImage: url,
+  images: z.array(contentImage).max(20).optional(),
+}).strict().refine(value => value.coverImage !== undefined || value.ogImage !== undefined || Boolean(value.images?.length), "Provide a cover, social image or at least one post image");
 export const categorySchema = z.object({ name, slug, description: text }).strict();
 export const tagSchema = z.object({ name, slug }).strict();
 export const authorSchema = z.object({ name, slug, email: z.email().max(254), bio: text, avatar: url }).strict();

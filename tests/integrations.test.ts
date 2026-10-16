@@ -29,6 +29,13 @@ describe("integration schemas and secrets", () => {
     expect(postUpdateSchema.parse({ title: "Changed" })).toEqual({ title: "Changed" });
     expect(postUpdateSchema.safeParse({}).success).toBe(false);
   });
+  it("offers an atomic image-only update that cannot carry article text", () => {
+    const schema = operationSchemas.add_post_images;
+    expect(schema.safeParse({ id: "post", coverImage: "https://media.test/cover.png", images: [
+      { url: "https://media.test/inside.png", afterBlockId: "section-1", alt: "Diagram" },
+    ] }).success).toBe(true);
+    expect(schema.safeParse({ id: "post", content: { blocks: [] }, images: [{ url: "https://media.test/x.png" }] }).success).toBe(false);
+  });
   it.each([
     { userId: "other" }, { blogId: "other" }, { content: "markdown" },
     { categoryIds: ["one", "one"] }, { coverImage: "javascript:alert(1)" },
@@ -49,7 +56,7 @@ describe("integration schemas and secrets", () => {
   });
   it("has a schema and OpenAPI operation for every REST/MCP operation", () => {
     const spec = managementOpenApi();
-    expect(new Set(OPERATIONS.map(o => o.name)).size).toBe(24);
+    expect(new Set(OPERATIONS.map(o => o.name)).size).toBe(25);
     for (const op of OPERATIONS) {
       expect(operationSchemas[op.name]).toBeInstanceOf(z.ZodType);
       expect(spec.paths[`/api/v1/blogs/{blogId}${op.path}`][op.method.toLowerCase()]).toMatchObject({ operationId: op.name });

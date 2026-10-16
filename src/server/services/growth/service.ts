@@ -19,6 +19,7 @@ import {
   normalizeKeyword,
   refreshArticleYears,
   refreshStaleYears,
+  mergeGeneratedInlineImages,
   slugWithoutYears,
   type ArticleDraft,
   type GeneratedInlineImage,
@@ -34,6 +35,7 @@ import { queueRelatedArticleLinks } from "./backlinks";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 import { daysForPace } from "@/lib/autopilot/writing-days";
 import { competitorDomain } from "@/lib/autopilot/competitors";
+import { imageModel, imageQuality } from "@/lib/autopilot/image-generation";
 
 export const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
 const PROMPT_VERSION = "article-v4";
@@ -420,8 +422,10 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
             format: isThumbnailFormat(settings?.thumbnailFormat) ? settings.thumbnailFormat : "generated",
             colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),
             title: storedCoverTitle(article.coverTitle) ?? article.title, warnings,
-            logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
+            logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition, width: settings?.logoWidth, margin: settings?.logoMargin } : null,
             size: imageSize(settings?.thumbnailSize),
+            conceptPrompt: settings?.imageConceptPrompt, model: imageModel(settings?.imageModel), quality: imageQuality(settings?.imageQuality),
+            articleTitle: article.title, summary: article.excerpt,
           });
           // Kept so translations get the same card art with their own headline (localizeGroupCovers).
           const illustrationUrl = cover.illustration
@@ -438,8 +442,10 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
       const drawn = await Promise.allSettled(requested.map(async (image) => {
         const made = await makeInlineImage(openai, {
           prompt: image.prompt, style: settings?.inlineImageStyle, references: inlineReferences, runId: claimed.run.id,
-          logo: logo && isLogoPosition(settings?.inlineLogoPosition) ? { bytes: logo, position: settings.inlineLogoPosition } : null,
+          logo: logo && isLogoPosition(settings?.inlineLogoPosition) ? { bytes: logo, position: settings.inlineLogoPosition, width: settings?.logoWidth, margin: settings?.logoMargin } : null,
           size: imageSize(settings?.inlineImageSize),
+          conceptPrompt: settings?.imageConceptPrompt, model: imageModel(settings?.imageModel), quality: imageQuality(settings?.imageQuality),
+          articleTitle: article.title, summary: article.excerpt,
         });
         const url = await saveImage({ blogId, postId: saved.id, runId: claimed.run.id, alt: image.alt, caption: image.caption, kind: "inline" }, made);
         return { afterHeading: image.afterHeading, url, alt: image.alt, caption: image.caption };
@@ -452,23 +458,39 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
 
     const autoPublish = settings?.publishingMode === "auto_publish";
     const completedAt = new Date();
-    await prisma.$transaction([
-      prisma.post.update({ where: { id: postId }, data: {
+    await prisma.$transaction(async tx => {
+      // The editor/API may change the draft while images render. Only replace
+      // the original snapshot when it is still current; otherwise merge media
+      // into the latest document and preserve its text, cover and status.
+      const unchanged = await tx.post.updateMany({ where: { id: saved.id, updatedAt: saved.updatedAt }, data: {
         content: json(buildEditorContent(article, inlineImages)),
         ...(coverImage ? { coverImage, ogImage: coverImage } : {}),
         ...(autoPublish ? { status: "published", publishedAt: completedAt } : {}),
-      } }),
-      prisma.generationRun.update({ where: { id: claimed.run.id }, data: {
+      } });
+      let publication = autoPublish ? "published" : "review";
+      if (unchanged.count !== 1) {
+        await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${saved.id} AND "blogId" = ${blogId} FOR UPDATE`;
+        const current = await tx.post.findFirst({ where: { id: saved.id, blogId } });
+        if (!current) throw new ApiError(404, "The draft was removed while its images were being generated");
+        await tx.post.update({ where: { id: saved.id }, data: {
+          content: json(mergeGeneratedInlineImages(current.content, inlineImages)),
+          ...(coverImage && !current.coverImage ? { coverImage } : {}),
+          ...(coverImage && !current.ogImage ? { ogImage: coverImage } : {}),
+        } });
+        publication = "preserved-after-concurrent-edit";
+        warnings.push("The article changed while its images were rendering. The new images were merged into the latest text; the newer cover and publication state were preserved.");
+      }
+      await tx.generationRun.update({ where: { id: claimed.run.id }, data: {
         status: "completed", stage: "completed", completedAt,
         inputTokens: generated.usage?.input_tokens, outputTokens: generated.usage?.output_tokens,
-        outputSnapshot: json({ title: article.title, slug, warnings, publication: autoPublish ? "published" : "review", media: { cover: !!coverImage, inline: inlineImages.length } }),
-      } }),
-    ]);
+        outputSnapshot: json({ title: article.title, slug, warnings, publication, media: { cover: !!coverImage, inline: inlineImages.length } }),
+      } });
+    });
     invalidateContent({ blogId, publicBlogId: blog.blogId });
     const finished = await prisma.post.findUnique({ where: { id: postId } });
     if (finished) await queueTranslationSync(blogId, null, finished);
-    if (autoPublish) queueRelatedArticleLinks(postId);
-    return { postId, title: article.title, warnings, published: autoPublish };
+    if (finished?.status === "published") queueRelatedArticleLinks(postId);
+    return { postId, title: article.title, warnings, published: finished?.status === "published" };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Draft generation failed";
     // Nothing was saved yet: hand the run back to the queue so it is delivered again.

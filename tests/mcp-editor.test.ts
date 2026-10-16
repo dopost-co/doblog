@@ -40,6 +40,7 @@ describe("MCP rich content", () => {
           expect(contentSchema).toMatchObject({ description: expect.stringContaining("get_editor_guide") });
           expect(contentSchema).toMatchObject({ description: expect.stringContaining("replaces ALL blocks") });
         }
+        expect(tools.some(tool => tool.name === "add_post_images")).toBe(true);
       } else {
         expect(tools.some(tool => tool.name === "create_posts")).toBe(false);
         expect((await client.callTool({ name: "create_posts", arguments: {} })).isError).toBe(true);
@@ -106,6 +107,7 @@ describe("MCP rich content", () => {
       expect(tool?.inputSchema.properties).toHaveProperty("maxInlineImages");
       expect(tool?.inputSchema.properties).toHaveProperty("thumbnailStyle");
       expect(tool?.inputSchema.properties).toHaveProperty("inlineImageStyle");
+      expect(tool?.inputSchema.properties).toHaveProperty("imageGeneration");
       expect(tool?.inputSchema.properties).not.toHaveProperty("monthlyBudgetUsd");
       expect(tool?.inputSchema.properties).not.toHaveProperty("credentialId");
     } finally { await client.close(); await server.close(); }

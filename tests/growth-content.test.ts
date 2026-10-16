@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEditorContent, contentText, currentDateNote, normalizeKeyword, slugWithoutYears, refreshStaleYears, type ArticleDraft } from "@/src/server/services/growth/content";
+import { buildEditorContent, contentText, currentDateNote, mergeGeneratedInlineImages, normalizeKeyword, slugWithoutYears, refreshStaleYears, type ArticleDraft } from "@/src/server/services/growth/content";
 import { rankLinkTargets } from "@/src/server/services/growth/internal-links";
 
 describe("growth content memory", () => {
@@ -54,6 +54,19 @@ describe("generated Editor.js content", () => {
     const headingIndex = content.blocks.findIndex(block => block.type === "header" && block.data.text === "A simple workflow");
     const imageIndex = content.blocks.findIndex(block => block.type === "image");
     expect(imageIndex).toBeGreaterThan(headingIndex);
+  });
+
+  it("merges a rendered image into the latest text instead of restoring an older draft", () => {
+    const latest = { version: "2.31.0", blocks: [
+      { id: "intro", type: "paragraph", data: { text: "Edited while the image rendered" } },
+      { id: "workflow", type: "header", data: { text: "A simple workflow", level: 2 } },
+      { id: "body", type: "paragraph", data: { text: "The newer paragraph stays." } },
+      { id: "next", type: "header", data: { text: "Next section", level: 2 } },
+    ] };
+    const merged = mergeGeneratedInlineImages(latest, [{ afterHeading: "A simple workflow", url: "https://cdn.test/workflow.png", alt: "Workflow", caption: "" }]) as typeof latest;
+    expect(merged.blocks.map(block => block.type)).toEqual(["paragraph", "header", "paragraph", "image", "header"]);
+    expect(JSON.stringify(merged)).toContain("Edited while the image rendered");
+    expect(JSON.stringify(merged)).toContain("The newer paragraph stays.");
   });
 });
 

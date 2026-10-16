@@ -115,4 +115,16 @@ describe("Autopilot images over MCP", () => {
     expect(seoEditorialSettingsSchema.safeParse({ thumbnailSize: "standard", inlineImageSize: "original" }).success).toBe(true);
     expect(seoEditorialSettingsSchema.safeParse({ thumbnailSize: "1200x630" }).success).toBe(false);
   });
+
+  it("accepts the compact image-generation configuration", async () => {
+    const { seoEditorialSettingsSchema } = await import("@/src/server/services/seo/service");
+    expect(seoEditorialSettingsSchema.safeParse({ imageGeneration: {
+      titles: "When Your Audience is Actually Scrolling",
+      stylePrompt: "Bold editorial illustration on a pure white background.",
+      conceptPrompt: "Describe one cohesive, topic-specific scene.",
+      model: "gpt-image-2", quality: "low", size: "1200x675", mode: "direct", variants: 1,
+      logo: { enabled: true, position: "top-left", width: 140, margin: 32 },
+    } }).success).toBe(true);
+    expect(seoEditorialSettingsSchema.safeParse({ imageGeneration: { variants: 3 } }).success).toBe(false);
+  });
 });

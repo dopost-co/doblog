@@ -30,8 +30,15 @@ describe("logo on post images", () => {
     const logo = await sharp({ create: { width: 400, height: 200, channels: 4, background: { ...red, alpha: 1 } } }).png().toBuffer();
     r2.send.mockResolvedValue({ Body: { transformToByteArray: async () => new Uint8Array(logo) }, ContentType: "image/png" });
 
-    const result = await previewImage("blog-1", { kind: "inline", postId: "post-1", logoUrl, logoPosition: "top-left" });
+    const result = await previewImage("blog-1", {
+      kind: "inline", postId: "post-1", logoUrl, logoPosition: "top-left",
+      style: "ARTICLE\n[TITLE]", conceptPrompt: "Make [TITLE] immediately understandable.",
+      model: "gpt-image-2", quality: "low",
+    });
     expect(result.warnings).toEqual([]);
+    expect(images.generate).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-image-2", quality: "low", n: 1 }));
+    expect(images.generate.mock.calls[0][0].prompt).toContain("Make Planning immediately understandable.");
+    expect(images.generate.mock.calls[0][0].prompt).toContain("ARTICLE\nPlanning");
     const [r, g, b] = await pixel(result.image, 80, 80);
     expect(Math.abs(r - red.r) + Math.abs(g - red.g) + Math.abs(b - red.b)).toBeLessThan(15);
     // The opposite corner stays untouched, at the Standard 1200×675 size.

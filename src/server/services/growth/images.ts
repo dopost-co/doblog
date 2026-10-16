@@ -1,16 +1,17 @@
 import OpenAI, { type Uploadable } from "openai";
 import sharp from "sharp";
 import { ApiError } from "@/lib/integrations/errors";
-import { LOGO_MARGIN, LOGO_MAX_HEIGHT, LOGO_MAX_WIDTH, type LogoPosition } from "@/lib/autopilot/logo";
+import { LOGO_MAX_HEIGHT, type LogoPosition } from "@/lib/autopilot/logo";
 import type { CoverTypography, ThumbnailFormat } from "@/lib/autopilot/thumbnail-templates";
 import { compositionFor, modelSizeFor, type ImageSize, type ModelImageSize } from "@/lib/autopilot/image-sizes";
+import { DEFAULT_IMAGE_MODEL, DEFAULT_IMAGE_QUALITY, DEFAULT_LOGO_MARGIN, DEFAULT_LOGO_WIDTH, type ImageModel, type ImageQuality } from "@/lib/autopilot/image-generation";
 import { renderCoverPng } from "./cover-render";
 
 /**
  * Makes the images of an article without storing them, so generation and
  * previews share exactly the same result. Callers store what they keep.
  */
-export const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+export const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL;
 
 export type MadeImage = {
   bytes: Buffer;
@@ -23,7 +24,8 @@ export type MadeImage = {
   model: string | null;
 };
 
-type Logo = { bytes: Buffer; position: LogoPosition } | null;
+export type ImageLogo = { bytes: Buffer; position: LogoPosition; width?: number; margin?: number };
+type Logo = ImageLogo | null;
 /** The AI art drawn inside a brand card, kept so every language's card shares it. */
 export type CoverIllustration = { bytes: Buffer; mimeType: string; prompt: string | null; revisedPrompt?: string | null };
 type ImageFormat = "webp" | "png" | "jpeg";
@@ -55,6 +57,12 @@ type ImageRequest = {
   logo?: Logo;
   /** Final size of the image; drawn at the nearest model size, then cropped to it. */
   size: ImageSize;
+  /** Saved provider controls. One output is consumed per article image. */
+  model?: ImageModel;
+  quality?: ImageQuality;
+  conceptPrompt?: string | null;
+  articleTitle?: string;
+  summary?: string | null;
 };
 
 /**
@@ -65,11 +73,12 @@ type ImageRequest = {
  */
 export async function requestImage(
   openai: Pick<OpenAI, "images">, prompt: string, references: Uploadable[], runId: string,
-  { format = "webp", size = "1536x1024", transparent = false }: { format?: ImageFormat; size?: ModelImageSize; transparent?: boolean } = {},
+  { format = "webp", size = "1536x1024", transparent = false, model = IMAGE_MODEL, quality = DEFAULT_IMAGE_QUALITY }:
+  { format?: ImageFormat; size?: ModelImageSize; transparent?: boolean; model?: string; quality?: ImageQuality } = {},
 ) {
-  const transparentOutput = transparent && supportsTransparency(IMAGE_MODEL);
+  const transparentOutput = transparent && supportsTransparency(model);
   const options = {
-    model: IMAGE_MODEL, prompt, size, quality: "medium", n: 1,
+    model, prompt, size, quality, n: 1,
     // Transparency needs a format with alpha: JPEG becomes PNG.
     output_format: transparentOutput && format === "jpeg" ? "png" : format,
     // Opaque when not asked for, so the model never decides on alpha itself (gpt-image-2 only does opaque).
@@ -86,16 +95,25 @@ export async function requestImage(
 
 /** Asks the image model for one illustration and returns its bytes. */
 async function illustrate(openai: OpenAI, request: Omit<ImageRequest, "size">, output: { format: ImageFormat; size: ModelImageSize; shape: string }) {
-  const transparent = wantsTransparentBackground(request.style) && supportsTransparency(IMAGE_MODEL);
+  const model = request.model ?? IMAGE_MODEL;
+  const transparent = wantsTransparentBackground(request.style) && supportsTransparency(model);
+  const fill = (template: string) => template
+    .replace(/\[TITLE\]/gi, request.articleTitle || request.prompt)
+    .replace(/\[SUMMARY\]/gi, request.summary || "");
   const prompt = [
+    request.conceptPrompt ? `Art-direction brief:\n${fill(request.conceptPrompt)}` : null,
+    request.articleTitle ? `Article title: ${request.articleTitle}` : null,
+    request.summary ? `Article summary: ${request.summary}` : null,
     request.prompt,
-    request.style ? `Visual direction: ${request.style}` : "Polished editorial illustration with a restrained, modern visual language.",
+    request.style ? `Visual direction: ${fill(request.style)}` : "Polished editorial illustration with a restrained, modern visual language.",
     request.references.length ? "Match the visual style of the reference images: palette, rendering, texture and mood. Do not copy their subjects, text or layout." : null,
     `${output.shape} No words, letters, watermarks, brand marks or UI text.`,
     transparent ? "Leave the background fully transparent around the subject. Never draw a checkerboard or any pattern to suggest transparency." : null,
   ].filter(Boolean).join("\n");
   const format: ImageFormat = transparent && output.format === "jpeg" ? "png" : output.format;
-  const result = await requestImage(openai, prompt, request.references, request.runId, { ...output, format, transparent });
+  const result = await requestImage(openai, prompt, request.references, request.runId, {
+    ...output, format, transparent, model, quality: request.quality ?? DEFAULT_IMAGE_QUALITY,
+  });
   const encoded = result.data?.[0]?.b64_json;
   if (!encoded) throw new ApiError(502, "The image provider returned no image");
   return { bytes: Buffer.from(encoded, "base64"), mimeType: `image/${format}` as const, prompt, revisedPrompt: result.data?.[0]?.revised_prompt || null };
@@ -120,9 +138,9 @@ export async function withLogo(image: MadeImage, logo: Logo): Promise<MadeImage>
   const { width = 0, height = 0 } = await base.metadata();
   if (!width || !height) return image;
   const mark = await sharp(logo.bytes)
-    .resize({ width: Math.round(width * LOGO_MAX_WIDTH), height: Math.round(height * LOGO_MAX_HEIGHT), fit: "inside" })
+    .resize({ width: logo.width ?? DEFAULT_LOGO_WIDTH, height: Math.round(height * LOGO_MAX_HEIGHT), fit: "inside" })
     .png().toBuffer({ resolveWithObject: true });
-  const margin = Math.round(width * LOGO_MARGIN);
+  const margin = logo.margin ?? DEFAULT_LOGO_MARGIN;
   const [row, column] = logo.position === "center" ? ["middle", "center"] : logo.position.split("-");
   const place = (where: string, size: number, total: number) =>
     where === "left" || where === "top" ? margin : where === "right" || where === "bottom" ? total - size - margin : Math.round((total - size) / 2);
@@ -148,7 +166,7 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
   if (request.format === "generated") {
     if (!openai) throw new ApiError(412, "Add an OpenAI API key in Settings → Providers to use AI features");
     const image = await illustrateAt(openai, request);
-    return { ...await withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null), illustration: null };
+    return { ...await withLogo({ ...image, origin: "generated", model: request.model ?? IMAGE_MODEL }, request.logo ?? null), illustration: null };
   }
   let illustration: CoverIllustration | null = request.format === "template_illustration" ? request.illustration ?? null : null;
   const reused = Boolean(illustration);
@@ -165,7 +183,7 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
   });
   const card = await withLogo({
     bytes: png, mimeType: "image/png", origin: "template",
-    prompt: illustration?.prompt ?? null, revisedPrompt: illustration?.revisedPrompt, model: illustration && !reused ? IMAGE_MODEL : null,
+    prompt: illustration?.prompt ?? null, revisedPrompt: illustration?.revisedPrompt, model: illustration && !reused ? request.model ?? IMAGE_MODEL : null,
   }, request.logo ?? null);
   return { ...card, illustration };
 }
@@ -173,5 +191,5 @@ export async function makeCover(openai: OpenAI | null, request: ImageRequest & {
 /** An image inside the article: always an AI illustration. */
 export async function makeInlineImage(openai: OpenAI, request: ImageRequest): Promise<MadeImage> {
   const image = await illustrateAt(openai, request);
-  return withLogo({ ...image, origin: "generated", model: IMAGE_MODEL }, request.logo ?? null);
+  return withLogo({ ...image, origin: "generated", model: request.model ?? IMAGE_MODEL }, request.logo ?? null);
 }

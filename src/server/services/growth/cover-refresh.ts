@@ -13,6 +13,7 @@ import { imageSubject } from "./image-subject";
 import { imageSize } from "@/lib/autopilot/image-sizes";
 import { makeCover, type CoverIllustration, type MadeImage } from "./images";
 import { requestPublishSync } from "@/src/server/services/publishing/sync";
+import { imageModel, imageQuality } from "@/lib/autopilot/image-generation";
 
 /** Deliveries after the first one; QStash backs off between them. */
 export const COVER_REFRESH_RETRIES = 2;
@@ -96,8 +97,9 @@ async function coverSetup(blogId: string, format: ThumbnailFormat, purpose: "cov
     base: {
       style: settings?.thumbnailStyle, references, format,
       colors: thumbnailColors(settings?.thumbnailColors), typography: coverTypography(settings?.thumbnailTypography),
-      logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition } : null,
+      logo: logo && isLogoPosition(settings?.thumbnailLogoPosition) ? { bytes: logo, position: settings.thumbnailLogoPosition, width: settings?.logoWidth, margin: settings?.logoMargin } : null,
       size: imageSize(settings?.thumbnailSize),
+      conceptPrompt: settings?.imageConceptPrompt, model: imageModel(settings?.imageModel), quality: imageQuality(settings?.imageQuality),
     },
   };
 }
@@ -155,7 +157,7 @@ export async function refreshPostCover(blogId: string, postId: string, { include
   const prompt = imageSubject("cover", post);
 
   if (format === "generated") {
-    const image = await makeCover(openai, { ...base, prompt, runId: "cover-refresh", title: post.title, warnings });
+    const image = await makeCover(openai, { ...base, prompt, runId: "cover-refresh", title: post.title, articleTitle: post.title, summary: post.excerpt, warnings });
     const url = await storeCover(blogId, post, image);
     await prisma.post.updateMany({ where: { id: { in: members.map((member) => member.id) } }, data: { coverImage: url } });
     requestPublishSync(blogId);
@@ -167,7 +169,7 @@ export async function refreshPostCover(blogId: string, postId: string, { include
   let result = { url: "", coverTitle: null as string | null };
   for (const member of members) {
     const cover = await resolveCoverTitle(openai, member);
-    const image = await makeCover(openai, { ...base, prompt, runId: "cover-refresh", title: cover.title, warnings, illustration });
+    const image = await makeCover(openai, { ...base, prompt, runId: "cover-refresh", title: cover.title, articleTitle: member.title, summary: member.excerpt, warnings, illustration });
     if (illustration === undefined) {
       illustration = image.illustration;
       illustrationUrl = await keepIllustration(blogId, illustration, warnings);
