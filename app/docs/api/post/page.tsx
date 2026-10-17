@@ -61,11 +61,30 @@ export default function PostApiDocsPage() {
     "ogTitle": "Social Title",
     "ogDescription": "Social Description",
     "canonicalUrl": "https://example.com/blog/my-first-post",
-    "keywords": "javascript, web"
+    "keywords": "javascript, web",
+    "availableLanguages": ["en", "es"],
+    "translations": [
+      {
+        "language": "en",
+        "slug": "my-first-post",
+        "canonicalUrl": "https://example.com/blog/my-first-post"
+      },
+      {
+        "language": "es",
+        "slug": "mi-primer-articulo",
+        "canonicalUrl": null
+      }
+    ]
   }
 }`}
               filename="Response"
             />
+          </DocsSection>
+
+          <DocsSection id="translations" title="Translations">
+            <p className="text-muted-foreground">
+              The response includes the published translations from the same blog and translation group. Each item has its own <code className="rounded bg-muted px-1.5 py-0.5">slug</code> and optional <code className="rounded bg-muted px-1.5 py-0.5">canonicalUrl</code>, so clients can build language selectors and hreflang links. Posts without a translation group include only themselves. Draft and scheduled translations are excluded from both <code className="rounded bg-muted px-1.5 py-0.5">translations</code> and <code className="rounded bg-muted px-1.5 py-0.5">availableLanguages</code>.
+            </p>
           </DocsSection>
 
           <DocsSection id="example" title="Example">

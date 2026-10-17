@@ -408,3 +408,26 @@ export async function getPublishedLanguagesByGroup(blogId: string, groupIds: str
     tags: [`blog-${blogId}-posts`],
   })();
 }
+
+export type PublishedPostTranslation = {
+  language: string;
+  slug: string;
+  canonicalUrl: string | null;
+};
+
+/** Public URLs for every published post in one translation group. */
+export async function getPublishedTranslationsByGroup(
+  blogId: string,
+  translationGroupId: string
+): Promise<PublishedPostTranslation[]> {
+  return unstable_cache(async () => {
+    return prisma.post.findMany({
+      where: { blogId, status: "published", translationGroupId },
+      select: { language: true, slug: true, canonicalUrl: true },
+      orderBy: { language: "asc" },
+    });
+  }, ["published-translations", blogId, translationGroupId], {
+    revalidate: 60,
+    tags: [`blog-${blogId}-posts`],
+  })();
+}

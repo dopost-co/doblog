@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBlogByBlogId } from "@/src/server/services/blogs/queries";
-import { getPostBySlug, getPostBySlugAndLanguage, getPublishedLanguagesByGroup } from "@/src/server/services/posts/queries";
+import { getPostBySlug, getPostBySlugAndLanguage, getPublishedTranslationsByGroup } from "@/src/server/services/posts/queries";
 import { convertBlocksToHtml } from "@/lib/editorjs-to-html";
 
 // Cache the GET response for 60 seconds, revalidate in background
@@ -33,13 +33,16 @@ export async function GET(
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Get available languages for this post
-    const languagesByGroup = await getPublishedLanguagesByGroup(
-      blog.id, post.translationGroupId ? [post.translationGroupId] : []
-    );
-    const availableLanguages = post.translationGroupId
-      ? languagesByGroup[post.translationGroupId] || [post.language]
-      : [post.language];
+    const ownTranslation = {
+      language: post.language,
+      slug: post.slug,
+      canonicalUrl: post.canonicalUrl,
+    };
+    const translations = post.translationGroupId
+      ? await getPublishedTranslationsByGroup(blog.id, post.translationGroupId)
+      : [ownTranslation];
+    const publishedTranslations = translations.length ? translations : [ownTranslation];
+    const availableLanguages = [...new Set(publishedTranslations.map((translation) => translation.language))];
 
     // Format response for API
     const formattedPost = {
@@ -79,6 +82,7 @@ export async function GET(
       canonicalUrl: post.canonicalUrl,
       keywords: post.keywords,
       availableLanguages,
+      translations: publishedTranslations,
     };
 
     return NextResponse.json({
