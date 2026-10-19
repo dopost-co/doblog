@@ -61,4 +61,13 @@ describe("public rendering of legacy Markdown", () => {
     expect(html).toContain('href="https://x.com"');
     expect(html).not.toContain("​");
   });
+
+  it("turns bare absolute URLs into links without nesting existing anchors", () => {
+    const html = convertBlocksToHtml([{ type: "paragraph", data: {
+      text: 'Descarga:&nbsp;https://example.com/app.<br><a href="https://example.com/help">https://example.com/help</a>',
+    } }]);
+
+    expect(html).toContain('Descarga:\u00A0<a href="https://example.com/app" rel="noopener noreferrer">https://example.com/app</a>.');
+    expect(html.match(/href="https:\/\/example\.com\/help"/g)).toHaveLength(1);
+  });
 });

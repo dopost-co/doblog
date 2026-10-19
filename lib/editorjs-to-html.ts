@@ -4,14 +4,27 @@ type Data = Record<string, unknown>;
 const record = (value: unknown): Data => value && typeof value === "object" ? value as Data : {};
 // Strip zero-width caret anchors the editor may leave behind.
 const text = (value: unknown): string => typeof value === "string" ? value.replace(/\u200B/g, "") : "";
+
+/** Turn visible absolute URLs into links without touching existing HTML tags or anchors. */
+const autolink = (value: string): string => value
+  .split(/(<a\b[^>]*>[\s\S]*?<\/a>|<[^>]+>)/gi)
+  .map(part => part.startsWith("<") ? part : part.replace(
+    /(^|[\s\u00A0]|&nbsp;)(https?:\/\/[^\s<>"']+)/gi,
+    (_match, prefix: string, rawUrl: string) => {
+      const trailing = rawUrl.match(/[.,!?;:]+$/)?.[0] ?? "";
+      const url = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl;
+      return `${prefix}<a href="${url}">${url}</a>${trailing}`;
+    },
+  ))
+  .join("");
 /**
  * Older content may contain literal Markdown typed or pasted before the editor
  * converted it. Render the unambiguous inline forms; sanitizing happens later.
  */
-const inline = (value: unknown): string => text(value)
+const inline = (value: unknown): string => autolink(text(value)
   .replace(/`([^`<>\n]+)`/g, "<code>$1</code>")
   .replace(/\[([^\]<>]+)\]\(((?:https?:\/\/|\/|mailto:)[^)\s"<>]+)\)/g, '<a href="$2">$1</a>')
-  .replace(/\*\*(?=\S)([^*<>]+?)(?<=\S)\*\*/g, "<strong>$1</strong>");
+  .replace(/\*\*(?=\S)([^*<>]+?)(?<=\S)\*\*/g, "<strong>$1</strong>"));
 const escape = (value: unknown): string => text(value).replace(/[&<>"']/g, character => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character]!);
