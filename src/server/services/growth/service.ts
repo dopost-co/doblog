@@ -30,7 +30,7 @@ import { MAX_INLINE_IMAGES, imageSize } from "@/lib/autopilot/image-sizes";
 import { makeCover, makeInlineImage, type MadeImage } from "./images";
 import { isLogoPosition } from "@/lib/autopilot/logo";
 import { coverTypography, isThumbnailFormat, thumbnailColors } from "@/lib/autopilot/thumbnail-templates";
-import { articleHref, articlePrefixFor, enforceArticleLinks, rankLinkTargets, urlsIn } from "./internal-links";
+import { articleHref, articlePrefixFor, enforceArticleLinks, ensureArticleLinks, rankLinkTargets, urlsIn } from "./internal-links";
 import { queueRelatedArticleLinks } from "./backlinks";
 import { queueTranslationSync } from "@/src/server/services/translations/auto-sync";
 import { daysForPace } from "@/lib/autopilot/writing-days";
@@ -371,11 +371,20 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
     await prisma.generationRun.update({ where: { id: claimed.run.id }, data: { stage: "writing", inputSnapshot: json(input) } });
     const generated = await generateArticle(openai, input);
     // Stale years become the current one; only the offered articles and researched sources may be linked.
-    const article = enforceArticleLinks(refreshArticleYears(generated.article as ArticleDraft), {
+    const validatedArticle = enforceArticleLinks(refreshArticleYears(generated.article as ArticleDraft), {
       internal: new Set(targets.map((target) => target.href)),
       external: externalSources(serpBrief, settings?.competitorDomains ?? []),
       siteHosts: siteHosts(settings?.targetDomain, targets.map((target) => target.href)),
     });
+    const completedLinks = ensureArticleLinks(validatedArticle, targets);
+    const article = completedLinks.article;
+    // Do not publish an article that breaks the advertised 2-4 link contract.
+    // A queued run is retried with a fresh generation; a final/manual run shows
+    // the problem instead of silently shipping an article with no links.
+    if (targets.length >= 2 && completedLinks.links.length < 2) {
+      throw new ApiError(502, `The article could place only ${completedLinks.links.length} of the required internal links`);
+    }
+    if (targets.length === 1 && !completedLinks.links.length) warnings.push("No natural internal-link anchor was found for the only related article.");
     const slug = await uniqueSlug(blogId, claimed.item.language, article.suggestedSlug || article.title);
     await prisma.generationRun.update({ where: { id: claimed.run.id }, data: { stage: "saving" } });
 
@@ -483,7 +492,11 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
       await tx.generationRun.update({ where: { id: claimed.run.id }, data: {
         status: "completed", stage: "completed", completedAt,
         inputTokens: generated.usage?.input_tokens, outputTokens: generated.usage?.output_tokens,
-        outputSnapshot: json({ title: article.title, slug, warnings, publication, media: { cover: !!coverImage, inline: inlineImages.length } }),
+        outputSnapshot: json({
+          title: article.title, slug, warnings, publication,
+          internalLinks: { candidates: targets.length, kept: completedLinks.links.length, repaired: completedLinks.added.length },
+          media: { cover: !!coverImage, inline: inlineImages.length },
+        }),
       } });
     });
     invalidateContent({ blogId, publicBlogId: blog.blogId });

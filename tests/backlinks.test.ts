@@ -51,7 +51,7 @@ describe("Links from existing articles to a new one", () => {
     db.postSeoTarget.findFirst.mockResolvedValue({ primaryKeyword: "email marketing", secondaryKeywords: [], cluster: "Marketing" });
     db.$queryRaw.mockResolvedValue([]);
     await linkFromRelatedArticles("new");
-    expect(db.$queryRaw.mock.calls[0]).toContainEqual(["%marketing por email%", "%listas de correo%"]);
+    expect(db.$queryRaw.mock.calls[0][5]).toEqual(expect.arrayContaining(["%marketing por email%", "%listas de correo%"]));
   });
 
   it("links a translation from articles in its own language, at that language's path, without retranslating them", async () => {
@@ -107,6 +107,22 @@ describe("Links from existing articles to a new one", () => {
     // Headings are never linked.
     expect(first.data.content.blocks[0].data.text).toBe("Email marketing");
     // The search looks for the article's keywords, escaped for ILIKE.
-    expect(db.$queryRaw.mock.calls[0]).toContainEqual(["%email marketing%"]);
+    expect(db.$queryRaw.mock.calls[0][5]).toEqual(expect.arrayContaining(["%email marketing%"]));
+  });
+
+  it("uses title phrases when discovery keywords are in another language", async () => {
+    db.post.findUnique.mockResolvedValue(newPost(true, {
+      title: "The Best Free Video Banks for Social Media",
+      keywords: "mejores bancos de videos gratis",
+      seoTarget: { primaryKeyword: "mejores bancos de videos gratis", secondaryKeywords: [], cluster: "Social media" },
+    }));
+    db.$queryRaw.mockResolvedValue([{ id: "old" }]);
+    db.post.findMany
+      .mockResolvedValueOnce([{ id: "old", title: "Content ideas", slug: "ideas", excerpt: "", metaDescription: "", canonicalUrl: null, publishedAt: updatedAt, seoTarget: null }])
+      .mockResolvedValueOnce([{ id: "old", content: paragraph("Use free video banks to source clips for your campaign."), updatedAt }]);
+    db.post.updateMany.mockResolvedValue({ count: 1 });
+
+    expect(await linkFromRelatedArticles("new")).toEqual({ linked: ["old"] });
+    expect(JSON.stringify(db.post.updateMany.mock.calls[0][0].data.content)).toContain('href=\\"/blog/email-marketing-guide\\"');
   });
 });

@@ -26,6 +26,34 @@ const STOPWORDS = new Set([
 const words = (value: string) => new Set(normalizeKeyword(value).split(" ").filter((word) => word.length > 2 && !STOPWORDS.has(word)));
 
 /**
+ * Natural multi-word phrases that can be linked without rewriting article text.
+ * Besides complete keywords, include useful fragments from titles and summaries:
+ * discovery keywords and the published article can be in different languages.
+ */
+export function linkAnchors(values: readonly string[], limit = 80) {
+  const seen = new Set<string>();
+  const anchors: Array<{ phrase: string; useful: number; words: number }> = [];
+  for (const value of values) {
+    const clean = value.replace(/<[^>]*>/g, " ").replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
+    const tokens = clean.split(" ").filter(Boolean);
+    for (let size = Math.min(6, tokens.length); size >= 2; size -= 1) {
+      for (let start = 0; start + size <= tokens.length; start += 1) {
+        const phrase = tokens.slice(start, start + size).join(" ");
+        const key = normalizeKeyword(phrase);
+        const useful = [...words(phrase)].length;
+        if (phrase.length < 8 || phrase.length > 80 || useful < 2 || seen.has(key)) continue;
+        seen.add(key);
+        anchors.push({ phrase, useful, words: size });
+      }
+    }
+  }
+  return anchors
+    .sort((a, b) => b.useful - a.useful || b.words - a.words || b.phrase.length - a.phrase.length)
+    .slice(0, limit)
+    .map((item) => item.phrase);
+}
+
+/**
  * An article path as stored: "/es/blog" (no trailing slash, "" for the site
  * root) or a full https URL for sites that serve a language on its own host.
  */
@@ -172,6 +200,66 @@ export function enforceArticleLinks(article: ArticleDraft, allowed: {
     faqs: article.faqs.map((faq) => ({ question: unlink(faq.question), answer: filter(faq.answer) })),
     conclusion: article.conclusion.map(filter),
   };
+}
+
+/** Internal addresses currently present in a generated article. */
+export function articleInternalLinks(article: ArticleDraft, allowed: ReadonlySet<string>) {
+  const found = new Set<string>();
+  const inspect = (value: string) => {
+    for (const match of value.matchAll(ANCHOR)) {
+      const href = hrefOf(match[1]);
+      if (allowed.has(href)) found.add(href);
+    }
+  };
+  article.introduction.forEach(inspect);
+  article.sections.forEach((section) => { section.paragraphs.forEach(inspect); section.bullets.forEach(inspect); });
+  article.faqs.forEach((faq) => inspect(faq.answer));
+  article.conclusion.forEach(inspect);
+  return found;
+}
+
+/**
+ * Completes missing links after generation using phrases that already exist in
+ * the prose. This makes the 2-4 link promise independent of model formatting,
+ * while still refusing invented URLs and never rewriting a sentence.
+ */
+export function ensureArticleLinks(article: ArticleDraft, targets: readonly LinkTarget[], maximum = MAX_INTERNAL_LINKS) {
+  const allowed = new Set(targets.map((target) => target.href));
+  const used = articleInternalLinks(article, allowed);
+  const linkedParagraphs = new Set<string>();
+  const copy = structuredClone(article);
+  const slots: Array<{ key: string; get: () => string; set: (value: string) => void }> = [];
+  copy.introduction.forEach((_value, index) => slots.push({ key: `i:${index}`, get: () => copy.introduction[index], set: value => { copy.introduction[index] = value; } }));
+  copy.sections.forEach((section, sectionIndex) => {
+    section.paragraphs.forEach((_value, index) => slots.push({ key: `s:${sectionIndex}:p:${index}`, get: () => section.paragraphs[index], set: value => { section.paragraphs[index] = value; } }));
+    section.bullets.forEach((_value, index) => slots.push({ key: `s:${sectionIndex}:b:${index}`, get: () => section.bullets[index], set: value => { section.bullets[index] = value; } }));
+  });
+  copy.faqs.forEach((faq, index) => slots.push({ key: `f:${index}`, get: () => faq.answer, set: value => { faq.answer = value; } }));
+  copy.conclusion.forEach((_value, index) => slots.push({ key: `c:${index}`, get: () => copy.conclusion[index], set: value => { copy.conclusion[index] = value; } }));
+
+  const added: Array<{ href: string; anchor: string }> = [];
+  for (const target of targets) {
+    if (used.size >= maximum) break;
+    if (used.has(target.href)) continue;
+    const anchors = linkAnchors([target.keyword ?? "", target.title, target.summary], 240);
+    let placed = false;
+    for (const slot of slots) {
+      if (linkedParagraphs.has(slot.key) || /<a\b/i.test(slot.get())) continue;
+      for (const anchor of anchors) {
+        const linked = linkFirstMention(slot.get(), [anchor], target.href);
+        if (!linked) continue;
+        const match = new RegExp(escapeRegExp(anchor), "iu").exec(slot.get());
+        slot.set(linked);
+        used.add(target.href);
+        linkedParagraphs.add(slot.key);
+        added.push({ href: target.href, anchor: match?.[0] ?? anchor });
+        placed = true;
+        break;
+      }
+      if (placed) break;
+    }
+  }
+  return { article: copy, links: [...used], added };
 }
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -2,7 +2,7 @@ import { after } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidateContent } from "@/src/server/services/content/cache";
-import { articleHref, articlePrefixFor, linkFirstMention, linkPhrases, rankLinkTargets } from "./internal-links";
+import { articleHref, articlePrefixFor, linkAnchors, linkFirstMention, linkPhrases, rankLinkTargets } from "./internal-links";
 
 /** Existing articles that get a link to each new one. */
 const MAX_BACKLINKS = 3;
@@ -39,7 +39,11 @@ export async function linkFromRelatedArticles(postId: string) {
   // The post's own keywords are in its language (translations translate them);
   // the Autopilot target is the fallback for the original article.
   const ownKeywords = (post.keywords ?? "").split(",");
-  const phrases = linkPhrases(ownKeywords.some((keyword) => keyword.trim()) ? ownKeywords : [target.primaryKeyword, ...target.secondaryKeywords]);
+  const keywordPhrases = linkPhrases(ownKeywords.some((keyword) => keyword.trim()) ? ownKeywords : [target.primaryKeyword, ...target.secondaryKeywords]);
+  // Titles are in the article language even when discovery imported a keyword
+  // from a sitemap in another language. Their fragments make backlinks work in
+  // that common case without translating or rewriting existing prose.
+  const phrases = [...new Set([...keywordPhrases, ...linkAnchors([post.title, ...ownKeywords, target.primaryKeyword, ...target.secondaryKeywords])])].slice(0, 80);
   if (!phrases.length) return none;
   const keyword = phrases[phrases.length - 1];
   const articleUrlPrefix = articlePrefixFor(post.blog.seoSettings, post.language);

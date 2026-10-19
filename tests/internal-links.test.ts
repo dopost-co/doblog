@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ArticleDraft } from "@/src/server/services/growth/content";
-import { articleHref, enforceArticleLinks, linkFirstMention, linkPhrases, rankLinkTargets, urlsIn } from "@/src/server/services/growth/internal-links";
+import { articleHref, enforceArticleLinks, ensureArticleLinks, linkAnchors, linkFirstMention, linkPhrases, rankLinkTargets, urlsIn } from "@/src/server/services/growth/internal-links";
 
 const target = (id: string, title: string, extra: Partial<{ cluster: string; summary: string; keyword: string }> = {}) => ({
   id, title, href: `/blog/${id}`, summary: extra.summary ?? "", cluster: extra.cluster ?? null, keyword: extra.keyword ?? null,
@@ -66,6 +66,26 @@ describe("Links in generated articles", () => {
     expect(result.sections[0].heading).toBe("Using guides");
     expect(result.faqs[0].question).toBe("See this?");
   });
+
+  it("repairs a model response with no links using natural phrases already in the article", () => {
+    const draft = article("AI agents can streamline social media work while Instagram Stories keep an audience engaged.");
+    const result = ensureArticleLinks(draft, [
+      target("agents", "AI Agents for Social Media", { keyword: "AI agents for social media" }),
+      target("stories", "How to Create Effective Instagram Stories", { keyword: "Instagram Stories" }),
+    ]);
+    expect(result.links).toEqual(["/blog/agents", "/blog/stories"]);
+    expect(result.added).toHaveLength(2);
+    expect(JSON.stringify(result.article)).toContain('href=\\"/blog/agents\\"');
+    expect(JSON.stringify(result.article)).toContain('href=\\"/blog/stories\\"');
+  });
+
+  it("does not force a link when the prose has no meaningful phrase for the target", () => {
+    const result = ensureArticleLinks(article("Bake the dough until the crust is golden and crisp."), [
+      target("agents", "AI Agents for Social Media", { keyword: "social media automation" }),
+    ]);
+    expect(result.links).toEqual([]);
+    expect(result.added).toEqual([]);
+  });
 });
 
 describe("Linking existing articles to a new one", () => {
@@ -87,5 +107,9 @@ describe("Linking existing articles to a new one", () => {
 
   it("uses multi-word keywords, longest first", () => {
     expect(linkPhrases(["crm", " crm for freelancers", "best crm for small freelancers", "CRM for freelancers"])).toEqual(["best crm for small freelancers", "crm for freelancers"]);
+  });
+
+  it("derives linkable phrases from an article title", () => {
+    expect(linkAnchors(["The Best Free Video Banks for Social Media"])).toEqual(expect.arrayContaining(["Free Video Banks", "Social Media"]));
   });
 });
