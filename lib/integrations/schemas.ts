@@ -8,7 +8,11 @@ export type PostStatus = typeof POST_STATUSES[number];
 
 export const idSchema = z.string().min(1).max(128);
 const name = z.string().trim().min(1).max(300);
-const slug = z.string().min(1).max(200).regex(/^[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)*$/u, "Use a URL slug without spaces or slashes");
+// JSON Schema patterns have no flags, and Python-based MCP clients reject
+// JavaScript's Unicode property escapes during action discovery.
+const slug = z.string().min(1).max(200)
+  .refine(value => /^[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)*$/u.test(value), "Use a URL slug without spaces or slashes")
+  .describe("URL slug made of letters or numbers, optionally separated by a single hyphen or underscore. Unicode letters are supported; spaces and slashes are not.");
 const text = z.string().max(10_000).nullable().optional();
 const url = z.union([z.literal(""), z.url({ protocol: /^https?$/ }).max(2048)]).nullable().optional();
 const ids = z.array(idSchema).max(100).refine(v => new Set(v).size === v.length, "Duplicate IDs").optional();

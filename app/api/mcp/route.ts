@@ -2,12 +2,16 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { authenticateApiKey } from "@/lib/integrations/auth";
 import { checkOrigin, readJson, errorResponse, privateJson } from "@/lib/integrations/http";
 import { createMcpServer } from "@/lib/integrations/mcp";
+import { oauthIssuer } from "@/lib/integrations/oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function resourceMetadataChallenge(request: Request): string {
-  return `resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource"`;
+  // Next's request URL can contain the internal Docker address behind Traefik.
+  const origin = process.env.MCP_OAUTH_ISSUER?.trim() || process.env.NEXTAUTH_URL?.trim()
+    ? oauthIssuer() : new URL(request.url).origin;
+  return `resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
 }
 
 export async function POST(request: Request) {

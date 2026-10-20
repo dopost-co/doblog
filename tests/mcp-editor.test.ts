@@ -8,8 +8,17 @@ import { editorGuide } from "@/lib/integrations/editor-guide";
 import { operationSchemas } from "@/src/server/services/content/service";
 import { convertBlocksToHtml } from "@/lib/editorjs-to-html";
 import type { ApiScope } from "@/lib/integrations/scopes";
+import { blogUpdateSchema } from "@/lib/integrations/schemas";
 
 describe("MCP rich content", () => {
+  it("keeps Unicode slug validation when publishing portable MCP schemas", () => {
+    for (const slug of ["café", "привет-мир", "日本語", "hello_world", "article-123"]) {
+      expect(blogUpdateSchema.safeParse({ slug }).success).toBe(true);
+    }
+    for (const slug of ["", "two words", "a/b", "-start", "end-", "two--hyphens", "emoji-😀"]) {
+      expect(blogUpdateSchema.safeParse({ slug }).success).toBe(false);
+    }
+  });
   it.each(editorGuide.blocks)("accepts the documented $type block for create and update and renders it", ({ example }) => {
     const content = { blocks: [example] };
     const created = operationSchemas.create_posts.parse({ title: "Rich draft", slug: "rich-draft", content });
