@@ -38,13 +38,14 @@ import { competitorDomain } from "@/lib/autopilot/competitors";
 import { imageModel, imageQuality } from "@/lib/autopilot/image-generation";
 
 export const CONTENT_MODEL = process.env.OPENAI_CONTENT_MODEL || "gpt-4.1-mini";
-const PROMPT_VERSION = "article-v4";
+const PROMPT_VERSION = "article-v5";
 
 export const planItemInputSchema = z.object({
   keyword: z.string().trim().min(3).max(160),
   language: z.string().trim().toLowerCase().regex(/^[a-z]{2}(?:-[a-z]{2})?$/i, "Choose a valid language"),
   title: z.string().trim().min(8).max(180).optional(),
   notes: z.string().trim().max(1200).optional(),
+  keywords: z.array(z.string().trim().min(2).max(100)).max(12).optional(),
 }).strict();
 
 export type PlanItemInput = {
@@ -52,6 +53,7 @@ export type PlanItemInput = {
   language: string;
   title?: string;
   notes?: string;
+  keywords?: string[];
 };
 
 function json(value: unknown): Prisma.InputJsonValue {
@@ -80,7 +82,7 @@ export async function getGrowthDashboard(blogId: string) {
   ]);
   if (!blog) throw new ApiError(404, "Blog not found");
   // Autopilot writes in the main language; with auto-sync on, each article is then translated into the others.
-  const translateTo = blog.autoSyncTranslations ? blog.languages.filter((language) => language !== (settings?.languageCode || blog.languages[0])) : [];
+  const translateTo = blog.autoSyncTranslations ? blog.languages : [];
   const groupIds = items.flatMap((item) => item.post?.translationGroupId ? [item.post.translationGroupId] : []);
   const translations = translateTo.length && groupIds.length ? await prisma.post.findMany({
     where: { blogId, translationGroupId: { in: groupIds } },
@@ -96,7 +98,7 @@ export async function getGrowthDashboard(blogId: string) {
         : [],
     })),
     coveredTopics,
-    defaultLanguage: settings?.languageCode || "en",
+    defaultLanguage: settings?.languageCode || blog.languages[0] || "en",
     aiReady: blog.user.plan === "subscription" || !!blog.user.openaiApiKeyEncrypted,
     mediaReady: Boolean(R2_BUCKET_NAME && R2_PUBLIC_URL && process.env.R2_ENDPOINT),
     seoReady: Boolean(settings?.enabled),
@@ -119,6 +121,7 @@ export async function getGrowthDashboard(blogId: string) {
 }
 
 export async function addContentPlanItem(blogId: string, raw: PlanItemInput) {
+  raw = planItemInputSchema.parse(raw);
   const keyword = raw.keyword.trim();
   const language = raw.language.trim().toLowerCase();
   const normalizedKeyword = normalizeKeyword(keyword);
@@ -136,6 +139,7 @@ export async function addContentPlanItem(blogId: string, raw: PlanItemInput) {
   const item = await prisma.contentPlanItem.create({ data: {
     blogId, primaryKeyword: keyword, normalizedKeyword, language,
     title: raw.title?.trim() || null, notes: raw.notes?.trim() || null,
+    secondaryKeywords: [...new Set(raw.keywords || [])],
   } });
   await schedulePendingDrafts(blogId);
   return item;
@@ -221,6 +225,7 @@ Answer the search intent directly, use concrete explanations and avoid generic A
 ${currentDateNote()} Do not invent statistics, quotes, product capabilities or first-hand experiences. If evidence is absent, explain without fabricating specifics.
 Use only <strong>, <em>, <code>, <br> and <a href="..."> inside paragraph strings.
 internalLinks lists published articles of this blog (title, topic, summary). Link 2-4 of them where a sentence naturally touches their topic and the reader would want to go deeper: short descriptive anchor text taken from that sentence (never "click here" or a bare keyword), spread across the body, each article at most once, never in headings. Skip any that do not fit; fewer good links beat forced ones. Preserve each href exactly. If internalLinks is empty, add no internal links. Never invent an internal URL.
+For manually supplied ideas, primaryKeyword is the topic or brief, not necessarily an exact SEO keyword. Treat topic.notes as editorial direction: use its requested angle, details, and points to include or avoid. Choose relevant search terms naturally when none are supplied.
 topic carries the research behind this article: cover secondaryKeywords naturally where they fit, and serve the stated intent (informational: explain; commercial: compare options and help choose). When serpBrief is present, organic lists the pages Google ranks today: cover what they cover and answer it better, without copying their wording or structure. Answer the relevant peopleAlsoAsk questions inside the article, using a question as a heading when it deserves its own section, and touch on relatedSearches the reader would expect. When featuredSnippet is present, answer the core question in a concise 40-60 word paragraph right after the introduction. When serpBrief.hasAiOverview is true, Google shows an AI summary for this search: open each section with a direct, self-contained answer in one or two sentences that make sense when quoted alone, then expand.
 External links may only use URLs supplied in serpBrief, never pages on the domains in competitors. Do not mention SEO, keywords, prompts or this workflow in the article.
 Request exactly maxInlineImages inline images (fewer only when the article has fewer sections), each explaining a different section; afterHeading must copy that section heading exactly. The cover must be visually distinct from inline images and contain no text or logos.
@@ -352,7 +357,7 @@ async function writeDraft(claimed: ClaimedDraft, { finalAttempt }: { finalAttemp
       publication: { name: blog.name, description: blog.description },
       topic: {
         primaryKeyword: claimed.item.primaryKeyword, preferredTitle: claimed.item.title && refreshStaleYears(claimed.item.title),
-        notes: claimed.item.notes, language: claimed.item.language,
+        source: claimed.item.source, notes: claimed.item.notes, language: claimed.item.language,
         secondaryKeywords: claimed.item.secondaryKeywords, intent: claimed.item.intent,
         cluster: claimed.item.cluster, whyThisTopic: claimed.item.rationale,
         searchData: researchMetrics(claimed.item.opportunitySnapshot),

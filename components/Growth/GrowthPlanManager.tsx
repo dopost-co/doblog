@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ type PlanItem = {
   intent: string | null;
   source: string;
   rationale: string | null;
+  notes: string | null;
   secondaryKeywords: string[];
   opportunitySnapshot: {
     priority?: string;
@@ -57,9 +58,9 @@ function IdeaResearch({ item }: { item: PlanItem }) {
   return (
     <div className="space-y-1 text-xs text-muted-foreground">
       <p>
-        <span className="font-medium text-foreground">Keyword:</span> {item.primaryKeyword}
-        {item.secondaryKeywords.length > 0 && <> · also covers {item.secondaryKeywords.join(", ")}</>}
+        <span className="font-medium text-foreground">{item.source === "manual" ? "Topic:" : "Keyword:"}</span> {item.primaryKeyword}
       </p>
+      {item.secondaryKeywords.length > 0 && <p><span className="font-medium text-foreground">Keywords:</span> {item.secondaryKeywords.join(", ")}</p>}
       {(facts.length > 0 || competitor || !metrics) && (
         <p>
           {facts.join(" · ")}
@@ -99,6 +100,7 @@ const scheduledLabel = (value: string) => new Intl.DateTimeFormat(undefined, {
  * into each of translateTo once the article exists.
  */
 function LanguageBadges({ blogId, item, translateTo, inProgress }: { blogId: string; item: PlanItem; translateTo: string[]; inProgress: boolean }) {
+  translateTo = translateTo.filter((language) => language !== item.language);
   const main = <span className="text-xs font-medium uppercase text-muted-foreground">{item.language}</span>;
   if (!translateTo.length) return main;
   if (!item.post) {
@@ -148,6 +150,8 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
   const [pending, startTransition] = useTransition();
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [language, setLanguage] = useState(defaultLanguage);
+  const translationLanguages = translateTo.filter((code) => code !== language);
+  const languageName = (code: string) => languages.find((entry) => entry.code === code)?.name || code.toUpperCase();
   const [adding, setAdding] = useState(false);
   // Only for the add dialog, next to the form; everything else is a toast.
   const [addError, setAddError] = useState("");
@@ -162,6 +166,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
         keyword: String(data.get("keyword") || ""), language,
         title: String(data.get("title") || "").trim() || undefined,
         notes: String(data.get("notes") || "").trim() || undefined,
+        keywords: String(data.get("keywords") || "").split(/[,\n]/).map((value) => value.trim()).filter(Boolean),
       });
       if (result.error) return setAddError(result.error);
       form.reset();
@@ -228,7 +233,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span />
-          {canEdit && <Button size="sm" onClick={() => setAdding(true)} disabled={pending}><Plus />Add idea</Button>}
+          {canEdit && <Button size="sm" onClick={() => { setAddError(""); setLanguage(defaultLanguage); setAdding(true); }} disabled={pending}><Plus />Add idea</Button>}
         </div>
         {items.length === 0 ? (
           <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">No ideas yet. New ones appear after the next refresh.</p>
@@ -271,6 +276,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                     </div>
                     <h3 className="font-medium">{item.post?.title || item.title || item.primaryKeyword}</h3>
                     {item.rationale && <p className="max-w-2xl text-sm text-muted-foreground">{item.rationale}</p>}
+                    {item.notes && <p className="max-w-2xl whitespace-pre-wrap text-sm text-muted-foreground"><span className="font-medium text-foreground">Brief:</span> {item.notes}</p>}
                     <IdeaResearch item={item} />
                     <p className="text-xs text-muted-foreground">Writing: {generationText} · Publishing: {publicationText}</p>
                     {(item.lastError || item.runs[0]?.error) && <p className="max-w-2xl text-sm text-destructive">{item.lastError || item.runs[0]?.error}</p>}
@@ -297,25 +303,50 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
       </section>
 
       <Dialog open={adding} onOpenChange={(open) => { if (!pending) setAdding(open); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <form onSubmit={add} className="grid gap-5">
-            <DialogHeader><DialogTitle>Add idea</DialogTitle></DialogHeader>
-            <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
-              <div className="grid gap-1.5">
-                <Label htmlFor="keyword">Topic</Label>
-                <Input id="keyword" name="keyword" placeholder="best CRM for freelancers" required minLength={3} maxLength={160} disabled={pending} autoFocus />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="plan-language">Language</Label>
-                <Select value={language} onValueChange={setLanguage} disabled={pending}>
-                  <SelectTrigger id="plan-language" className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>{languages.map(item => <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+            <DialogHeader>
+              <DialogTitle>Add an idea</DialogTitle>
+              <DialogDescription>Tell Autopilot what to write. It will shape the title, structure and relevant keywords.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-1.5">
+              <Label htmlFor="keyword">What should the article be about?</Label>
+              <Input id="keyword" name="keyword" placeholder="How freelancers can choose their first CRM" required minLength={3} maxLength={160} disabled={pending} autoFocus />
             </div>
-            <div className="grid gap-1.5"><Label htmlFor="title">Title <span className="font-normal text-muted-foreground">(optional)</span></Label><Input id="title" name="title" disabled={pending} /></div>
-            <div className="grid gap-1.5"><Label htmlFor="notes">Notes <span className="font-normal text-muted-foreground">(optional)</span></Label><Textarea id="notes" name="notes" rows={3} placeholder="Points to include or avoid" disabled={pending} /></div>
-            {addError && <p className="text-sm text-destructive">{addError}</p>}
+            <div className="grid gap-1.5">
+              <Label htmlFor="notes">Details & direction <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Textarea id="notes" name="notes" rows={3} maxLength={1200} placeholder="Who is it for? What should we explain, include or avoid? e.g. Focus on solo freelancers, compare affordable options and include a practical example." disabled={pending} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="plan-language">Write in</Label>
+              <Select value={language} onValueChange={setLanguage} disabled={pending}>
+                <SelectTrigger id="plan-language" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{languages.map(item => <SelectItem key={item.code} value={item.code}>{item.name}</SelectItem>)}</SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {translationLanguages.length
+                  ? `Automatically translated into ${translationLanguages.map(languageName).join(", ")} using your blog’s language settings.`
+                  : "One article in this language. Enable automatic translations in your blog’s language settings for more languages."}
+              </p>
+            </div>
+            <details className="group rounded-lg border px-3 py-2.5">
+              <summary className="cursor-pointer text-sm font-medium">Optional keywords & title</summary>
+              <div className="grid gap-4 pt-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="keywords">Keywords <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                  <Input id="keywords" name="keywords" placeholder="freelance CRM, client management" maxLength={1222} disabled={pending} aria-describedby="keywords-help" />
+                  <p id="keywords-help" className="text-xs text-muted-foreground">Separate with commas, up to 12. Leave blank to let Autopilot choose.</p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="title">Preferred title <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                  <Input id="title" name="title" minLength={8} maxLength={180} placeholder="Let Autopilot suggest a title" disabled={pending} />
+                </div>
+              </div>
+            </details>
+            <p className="text-xs text-muted-foreground">
+              {mediaReady ? "Images and thumbnails follow your Autopilot settings." : "Images are unavailable until image storage is configured."}
+            </p>
+            {addError && <p role="alert" className="text-sm text-destructive">{addError}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" disabled={pending} onClick={() => setAdding(false)}>Cancel</Button>
               <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add idea"}</Button>

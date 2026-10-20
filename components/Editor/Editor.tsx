@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import EditorJS, { OutputData } from "@editorjs/editorjs";
+import EditorJS, { OutputData, type InlineToolConstructable } from "@editorjs/editorjs";
 import Header from "@editorjs/header";
 import List from "@editorjs/list";
 import Quote from "@editorjs/quote";
@@ -14,6 +14,8 @@ import Delimiter from "@editorjs/delimiter";
 import InlineCode from "@editorjs/inline-code";
 import { attachMarkdownSupport } from "./markdown-support";
 import { toast } from "sonner";
+import { LinkEditorDialog } from "./LinkEditorDialog";
+import { ModalLinkTool } from "./link-tool";
 
 interface EditorProps {
   data?: OutputData;
@@ -37,6 +39,8 @@ export function Editor({ data, onChange, placeholder, blogId }: EditorProps) {
           blocks: [],
         },
         tools: {
+          // Editor.js supports MenuConfig, but its constructor type still requires HTMLElement.
+          link: ModalLinkTool as unknown as InlineToolConstructable,
           header: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             class: Header as any,
@@ -170,8 +174,11 @@ export function Editor({ data, onChange, placeholder, blogId }: EditorProps) {
   }, []);
 
   return (
-    <div className="prose prose-sm max-w-none">
-      <div ref={holderRef} className="min-h-[400px]" />
-    </div>
+    <>
+      <div className="prose prose-sm max-w-none">
+        <div ref={holderRef} className="min-h-[400px]" />
+      </div>
+      <LinkEditorDialog holderRef={holderRef} editorRef={editorRef} />
+    </>
   );
 }
