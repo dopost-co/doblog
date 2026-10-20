@@ -29,8 +29,10 @@ ZENEX_CMS_URL=https://your-cms.example npm run dev
 
 `GET /health` is public. `POST /` and `POST /mcp` require
 `Authorization: Bearer <key>` and are relayed to `${ZENEX_CMS_URL}/api/mcp`.
-GET/DELETE on the MCP endpoints return 405, matching the CMS route (stateless
-JSON only, no SSE stream or persistent sessions).
+GET/DELETE on the MCP endpoints authenticate before returning 405, matching
+the CMS route (stateless JSON only, no SSE stream or persistent sessions).
+Missing or expired credentials return 401 with the OAuth discovery challenge,
+including for clients that probe the endpoint with GET before sending POST.
 
 ## Configuration
 

@@ -12,7 +12,7 @@ const UPSTREAM_PATH = "/api/mcp";
 const MAX_BODY_BYTES = "2mb";
 // Kept in sync by hand with API_SCOPES in the main app's lib/integrations/scopes.ts —
 // this gateway is a separate deployable package with no shared code.
-const SCOPES = ["content:read", "content:write", "content:publish", "content:delete", "blog:write", "media:write"];
+const SCOPES = ["content:read", "content:write", "content:publish", "content:delete", "blog:write", "media:write", "seo:write"];
 
 export function createProxyApp(
   config: McpGatewayConfig,
@@ -97,11 +97,11 @@ export function createProxyApp(
       if (origin) {
         res.setHeader("Access-Control-Allow-Origin", origin);
         res.setHeader("Vary", "Origin");
-        res.setHeader("Access-Control-Expose-Headers", "x-request-id");
+        res.setHeader("Access-Control-Expose-Headers", "WWW-Authenticate, Allow, x-request-id");
       }
 
       if (req.method === "OPTIONS") {
-        res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
         res.setHeader(
           "Access-Control-Allow-Headers",
           "Authorization, Content-Type, Mcp-Protocol-Version, x-request-id",
@@ -110,7 +110,7 @@ export function createProxyApp(
         return;
       }
 
-      if (req.method !== "POST") {
+      if (!["GET", "POST", "DELETE"].includes(req.method)) {
         res.setHeader("Allow", "POST");
         res.status(405).json(jsonRpcError("Method not allowed"));
         return;
@@ -128,7 +128,7 @@ export function createProxyApp(
 
       const requestId = res.locals.requestId as string;
       const body = req.body;
-      if (!Buffer.isBuffer(body)) {
+      if (req.method === "POST" && !Buffer.isBuffer(body)) {
         res
           .status(415)
           .json(jsonRpcError("Content-Type must be application/json"));
@@ -145,10 +145,12 @@ export function createProxyApp(
         const protocolVersion = req.header("mcp-protocol-version");
         if (protocolVersion) upstreamHeaders["Mcp-Protocol-Version"] = protocolVersion;
         const upstream = await fetch(new URL(UPSTREAM_PATH, config.cmsUrl), {
-          method: "POST",
+          // Authenticate GET/SSE probes and DELETE requests at the CMS too.
+          // An expired token must produce an OAuth challenge before a 405.
+          method: req.method,
           redirect: "error",
           headers: upstreamHeaders,
-          body: new Uint8Array(body),
+          body: req.method === "POST" ? new Uint8Array(body) : undefined,
           signal: AbortSignal.timeout(config.requestTimeoutMs),
         });
 
@@ -166,6 +168,8 @@ export function createProxyApp(
           const resourceMetadataUrl = `${req.protocol}://${req.get("host")}/.well-known/oauth-protected-resource/mcp`;
           res.setHeader("WWW-Authenticate", `Bearer realm="zenex-mcp", error="invalid_token", resource_metadata="${resourceMetadataUrl}"`);
         }
+        const allow = upstream.headers.get("allow");
+        if (allow) res.setHeader("Allow", allow);
         res.send(responseBody);
       } catch (error) {
         log.error("upstream_request_failed", {

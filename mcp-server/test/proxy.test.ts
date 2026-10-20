@@ -46,6 +46,36 @@ test("health bypasses the public Host allowlist for container probes", async (t)
   assert.equal(health.status, 200);
 });
 
+test("unauthenticated GET probes discover OAuth on both MCP endpoints", async (t) => {
+  const { server, baseUrl } = await listenApp(baseConfig("https://cms.invalid"));
+  t.after(() => closeServer(server));
+  for (const path of ["/", "/mcp"]) {
+    const response = await fetch(`${baseUrl}${path}`);
+    assert.equal(response.status, 401);
+    assert.match(response.headers.get("www-authenticate") ?? "", /resource_metadata=/);
+  }
+});
+
+test("GET probes validate existing tokens upstream before rejecting SSE", async (t) => {
+  const upstream = createServer((req, res) => {
+    assert.equal(req.method, "GET");
+    assert.equal(req.url, "/api/mcp");
+    const valid = req.headers.authorization === "Bearer znx_at_valid";
+    res.statusCode = valid ? 405 : 401;
+    if (valid) res.setHeader("Allow", "POST");
+    res.end(JSON.stringify({ error: valid ? "Use POST" : "Invalid token" }));
+  });
+  t.after(() => closeServer(upstream));
+  const { server, baseUrl } = await listenApp(baseConfig(await listen(upstream)));
+  t.after(() => closeServer(server));
+  for (const [token, status] of [["expired", 401], ["valid", 405]] as const) {
+    const response = await fetch(`${baseUrl}/mcp`, { headers: { Authorization: `Bearer znx_at_${token}` } });
+    assert.equal(response.status, status);
+    if (status === 401) assert.match(response.headers.get("www-authenticate") ?? "", /error="invalid_token"/);
+    else assert.equal(response.headers.get("allow"), "POST");
+  }
+});
+
 test("advertises the CMS as the authorization server for its own protected-resource metadata", async (t) => {
   const { server, baseUrl } = await listenApp(baseConfig("https://cms.invalid"));
   t.after(() => closeServer(server));
@@ -59,6 +89,7 @@ test("advertises the CMS as the authorization server for its own protected-resou
     };
     assert.equal(body.resource, `${baseUrl}/mcp`);
     assert.deepEqual(body.authorization_servers, ["https://cms.invalid"]);
+    assert.ok((body as { scopes_supported?: string[] }).scopes_supported?.includes("seo:write"));
   }
 });
 
