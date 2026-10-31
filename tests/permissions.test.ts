@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
   blogMember: { findFirst: vi.fn(), update: vi.fn() },
 }));
 const session = vi.hoisted(() => ({ current: { user: { id: "u-admin", email: "admin@example.com" } } as { user: { id: string; email: string } } | null }));
+const seo = vi.hoisted(() => ({ upsert: vi.fn(), findUnique: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/get-session", () => ({ getSession: async () => session.current }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), updateTag: vi.fn() }));
@@ -107,7 +108,6 @@ describe("MCP connections follow each blog's role", () => {
 });
 
 describe("Autopilot spending stays with the owner", () => {
-  const seo = vi.hoisted(() => ({ upsert: vi.fn(), findUnique: vi.fn() }));
   const settingsInput = {
     credentialId: "someone-elses", enabled: true, targetDomain: "example.com", locationCode: 2724, languageCode: "es", timezone: "Europe/Madrid",
     competitorDomains: [], audience: "Founders", brandVoice: null, publishingMode: "review",

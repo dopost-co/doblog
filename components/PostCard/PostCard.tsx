@@ -149,6 +149,9 @@ export function PostCard({
                 </div>
               )}
               {cover ? (
+                // Covers can come from any configured publishing destination,
+                // so they intentionally bypass Next.js host-based optimization.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={cover} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">

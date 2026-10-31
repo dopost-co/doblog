@@ -1,6 +1,16 @@
+<p align="center">
+  <img src="public/logo.png" alt="Zenex CMS" width="96" />
+</p>
+
 # Zenex CMS
 
-A multilingual headless CMS built with Next.js 16, React 19, Prisma 6, PostgreSQL and Editor.js. Inspired by [Zenblog](https://www.zenblog.com/); this is an independent codebase.
+[![CI](https://github.com/dopost-co/zenex-cms/actions/workflows/ci.yml/badge.svg)](https://github.com/dopost-co/zenex-cms/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-4f46e5.svg)](LICENSE)
+[![Node.js 24](https://img.shields.io/badge/Node.js-24-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
+
+An open-source multilingual headless CMS built with Next.js 16, React 19, Prisma 6, PostgreSQL and Editor.js. Zenex combines a focused editorial workspace with public delivery APIs, MCP integrations and optional AI-assisted content workflows.
+
+Zenex is maintained by [Dopost](https://dopost.co). It was inspired by [Zenblog](https://www.zenblog.com/) and is an independent codebase.
 
 ## Features
 
@@ -28,6 +38,8 @@ npm run dev
 ```
 
 Open [localhost:4444](http://localhost:4444). Register or sign in, create a blog, then use its navigation: Posts, Authors, Categories, Autopilot, Settings, MCP and API keys.
+
+For production deployments, use a dedicated PostgreSQL database, HTTPS, a stable authentication secret and least-privilege credentials for every optional integration. The Docker image applies pending Prisma migrations on startup unless `SKIP_MIGRATIONS=true`.
 
 Generate an authentication secret with `openssl rand -base64 32`. Do not commit .env files. GitHub OAuth is optional; configure its client credentials and callback URL at `https://your-cms.example/api/auth/callback/github`. Set the canonical authentication URL and trusted proxy/host settings correctly for your deployment. See [.env.example](.env.example) for the exact environment names used by the code.
 
@@ -187,6 +199,12 @@ Each blog chooses where its articles live (Settings → Web integration, or onbo
 - [MCP transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 - [Official TypeScript MCP SDK](https://ts.sdk.modelcontextprotocol.io/)
 - [Cloudflare R2 with AWS SDK v3](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/)
-- [GitHub issues](https://github.com/raulcanodev/zenex-cms/issues)
+- [GitHub issues](https://github.com/dopost-co/zenex-cms/issues)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
 See [MAINTENANCE.md](MAINTENANCE.md) for verification and deployment notes.
+
+## License
+
+Zenex CMS is available under the [MIT License](LICENSE).

@@ -171,6 +171,9 @@ export function Editor({ data, onChange, placeholder, blogId }: EditorProps) {
         editorRef.current = null;
       }
     };
+    // Editor.js owns this DOM subtree for the component lifetime. Recreating it
+    // for changing callback props would discard the user's current selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

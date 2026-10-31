@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# local development credentials
+/.claude/test-accounts.local.md
+
 # vercel
 .vercel
 
