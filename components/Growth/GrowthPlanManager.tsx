@@ -329,7 +329,7 @@ export function GrowthPlanManager({ blogId, items, defaultLanguage, aiReady, med
                   : "One article in this language. Enable automatic translations in your blog’s language settings for more languages."}
               </p>
             </div>
-            <details className="group rounded-lg border px-3 py-2.5">
+            <details className="group rounded-lg border bg-card px-3 py-2.5">
               <summary className="cursor-pointer text-sm font-medium">Optional keywords & title</summary>
               <div className="grid gap-4 pt-4">
                 <div className="grid gap-1.5">
