@@ -1,5 +1,5 @@
 {
-  "name": "zenex-cms",
+  "name": "doblog",
   "version": "0.1.0",
   "description": "Open-source multilingual headless CMS with AI-assisted editorial workflows.",
   "private": true,
@@ -7,10 +7,10 @@
   "homepage": "https://cms.zenex.dev/docs",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dopost-co/zenex-cms.git"
+    "url": "https://github.com/dopost-co/doblog.git"
   },
   "bugs": {
-    "url": "https://github.com/dopost-co/zenex-cms/issues"
+    "url": "https://github.com/dopost-co/doblog/issues"
   },
   "scripts": {
     "dev": "next dev -p 4444",

@@ -35,7 +35,7 @@ export function DocsLayout({ children }: DocsLayoutProps) {
             </div>
           </div>
           <a
-            href="https://github.com/dopost-co/zenex-cms"
+            href="https://github.com/dopost-co/doblog"
             target="_blank"
             rel="noopener noreferrer"
             className="text-foreground hover:text-foreground/80 transition-colors"

@@ -1,6 +1,6 @@
 export function stdioConfig(origin: string) {
   return JSON.stringify({ mcpServers: { zenex: {
-    command: "node", args: ["/absolute/path/to/zenex-cms/scripts/mcp-stdio.mjs"],
+    command: "node", args: ["/absolute/path/to/doblog/scripts/mcp-stdio.mjs"],
     env: { ZENEX_CMS_URL: origin, ZENEX_API_KEY: "znx_REPLACE_WITH_YOUR_KEY" },
   } } }, null, 2);
 }

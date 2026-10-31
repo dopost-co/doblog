@@ -4,7 +4,7 @@
 
 # Zenex CMS
 
-[![CI](https://github.com/dopost-co/zenex-cms/actions/workflows/ci.yml/badge.svg)](https://github.com/dopost-co/zenex-cms/actions/workflows/ci.yml)
+[![CI](https://github.com/dopost-co/doblog/actions/workflows/ci.yml/badge.svg)](https://github.com/dopost-co/doblog/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-4f46e5.svg)](LICENSE)
 [![Node.js 24](https://img.shields.io/badge/Node.js-24-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
 
@@ -118,7 +118,7 @@ For a local stdio client, install this checkout’s dependencies, then configure
   "mcpServers": {
     "zenex": {
       "command": "node",
-      "args": ["/absolute/path/to/zenex-cms/scripts/mcp-stdio.mjs"],
+      "args": ["/absolute/path/to/doblog/scripts/mcp-stdio.mjs"],
       "env": {
         "ZENEX_CMS_URL": "https://your-cms.example",
         "ZENEX_API_KEY": "znx_REPLACE_WITH_YOUR_KEY"
@@ -199,7 +199,7 @@ Each blog chooses where its articles live (Settings → Web integration, or onbo
 - [MCP transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 - [Official TypeScript MCP SDK](https://ts.sdk.modelcontextprotocol.io/)
 - [Cloudflare R2 with AWS SDK v3](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/)
-- [GitHub issues](https://github.com/dopost-co/zenex-cms/issues)
+- [GitHub issues](https://github.com/dopost-co/doblog/issues)
 - [Contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

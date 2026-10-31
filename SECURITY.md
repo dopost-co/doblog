@@ -8,7 +8,7 @@ Security fixes are applied to the latest commit on the `main` branch. Zenex has 
 
 Please do not open a public issue for a suspected vulnerability.
 
-Use GitHub's **Security → Report a vulnerability** flow on the [Zenex CMS repository](https://github.com/dopost-co/zenex-cms/security/advisories/new). Include the affected component, reproduction steps, impact and any suggested mitigation. If private vulnerability reporting is unavailable, contact Dopost through [dopost.co](https://dopost.co) without including exploit details in a public channel.
+Use GitHub's **Security → Report a vulnerability** flow on the [Zenex CMS repository](https://github.com/dopost-co/doblog/security/advisories/new). Include the affected component, reproduction steps, impact and any suggested mitigation. If private vulnerability reporting is unavailable, contact Dopost through [dopost.co](https://dopost.co) without including exploit details in a public channel.
 
 We will acknowledge a complete report as soon as practical, investigate it privately and coordinate disclosure after a fix is available. Please avoid accessing data that is not yours, disrupting services or publishing details before that coordination is complete.
 
