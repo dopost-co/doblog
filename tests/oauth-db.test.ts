@@ -233,10 +233,47 @@ describe.runIf(!!connection)("isolated PostgreSQL MCP OAuth integration", () => 
     expect(rotated.access_token).not.toBe(tokens.access_token);
     expect((await mcpCall(rotated.access_token)).status).toBe(200);
 
-    // Reusing the already-rotated refresh token must revoke the whole grant.
+    // Reusing the already-rotated refresh token after the grace window must revoke the whole grant.
+    await state.db.mcpOAuthRefreshToken.update({
+      where: { tokenHash: crypto.createHash("sha256").update(tokens.refresh_token).digest("hex") },
+      data: { rotatedAt: new Date(Date.now() - 2 * 60 * 1000) },
+    });
     const reuse = await exchange({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_id: clientId, resource: resource() });
     expect(reuse.status).toBe(400);
     expect((await mcpCall(rotated.access_token)).status).toBe(401);
+  });
+
+  it("tolerates a concurrent refresh with the just-rotated token", async () => {
+    const tokens = await approveAndExchange([blog.id]);
+    const form = { grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_id: clientId, resource: resource() };
+    const first = await (await exchange(form)).json();
+    const second = await exchange(form);
+    expect(second.status).toBe(200);
+    const retried = await second.json();
+    expect(retried.access_token).not.toBe(first.access_token);
+    expect((await mcpCall(first.access_token)).status).toBe(200);
+    expect((await mcpCall(retried.access_token)).status).toBe(200);
+  });
+
+  it("defaults an omitted resource and ignores a trailing slash", async () => {
+    const { verifier, challenge } = pkcePair();
+    const authorized = await authorize({
+      client_id: clientId,
+      redirect_uri: REDIRECT_URI,
+      response_type: "code",
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      blog_ids: [blog.id],
+      decision: "approve",
+    });
+    expect(authorized.status).toBe(303);
+    const code = new URL(authorized.headers.get("location")!).searchParams.get("code")!;
+    const issued = await exchange({ grant_type: "authorization_code", code, client_id: clientId, redirect_uri: REDIRECT_URI, code_verifier: verifier, resource: `${resource()}/` });
+    expect(issued.status).toBe(200);
+    const tokens = await issued.json();
+    const refreshed = await exchange({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_id: clientId });
+    expect(refreshed.status).toBe(200);
+    expect((await mcpCall((await refreshed.json()).access_token)).status).toBe(200);
   });
 
   it("revokes an access token via /api/oauth/revoke", async () => {

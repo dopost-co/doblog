@@ -8,6 +8,9 @@ import { can, isBlogRole, roleApiScopes, type BlogAccessRole, type BlogRole } fr
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS = 10 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
+// Connector backends can refresh concurrently with the same token. A reuse this
+// soon after rotation is treated as that race, not as a stolen token.
+const REFRESH_REUSE_GRACE_SECONDS = 60;
 
 export class OAuthError extends Error {
   constructor(
@@ -50,7 +53,7 @@ export function isTrustedAuthorizationOrigin(request: Request): boolean {
 // same /api/mcp) be accepted as the same protected resource.
 function acceptedResources(): Set<string> {
   const extra = process.env.MCP_OAUTH_EXTRA_RESOURCES?.split(",")
-    .map((value) => value.trim())
+    .map((value) => value.trim().replace(/\/+$/, ""))
     .filter(Boolean) ?? [];
   return new Set([oauthResource(), ...extra]);
 }
@@ -76,10 +79,14 @@ export function parseScopes(value: string | null | undefined): ApiScope[] {
 }
 
 export function assertCanonicalResource(resource: string | null | undefined): string {
-  if (!resource || !acceptedResources().has(resource)) {
+  // RFC 8707 makes `resource` optional, and some connectors omit it (often on
+  // refresh). Without it the client means this server's MCP endpoint.
+  if (!resource) return oauthResource();
+  const normalized = resource.replace(/\/+$/, "");
+  if (!acceptedResources().has(normalized)) {
     throw new OAuthError("invalid_target", `resource must be ${oauthResource()}`);
   }
-  return resource;
+  return normalized;
 }
 
 export function validateRedirectUri(raw: string): string {
@@ -337,6 +344,10 @@ export async function exchangeRefreshToken(input: { refreshToken: string; client
     }
     if (current.revokedAt || current.grant.revokedAt || current.expiresAt <= new Date()) {
       throw new OAuthError("invalid_grant", "Refresh token is expired or revoked");
+    }
+    if (current.rotatedAt && Date.now() - current.rotatedAt.getTime() <= REFRESH_REUSE_GRACE_SECONDS * 1000) {
+      const tokens = await createTokenPair(tx, current.grant, current.familyId);
+      return { reuseDetected: false as const, ...tokens, expiresIn: ACCESS_TOKEN_TTL_SECONDS, scope: current.grant.scopes.join(" ") };
     }
     if (current.rotatedAt) {
       // Reuse of an already-rotated token: treat as theft and kill the grant.
