@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { TranslatePostDialog } from "@/components/TranslatePostDialog/TranslatePostDialog";
 import { getLanguageName } from "@/lib/languages";
-import { deletePost, updatePost } from "@/src/server/services/posts/mutations";
+import { deletePost, deletePostTranslations, updatePost, updatePostTranslations } from "@/src/server/services/posts/mutations";
 import { regeneratePostCoverAction } from "@/src/server/services/growth/actions";
 import { toast } from "sonner";
 
@@ -45,6 +45,10 @@ interface PostCardProps {
   /** Where the copy on the blog's website stands, when the blog copies articles to one. */
   copy?: { site: string; state: string | null; url: string | null; error: string | null } | null;
 }
+
+type ScopedAction =
+  | { type: "status"; next: "draft" | "published" }
+  | { type: "featured"; next: boolean };
 
 export function PostCard({
   id,
@@ -70,6 +74,7 @@ export function PostCard({
   const [deleteError, setDeleteError] = useState("");
   const [cover, setCover] = useState(coverImage);
   const [drawingCover, setDrawingCover] = useState(false);
+  const [scopedAction, setScopedAction] = useState<ScopedAction | null>(null);
 
   const formattedDate = publishedAt
     ? new Date(publishedAt).toLocaleString("en-US", {
@@ -84,28 +89,39 @@ export function PostCard({
     scheduled: { label: "Scheduled", className: "bg-sky-500/10 text-sky-700 dark:text-sky-400" },
   }[currentStatus] ?? { label: "Draft", className: "bg-muted text-muted-foreground" };
 
-  async function patchPost(data: { status?: "draft" | "published"; featured?: boolean }) {
+  async function patchPost(data: { status?: "draft" | "published"; featured?: boolean }, allTranslations = false) {
     setIsUpdating(true);
-    const result = await updatePost(id, data);
+    const result = allTranslations ? await updatePostTranslations(id, data) : await updatePost(id, data);
     setIsUpdating(false);
     if (result.error) { toast.error(result.error); return false; }
     router.refresh();
     return true;
   }
 
-  async function setStatus(next: "draft" | "published") {
+  async function setStatus(next: "draft" | "published", allTranslations = false) {
     const wasScheduled = currentStatus === "scheduled";
-    if (await patchPost({ status: next })) {
+    if (await patchPost({ status: next }, allTranslations)) {
       setCurrentStatus(next);
-      toast.success(next === "published" ? "Post published" : wasScheduled ? "Post unscheduled" : "Moved to draft");
+      setScopedAction(null);
+      const message = next === "published" ? "published" : wasScheduled ? "unscheduled" : "moved to draft";
+      toast.success(allTranslations ? `All ${displayedLanguages.length} translations ${message}` : next === "published" ? "Post published" : wasScheduled ? "Post unscheduled" : "Moved to draft");
     }
   }
 
-  async function toggleFeatured(next: boolean) {
-    if (await patchPost({ featured: next })) {
+  async function toggleFeatured(next: boolean, allTranslations = false) {
+    if (await patchPost({ featured: next }, allTranslations)) {
       setIsFeatured(next);
-      toast.success(next ? "Marked as featured" : "Removed from featured");
+      setScopedAction(null);
+      toast.success(allTranslations
+        ? `${displayedLanguages.length} translations ${next ? "marked as featured" : "removed from featured"}`
+        : next ? "Marked as featured" : "Removed from featured");
     }
+  }
+
+  function requestScopedAction(action: ScopedAction) {
+    if (displayedLanguages.length > 1) setScopedAction(action);
+    else if (action.type === "status") void setStatus(action.next);
+    else void toggleFeatured(action.next);
   }
 
   async function regenerateCover() {
@@ -118,17 +134,17 @@ export function PostCard({
     router.refresh();
   }
 
-  async function handleDelete() {
+  async function handleDelete(allTranslations = false) {
     setIsUpdating(true);
     setDeleteError("");
-    const result = await deletePost(id);
+    const result = allTranslations ? await deletePostTranslations(id) : await deletePost(id);
     if (result.error) {
       setDeleteError(result.error);
       setIsUpdating(false);
       return;
     }
     setDeleteOpen(false);
-    toast.success("Post deleted");
+    toast.success(allTranslations ? `All ${displayedLanguages.length} translations deleted` : "Post deleted");
     router.refresh();
   }
 
@@ -211,18 +227,18 @@ export function PostCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 {currentStatus !== "published" && (
-                  <DropdownMenuItem onSelect={() => setStatus("published")}>
+                  <DropdownMenuItem onSelect={() => requestScopedAction({ type: "status", next: "published" })}>
                     <Check />
                     {currentStatus === "scheduled" ? "Publish now" : "Publish"}
                   </DropdownMenuItem>
                 )}
                 {currentStatus !== "draft" && (
-                  <DropdownMenuItem onSelect={() => setStatus("draft")}>
+                  <DropdownMenuItem onSelect={() => requestScopedAction({ type: "status", next: "draft" })}>
                     <Undo2 />
                     {currentStatus === "scheduled" ? "Unschedule" : "Move to draft"}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem role="menuitemcheckbox" aria-checked={isFeatured} onSelect={() => toggleFeatured(!isFeatured)}>
+                <DropdownMenuItem role="menuitemcheckbox" aria-checked={isFeatured} onSelect={() => requestScopedAction({ type: "featured", next: !isFeatured })}>
                   <Star className={cn(isFeatured && "fill-amber-400 text-amber-500")} />
                   Featured
                 </DropdownMenuItem>
@@ -251,18 +267,54 @@ export function PostCard({
         blogId={blogId}
       />
 
+      <Dialog open={Boolean(scopedAction)} onOpenChange={(open) => !open && !isUpdating && setScopedAction(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply to which languages?</DialogTitle>
+            <DialogDescription>
+              This article exists in {displayedLanguages.length} languages. Apply this change only to {getLanguageName(language || "en") || language || "this language"}, or to every translation?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScopedAction(null)} disabled={isUpdating}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => scopedAction?.type === "status" ? setStatus(scopedAction.next) : scopedAction && toggleFeatured(scopedAction.next)}
+              disabled={isUpdating}
+            >
+              Only {getLanguageName(language || "en") || language || "this language"}
+            </Button>
+            <Button
+              onClick={() => scopedAction?.type === "status" ? setStatus(scopedAction.next, true) : scopedAction && toggleFeatured(scopedAction.next, true)}
+              disabled={isUpdating}
+            >
+              {isUpdating ? "Applying…" : `All ${displayedLanguages.length} languages`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete post?</DialogTitle>
-            <DialogDescription>This permanently deletes “{title}”. This action cannot be undone.</DialogDescription>
+            <DialogDescription>
+              {displayedLanguages.length > 1
+                ? `This article exists in ${displayedLanguages.length} languages. Choose whether to delete only ${getLanguageName(language || "en") || language || "this language"} or every translation. This cannot be undone.`
+                : `This permanently deletes “${title}”. This action cannot be undone.`}
+            </DialogDescription>
           </DialogHeader>
           {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={isUpdating}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={isUpdating}>
-              {isUpdating ? "Deleting…" : "Delete"}
+            <Button variant="destructive" onClick={() => handleDelete(false)} disabled={isUpdating}>
+              {isUpdating ? "Deleting…" : displayedLanguages.length > 1 ? `Delete ${getLanguageName(language || "en") || language || "this language"}` : "Delete"}
             </Button>
+            {displayedLanguages.length > 1 && (
+              <Button variant="destructive" onClick={() => handleDelete(true)} disabled={isUpdating}>
+                {isUpdating ? "Deleting…" : `Delete all ${displayedLanguages.length}`}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

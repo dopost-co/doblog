@@ -2,18 +2,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { postCreateSchema, postUpdateSchema } from "@/lib/integrations/schemas";
 import { ApiError } from "@/lib/integrations/errors";
 
-const mocks = vi.hoisted(() => ({ operation: vi.fn(), recordBlogId: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+const mocks = vi.hoisted(() => ({
+  operation: vi.fn(),
+  recordBlogId: vi.fn(),
+  findPost: vi.fn(),
+  findPosts: vi.fn(),
+}));
+vi.mock("@/lib/prisma", () => ({ prisma: { post: { findFirst: mocks.findPost, findMany: mocks.findPosts } } }));
 vi.mock("@/lib/get-session", () => ({ getSession: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/src/server/services/content/dashboard", () => ({ dashboardOperation: mocks.operation, recordBlogId: mocks.recordBlogId }));
-import { createPost, updatePost } from "@/src/server/services/posts/mutations";
+import { createPost, deletePostTranslations, updatePost, updatePostTranslations } from "@/src/server/services/posts/mutations";
 
 describe("dashboard post payloads", () => {
   beforeEach(() => {
+    mocks.operation.mockReset();
+    mocks.recordBlogId.mockReset();
     mocks.recordBlogId.mockResolvedValue("actual-blog");
+    mocks.findPost.mockReset();
+    mocks.findPosts.mockReset();
     mocks.operation.mockImplementation(async (_blogId, operation, input) => {
       if (operation === "create_posts") return { id: "post", ...postCreateSchema.parse(input) };
+      if (operation === "delete_posts") return { id: (input as { id: string }).id, deleted: true };
       const { id, ...fields } = input;
       return { id, ...postUpdateSchema.parse(fields) };
     });
@@ -43,5 +53,38 @@ describe("dashboard post payloads", () => {
     expect(result.error).toBeUndefined();
     expect(result.post?.content).toEqual(content);
     expect(mocks.operation.mock.calls[0][2]).not.toHaveProperty("blogId");
+  });
+
+  it("updates list-level fields across every translation in the same blog", async () => {
+    mocks.findPost.mockResolvedValue({ translationGroupId: "group-1" });
+    mocks.findPosts.mockResolvedValue([{ id: "post-es" }, { id: "post-en" }, { id: "post-fr" }]);
+
+    const result = await updatePostTranslations("post-es", { status: "published", featured: true });
+
+    expect(result).toMatchObject({ success: true, affectedCount: 3 });
+    expect(mocks.findPosts).toHaveBeenCalledWith(expect.objectContaining({
+      where: { blogId: "actual-blog", translationGroupId: "group-1" },
+    }));
+    expect(mocks.operation.mock.calls).toEqual([
+      ["actual-blog", "update_posts", { id: "post-es", status: "published", featured: true }],
+      ["actual-blog", "update_posts", { id: "post-en", status: "published", featured: true }],
+      ["actual-blog", "update_posts", { id: "post-fr", status: "published", featured: true }],
+    ]);
+  });
+
+  it("deletes every translation and falls back to the selected post without a group", async () => {
+    mocks.findPost.mockResolvedValueOnce({ translationGroupId: "group-1" });
+    mocks.findPosts.mockResolvedValueOnce([{ id: "post-es" }, { id: "post-en" }]);
+    expect(await deletePostTranslations("post-es")).toMatchObject({ success: true, affectedCount: 2 });
+    expect(mocks.operation.mock.calls).toEqual([
+      ["actual-blog", "delete_posts", { id: "post-es" }],
+      ["actual-blog", "delete_posts", { id: "post-en" }],
+    ]);
+
+    mocks.operation.mockClear();
+    mocks.findPost.mockResolvedValueOnce({ translationGroupId: null });
+    expect(await deletePostTranslations("standalone")).toMatchObject({ success: true, affectedCount: 1 });
+    expect(mocks.operation).toHaveBeenCalledOnce();
+    expect(mocks.operation).toHaveBeenCalledWith("actual-blog", "delete_posts", { id: "standalone" });
   });
 });

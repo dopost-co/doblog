@@ -91,6 +91,51 @@ export async function deletePost(id: string) {
   } catch (error) { return { error: apiError(error).error }; }
 }
 
+type TranslationGroupUpdate = {
+  status?: "draft" | "published";
+  featured?: boolean;
+};
+
+async function translationPostIds(id: string, blogId: string) {
+  const source = await prisma.post.findFirst({
+    where: { id, blogId },
+    select: { translationGroupId: true },
+  });
+  if (!source) throw new ApiError(404, "Post not found");
+  if (!source.translationGroupId) return [id];
+  const translations = await prisma.post.findMany({
+    where: { blogId, translationGroupId: source.translationGroupId },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return translations.map((translation) => translation.id);
+}
+
+/** Applies list-level editorial flags to every language in an article's translation group. */
+export async function updatePostTranslations(id: string, data: TranslationGroupUpdate) {
+  try {
+    const blogId = await recordBlogId("posts", id);
+    const ids = await translationPostIds(id, blogId);
+    const posts: Post[] = [];
+    for (const postId of ids) {
+      posts.push(await dashboardOperation(blogId, "update_posts", { id: postId, ...data }) as Post);
+    }
+    return { success: true, posts, affectedCount: posts.length };
+  } catch (error) { return { error: apiError(error).error }; }
+}
+
+/** Permanently deletes every language in an article's translation group. */
+export async function deletePostTranslations(id: string) {
+  try {
+    const blogId = await recordBlogId("posts", id);
+    const ids = await translationPostIds(id, blogId);
+    for (const postId of ids) {
+      await dashboardOperation(blogId, "delete_posts", { id: postId });
+    }
+    return { success: true, affectedCount: ids.length };
+  } catch (error) { return { error: apiError(error).error }; }
+}
+
 export async function translatePost(postId: string, targetLanguage: string) {
   const session = await getSession();
   if (!session?.user?.id) {
